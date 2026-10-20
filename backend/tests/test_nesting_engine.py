@@ -224,3 +224,85 @@ def test_rack_scrap_detection_and_substitution() -> None:
     assert resp_scraps.applied_workshop_scraps[0].scrap_dev == 120
     # Surface brute = 0.12 * 2.0 = 0.24 m² (au lieu de 0.60 * 2.0 = 1.20 m²)
     assert resp_scraps.total_gross_surface_m2 == 0.24
+
+
+def test_cross_length_generated_chute_reuse() -> None:
+    """
+    Test du cas réel utilisateur :
+    Pièce 1 : dev 280 mm, longueur 4.0 m
+    Pièce 2 : dev 280 mm, longueur 3.5 m
+    Sur laize 600 mm (Alu 7016) :
+    - Sans réemploi de chute générée : 2 tôles mères de 600 mm (4.0m et 3.5m) -> brute = 4.50 m², rendement = 46.7%
+    - Avec réemploi de chute générée : Pièce 2 débitée dans la chute 320 mm x 4.0 m de l'OP #1 !
+      -> 1 seule tôle mère de 600 mm x 4.0m débitée (brute = 2.40 m² au lieu de 4.50 m²)
+      -> rendement matière = 87.5% !
+    """
+    pieces = [
+        ShapedPieceModel(
+            id="p-4m",
+            label="Façonnage Dév 280 mm (4m)",
+            dev=280,
+            length=4.0,
+            quantity=1,
+            material="Alu 7016 gris bleu 0.7",
+        ),
+        ShapedPieceModel(
+            id="p-3m50",
+            label="Façonnage Dév 280 mm (3.5m)",
+            dev=280,
+            length=3.5,
+            quantity=1,
+            material="Alu 7016 gris bleu 0.7",
+        ),
+    ]
+
+    # 1. Avec réemploi actif (par défaut)
+    req_optimized = OptimizationRequest(
+        material="Alu 7016 gris bleu 0.7",
+        pieces=pieces,
+        available_mother_widths=[600],
+        use_generated_scraps=True,
+    )
+    resp_opt = run_nesting_optimization(req_optimized)
+
+    assert len(resp_opt.slits) == 2
+    op1 = resp_opt.slits[0]
+    op2 = resp_opt.slits[1]
+
+    # OP #1 est sur bobine mère neuve
+    assert op1.source_type == "MOTHER_COIL"
+    assert op1.mother_width == 600
+    assert op1.mother_length == 4.0
+    assert op1.used_width == 280
+    assert op1.scrap_width == 320
+
+    # OP #2 est une reprise sur la chute issue de OP #1
+    assert op2.source_type == "REUSED_OFFCUT"
+    assert op2.source_op_index == 1
+    assert op2.mother_width == 320  # largeur de la chute
+    assert op2.mother_length == 3.5  # longueur utile
+    assert op2.original_offcut_length == 4.0
+    assert op2.offcut_cut_length == 0.5  # tronçonnage en bout (4.0 - 3.5)
+    assert op2.used_width == 280
+    assert op2.scrap_width == 40  # 320 - 280
+
+    # Surface brute ne compte que la tôle mère d'origine de 4.0 m
+    assert resp_opt.total_gross_surface_m2 == 2.40
+    # Rendement = 2.10 / 2.40 = 87.5%
+    assert resp_opt.material_efficiency_rate == 87.5
+
+    # 2. Sans réemploi (calcul traditionnel en cohortes étanches)
+    req_disabled = OptimizationRequest(
+        material="Alu 7016 gris bleu 0.7",
+        pieces=pieces,
+        available_mother_widths=[600],
+        use_generated_scraps=False,
+    )
+    resp_dis = run_nesting_optimization(req_disabled)
+
+    assert len(resp_dis.slits) == 2
+    assert resp_dis.slits[0].source_type == "MOTHER_COIL"
+    assert resp_dis.slits[1].source_type == "MOTHER_COIL"
+    assert resp_dis.total_gross_surface_m2 == 4.50  # 2 tôles mères complètes (2.40 + 2.10)
+    # L'OP #2 consomme une pleine laize de 600 mm au lieu de la chute de 320 mm
+    assert resp_dis.slits[1].mother_width == 600

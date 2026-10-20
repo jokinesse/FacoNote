@@ -71,6 +71,8 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
   // Mode: baseline is pure calculation without scraps (100% mother sheets)
   const [useWorkshopScraps, setUseWorkshopScraps] = useState<boolean>(false);
   const [acceptedProposalIds, setAcceptedProposalIds] = useState<string[]>([]);
+  // Réemploi intelligent des chutes générées dans le même débit (ex: pièce 3.5m découpée dans chute 4m)
+  const [useGeneratedScraps, setUseGeneratedScraps] = useState<boolean>(true);
 
   // Optimization Result
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
@@ -153,7 +155,8 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
   const calculateOptimization = async (
     currentPieces = pieces,
     withScraps = useWorkshopScraps,
-    propIds = acceptedProposalIds
+    propIds = acceptedProposalIds,
+    withGeneratedScraps = useGeneratedScraps
   ) => {
     if (currentPieces.length === 0) {
       setOptimizationResult(null);
@@ -172,6 +175,7 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
         pieces: currentPieces.map(mapShapedPieceToModel),
         available_mother_widths: activeMotherWidths,
         use_workshop_scraps: withScraps,
+        use_generated_scraps: withGeneratedScraps,
         accepted_proposal_ids: propIds,
       });
 
@@ -198,6 +202,7 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
         pieces: pieces.map(mapShapedPieceToModel),
         available_mother_widths: activeMotherWidths,
         use_workshop_scraps: useWorkshopScraps,
+        use_generated_scraps: useGeneratedScraps,
         accepted_proposal_ids: acceptedProposalIds,
       });
 
@@ -220,8 +225,8 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
 
   // Re-run optimization when pieces or widths change
   useEffect(() => {
-    calculateOptimization(pieces, useWorkshopScraps, acceptedProposalIds);
-  }, [pieces, activeMotherWidths, selectedMaterial, useWorkshopScraps, acceptedProposalIds]);
+    calculateOptimization(pieces, useWorkshopScraps, acceptedProposalIds, useGeneratedScraps);
+  }, [pieces, activeMotherWidths, selectedMaterial, useWorkshopScraps, acceptedProposalIds, useGeneratedScraps]);
 
   // Toggle Mother Width
   const handleToggleMotherWidth = (width: number) => {
@@ -271,6 +276,11 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
     >();
 
     for (const mItem of optimizationResult.motherItemsNeeded) {
+      // Les reprises sur chutes déjà sorties (REUSED_OFFCUT) ne nécessitent pas de sortir une nouvelle feuille au magasin
+      if (mItem.slits[0]?.sourceType === 'REUSED_OFFCUT') {
+        continue;
+      }
+
       const mat = mItem.material || selectedMaterial || 'Zinc Quartz 0.7';
       const density = getMaterialDensity(mat);
 
@@ -1183,7 +1193,25 @@ Sois direct, pro et concis en français.`;
               </div>
 
               {/* Mode indicator */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setUseGeneratedScraps(!useGeneratedScraps)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
+                    useGeneratedScraps
+                      ? 'bg-cyan-950/50 text-cyan-300 border-cyan-500/50 hover:bg-cyan-900/50'
+                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                  }`}
+                  title="Réutilise automatiquement les chutes d'opérations plus longues (ex: pièce de 3.5m découpée dans une chute de 4m)"
+                >
+                  <Scissors className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>
+                    {useGeneratedScraps
+                      ? '♻️ Réemploi Chutes Débit : Actif (ex: 3.5m dans 4m)'
+                      : 'Chutes Débit Inter-Longueurs : Inactif'}
+                  </span>
+                </button>
+
                 <span
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border ${
                     useWorkshopScraps

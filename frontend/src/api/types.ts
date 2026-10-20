@@ -84,6 +84,12 @@ export interface SlitModel {
   scrap_width: number;
   is_scrap_reusable: boolean;
   suggested_scrap_ref: string | null;
+  source_type?: 'MOTHER_COIL' | 'REUSED_OFFCUT';
+  source_label?: string | null;
+  source_op_index?: number | null;
+  original_offcut_length?: number | null;
+  offcut_cut_length?: number | null;
+  parent_scrap_ref?: string | null;
 }
 
 export interface ScrapProposalModel {
@@ -105,6 +111,7 @@ export interface OptimizationRequest {
   pieces: ShapedPieceModel[];
   available_mother_widths?: number[];
   use_workshop_scraps?: boolean;
+  use_generated_scraps?: boolean;
   accepted_proposal_ids?: string[] | null;
 }
 

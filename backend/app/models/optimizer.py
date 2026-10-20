@@ -71,6 +71,10 @@ class OptimizationRequest(BaseModel):
     pieces: list[ShapedPieceModel] = Field(..., min_length=1, description="Liste des pièces à imbriquer")
     available_mother_widths: Optional[list[int]] = Field(None, description="Laizes mères en stock autorisées")
     use_workshop_scraps: bool = Field(False, description="Activer la substitution par des bandes de rack")
+    use_generated_scraps: bool = Field(
+        True,
+        description="Réutiliser les chutes générées dans le même débit pour les pièces plus courtes compatibles (ex: 3.5m dans chute de 4m)",
+    )
     accepted_proposal_ids: Optional[list[str]] = Field(None, description="IDs des propositions de substitution acceptées")
 
 
@@ -87,7 +91,7 @@ class SlitStripModel(BaseModel):
 
 
 class SlitNestResultModel(BaseModel):
-    """Résultat de découpe sur une laize mère."""
+    """Résultat de découpe sur une laize mère ou sur une chute de débit réemployée."""
     model_config = ConfigDict(extra="forbid")
 
     mother_width: int
@@ -98,6 +102,26 @@ class SlitNestResultModel(BaseModel):
     scrap_width: int
     is_scrap_reusable: bool
     suggested_scrap_ref: Optional[str] = None
+
+    # Champs pour le réemploi intelligent de chutes inter-longueurs (ex: pièce de 3.5m dans chute de 4m)
+    source_type: Literal["MOTHER_COIL", "REUSED_OFFCUT"] = Field(
+        "MOTHER_COIL", description="Origine de la tôle (bobine neuve ou chute d'une opération précédente)"
+    )
+    source_label: Optional[str] = Field(
+        None, description="Libellé explicatif de la source (ex: 'Chute 320 mm × 4.0 m issue de OP #1')"
+    )
+    source_op_index: Optional[int] = Field(
+        None, description="Numéro de l'opération parente ayant généré cette chute (1-based)"
+    )
+    original_offcut_length: Optional[float] = Field(
+        None, description="Longueur initiale de la chute avant mise à longueur en mètres (ex: 4.0)"
+    )
+    offcut_cut_length: Optional[float] = Field(
+        None, description="Chute en bout résiduelle après tronçonnage en mètres (ex: 0.50)"
+    )
+    parent_scrap_ref: Optional[str] = Field(
+        None, description="Référence de la chute parente consommée (ex: 'CHU-ALU-320-4.0M')"
+    )
 
 
 class WorkshopScrapProposalModel(BaseModel):

@@ -112,16 +112,29 @@ def _find_best_slit_combination(
     )
 
 
+@dataclass
+class AvailableGeneratedOffcut:
+    op_index: int  # 1-based index in slits_result
+    material: str
+    width: int
+    length: float
+    scrap_ref: Optional[str]
+    parent_slit: SlitNestResultModel
+    remaining_width: int
+
+
 def _pack_cuts_into_mother_coils(
     cuts_to_pack: list[FlattenedCut],
     requested_mother_widths: Optional[list[int]],
+    use_generated_scraps: bool = True,
 ) -> tuple[list[SlitNestResultModel], float]:
     """
     Imbrique une liste de coupes sur les laizes mères en respectant :
     - Étape 1 : Ségrégation stricte par matière
     - Étape 2 : Partitionnement par cohortes de longueur unitaire
-    - Étape 3 : Combinaison transversale sur laizes mères
-    - Étape 4 : Qualification des chutes réutilisables d'atelier (>=100mm et >=1.0m)
+    - Étape 3 : Réemploi intelligent de chutes inter-longueurs (ex: 3.5m dans chute de 4m) si activé
+    - Étape 4 : Combinaison transversale sur laizes mères
+    - Étape 5 : Qualification des chutes réutilisables d'atelier (>=100mm et >=1.0m)
     """
     # 1. Regroupement strict par nuance de matière
     material_groups: dict[str, list[FlattenedCut]] = {}
@@ -152,8 +165,83 @@ def _pack_cuts_into_mother_coils(
         # Découpe des cohortes par longueur décroissante
         sorted_lengths = sorted(cohorts.keys(), reverse=True)
 
+        # Chutes générées par les débits plus longs réutilisables pour les longueurs plus courtes
+        available_offcuts: list[AvailableGeneratedOffcut] = []
+
         for length_m in sorted_lengths:
             remaining_cuts = list(cohorts[length_m])
+
+            # Étape 3 : Réemploi de chutes générées par des cohortes plus longues
+            if use_generated_scraps and available_offcuts:
+                for offcut in list(available_offcuts):
+                    if not remaining_cuts:
+                        break
+                    if offcut.remaining_width < 50 or offcut.length < length_m:
+                        continue
+
+                    comb = _find_best_slit_combination(remaining_cuts, offcut.remaining_width)
+                    if comb and comb.packed:
+                        # Retrait des pièces imbriquées dans cette chute
+                        packed_ids = {p.id for p in comb.packed}
+                        remaining_cuts = [c for c in remaining_cuts if c.id not in packed_ids]
+
+                        offcut_cut_len = round_meters(offcut.length - length_m)
+                        reused_op_num = len(slits_result) + 1
+                        parent_op_idx = offcut.op_index
+
+                        # Regroupement des bandes identiques
+                        offcut_strips_by_piece: dict[str, SlitStripModel] = {}
+                        for p in comb.packed:
+                            if p.piece_id in offcut_strips_by_piece:
+                                prev = offcut_strips_by_piece[p.piece_id]
+                                offcut_strips_by_piece[p.piece_id] = SlitStripModel(
+                                    piece_id=prev.piece_id,
+                                    label=prev.label,
+                                    dev=prev.dev,
+                                    length=prev.length,
+                                    qty=prev.qty + 1,
+                                    material=prev.material,
+                                )
+                            else:
+                                offcut_strips_by_piece[p.piece_id] = SlitStripModel(
+                                    piece_id=p.piece_id,
+                                    label=p.label,
+                                    dev=p.dev,
+                                    length=p.length,
+                                    qty=1,
+                                    material=p.material,
+                                )
+
+                        residual_scrap = offcut.remaining_width - comb.used_width
+                        offcut.remaining_width = residual_scrap
+
+                        # Mise à jour de la chute parente : elle est réemployée dans l'atelier
+                        offcut.parent_slit.suggested_scrap_ref = (
+                            f"{offcut.scrap_ref} (Réemployée dans OP #{reused_op_num})"
+                            if offcut.scrap_ref
+                            else f"Chute OP #{parent_op_idx} (Réemployée)"
+                        )
+                        # La chute de l'OP parente est désormais façonnée : elle ne compte plus comme chute libre
+                        offcut.parent_slit.is_scrap_reusable = False
+
+                        slits_result.append(
+                            SlitNestResultModel(
+                                mother_width=offcut.width,
+                                mother_length=length_m,
+                                material=spec.name,
+                                strips=list(offcut_strips_by_piece.values()),
+                                used_width=comb.used_width,
+                                scrap_width=residual_scrap,
+                                is_scrap_reusable=False,
+                                suggested_scrap_ref=None,
+                                source_type="REUSED_OFFCUT",
+                                source_label=f"Chute {offcut.width} mm × {offcut.length:.2f} m (Issue de OP #{parent_op_idx})",
+                                source_op_index=parent_op_idx,
+                                original_offcut_length=offcut.length,
+                                offcut_cut_length=offcut_cut_len,
+                                parent_scrap_ref=offcut.scrap_ref,
+                            )
+                        )
 
             while remaining_cuts:
                 best_res: Optional[tuple[int, BestSlitCombination, float]] = None
@@ -218,18 +306,39 @@ def _pack_cuts_into_mother_coils(
                             material=p.material,
                         )
 
-                slits_result.append(
-                    SlitNestResultModel(
-                        mother_width=chosen_mother_width,
-                        mother_length=length_m,
-                        material=spec.name,
-                        strips=list(strips_by_piece.values()),
-                        used_width=combination.used_width,
-                        scrap_width=combination.scrap_width,
-                        is_scrap_reusable=is_reusable,
-                        suggested_scrap_ref=scrap_ref,
-                    )
+                new_slit = SlitNestResultModel(
+                    mother_width=chosen_mother_width,
+                    mother_length=length_m,
+                    material=spec.name,
+                    strips=list(strips_by_piece.values()),
+                    used_width=combination.used_width,
+                    scrap_width=combination.scrap_width,
+                    is_scrap_reusable=is_reusable,
+                    suggested_scrap_ref=scrap_ref,
+                    source_type="MOTHER_COIL",
+                    source_label=None,
+                    source_op_index=None,
+                    original_offcut_length=None,
+                    offcut_cut_length=None,
+                    parent_scrap_ref=None,
                 )
+                slits_result.append(new_slit)
+
+                # Si cette opération génère une chute réutilisable, on la rend disponible pour les longueurs suivantes
+                if is_reusable:
+                    available_offcuts.append(
+                        AvailableGeneratedOffcut(
+                            op_index=len(slits_result),
+                            material=spec.name,
+                            width=combination.scrap_width,
+                            length=length_m,
+                            scrap_ref=scrap_ref,
+                            parent_slit=new_slit,
+                            remaining_width=combination.scrap_width,
+                        )
+                    )
+
+    return slits_result, total_reusable_scrap_area
 
     return slits_result, total_reusable_scrap_area
 
@@ -264,6 +373,7 @@ def run_nesting_optimization(request: OptimizationRequest) -> OptimizationRespon
     baseline_slits, _ = _pack_cuts_into_mother_coils(
         cuts_to_pack=all_cuts,
         requested_mother_widths=request.available_mother_widths,
+        use_generated_scraps=request.use_generated_scraps,
     )
 
     # 2. Étape 5 : Détection des opportunités de substitution par chutes de rack
@@ -343,6 +453,7 @@ def run_nesting_optimization(request: OptimizationRequest) -> OptimizationRespon
             final_slits, _ = _pack_cuts_into_mother_coils(
                 cuts_to_pack=remaining_cuts,
                 requested_mother_widths=request.available_mother_widths,
+                use_generated_scraps=request.use_generated_scraps,
             )
 
     # 4. Calculs des métriques de synthèse avec déterminisme numérique
@@ -357,8 +468,12 @@ def run_nesting_optimization(request: OptimizationRequest) -> OptimizationRespon
 
     total_gross_surface = 0.0
     gross_weight_acc = 0.0
+    reused_offcuts_count = 0
 
     for slit in final_slits:
+        if slit.source_type == "REUSED_OFFCUT":
+            reused_offcuts_count += 1
+            continue  # Ne pas recompter la surface brute : issue d'une tôle mère déjà comptée
         s_spec = resolve_material_spec(slit.material)
         slit_surf = (slit.mother_width / 1000.0) * slit.mother_length
         total_gross_surface += slit_surf
@@ -372,7 +487,7 @@ def run_nesting_optimization(request: OptimizationRequest) -> OptimizationRespon
 
     reusable_scrap_surface = 0.0
     for slit in final_slits:
-        if slit.is_scrap_reusable:
+        if slit.is_scrap_reusable and slit.source_type != "REUSED_OFFCUT":
             reusable_scrap_surface += (slit.scrap_width / 1000.0) * slit.mother_length
 
     net_loss_surface = max(0.0, total_gross_surface - total_net_surface - reusable_scrap_surface)
@@ -386,11 +501,16 @@ def run_nesting_optimization(request: OptimizationRequest) -> OptimizationRespon
     else:
         efficiency_rate = 100.0
 
+    reused_note = (
+        f" · {reused_offcuts_count} pièce(s) façonnée(s) directement dans les chutes de débits plus longs."
+        if reused_offcuts_count > 0
+        else ""
+    )
     summary_msg = (
         f"Optimisation terminée : {len(request.pieces)} repères usinés. "
         f"Rendement matière de {efficiency_rate}% "
         f"({round(total_net_surface, 2)} m² nets sur {round(total_gross_surface, 2)} m² bruts). "
-        f"Poids total de débit : {round(gross_weight_acc, 2)} kg."
+        f"Poids total de débit : {round(gross_weight_acc, 2)} kg.{reused_note}"
     )
 
     return OptimizationResponse(

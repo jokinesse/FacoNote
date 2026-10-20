@@ -38,6 +38,12 @@ export function mapBackendOptimizationToResult(
         scrapWidth: s.scrap_width,
         isScrapReusable: s.is_scrap_reusable,
         suggestedScrapRef: s.suggested_scrap_ref || undefined,
+        sourceType: s.source_type || 'MOTHER_COIL',
+        sourceLabel: s.source_label || undefined,
+        sourceOpIndex: s.source_op_index || undefined,
+        originalOffcutLength: s.original_offcut_length || undefined,
+        offcutCutLength: s.offcut_cut_length || undefined,
+        parentScrapRef: s.parent_scrap_ref || undefined,
       },
     ],
   }));

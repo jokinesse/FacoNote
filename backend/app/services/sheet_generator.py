@@ -76,12 +76,20 @@ def generate_workshop_sheet_html(
 
         # Section Bobines mères à sortir
         coil_items = []
-        for slit in optimization.slits:
+        for idx, slit in enumerate(optimization.slits, start=1):
             total_strips = sum(st.qty for st in slit.strips)
-            coil_items.append(
-                f"<li><strong>Bobine Laize {slit.mother_width} mm</strong> ({slit.material}) : <strong>{slit.mother_length} m</strong> "
-                f"<span style='color: #64748b;'>(Découpe de {total_strips} bande(s), reste {slit.scrap_width} mm)</span></li>"
-            )
+            if slit.source_type == "REUSED_OFFCUT":
+                cut_info = f", tronçonner {slit.offcut_cut_length}m en tête" if slit.offcut_cut_length else ""
+                coil_items.append(
+                    f"<li style='color: #0369a1;'><strong>♻️ OP #{idx} : Reprise sur Chute Débit (Issue de OP #{slit.source_op_index})</strong> : "
+                    f"Largeur {slit.mother_width} mm × Longueur utile {slit.mother_length} m{cut_info} "
+                    f"<span style='color: #64748b;'>(Découpe de {total_strips} bande(s), reste {slit.scrap_width} mm)</span></li>"
+                )
+            else:
+                coil_items.append(
+                    f"<li><strong>OP #{idx} : Bobine Laize {slit.mother_width} mm</strong> ({slit.material}) : <strong>{slit.mother_length} m</strong> "
+                    f"<span style='color: #64748b;'>(Découpe de {total_strips} bande(s), reste {slit.scrap_width} mm)</span></li>"
+                )
         for scrap in optimization.applied_workshop_scraps:
             coil_items.append(
                 f"<li style='color: #b45309;'><strong>Chute Atelier Rack ({scrap.piece_label})</strong> : "

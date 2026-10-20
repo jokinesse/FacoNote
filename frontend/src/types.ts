@@ -136,6 +136,12 @@ export interface SlitNestResult {
   scrapWidth: number;
   isScrapReusable: boolean;
   suggestedScrapRef?: string;
+  sourceType?: 'MOTHER_COIL' | 'REUSED_OFFCUT';
+  sourceLabel?: string;
+  sourceOpIndex?: number;
+  originalOffcutLength?: number;
+  offcutCutLength?: number;
+  parentScrapRef?: string;
 }
 
 export interface WorkshopScrapProposal {

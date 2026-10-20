@@ -125,6 +125,8 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
           const motherLength = mItem.motherLength;
           const yieldPercent = Math.round((slit.usedWidth / motherWidth) * 1000) / 10;
           const scrapWidth = slit.scrapWidth;
+          const isReusedOffcut = slit.sourceType === 'REUSED_OFFCUT';
+          const isParentReused = slit.suggestedScrapRef?.includes('Réemployée');
 
           // Calcul des cotes cumulées de refente pour les opérateurs massicot
           // Chaque strip est déplié selon sa quantité (st.qty) pour représenter chaque bande physique sur la tôle mère
@@ -162,28 +164,65 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
               key={opIdx}
               className="bg-slate-950/90 border border-slate-800 rounded-xl overflow-hidden transition-all shadow-md hover:border-slate-700"
             >
-              {/* En-tête de la tôle mère */}
-              <div className="p-4 bg-slate-900/60 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              {/* En-tête de la tôle mère ou de la reprise sur chute */}
+              <div
+                className={`p-4 border-b flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+                  isReusedOffcut
+                    ? 'bg-cyan-950/40 border-cyan-800/40'
+                    : 'bg-slate-900/60 border-slate-800'
+                }`}
+              >
                 <div className="flex items-center gap-3 flex-wrap">
-                  <span className="font-mono font-bold text-xs px-2.5 py-1 rounded bg-amber-400 text-slate-950">
+                  <span
+                    className={`font-mono font-bold text-xs px-2.5 py-1 rounded ${
+                      isReusedOffcut
+                        ? 'bg-cyan-400 text-slate-950 font-black'
+                        : 'bg-amber-400 text-slate-950'
+                    }`}
+                  >
                     OP #{opIdx + 1}
                   </span>
+
+                  {isReusedOffcut && (
+                    <span className="text-xs font-bold font-mono px-2.5 py-1 rounded bg-cyan-950/80 border border-cyan-500/60 text-cyan-300 flex items-center gap-1.5 shadow-xs">
+                      <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>♻️ Reprise sur Chute OP #{slit.sourceOpIndex}</span>
+                    </span>
+                  )}
 
                   <span className="text-xs font-bold font-mono px-2.5 py-1 rounded bg-slate-800 border border-slate-700 text-amber-300">
                     {mItem.material || selectedMaterial}
                   </span>
 
                   <div className="flex items-center gap-2 text-xs font-mono text-slate-200">
-                    <span className="text-slate-400">Tôle mère :</span>
-                    <strong className="text-white bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                      Laize {motherWidth} mm × {motherLength} m
+                    <span className="text-slate-400">
+                      {isReusedOffcut ? 'Chute d\'origine :' : 'Tôle mère :'}
+                    </span>
+                    <strong
+                      className={`px-2 py-0.5 rounded border ${
+                        isReusedOffcut
+                          ? 'text-cyan-200 bg-cyan-950/60 border-cyan-500/40'
+                          : 'text-white bg-slate-900 border-slate-800'
+                      }`}
+                    >
+                      {isReusedOffcut
+                        ? `Chute ${motherWidth} mm × ${slit.originalOffcutLength || motherLength} m`
+                        : `Laize ${motherWidth} mm × ${motherLength} m`}
                     </strong>
                   </div>
 
                   <span className="text-slate-600 hidden sm:inline">·</span>
 
                   <div className="text-xs text-slate-400">
-                    Surface : <span className="text-slate-200 font-mono font-semibold">{((motherWidth / 1000) * motherLength).toFixed(2)} m²</span>
+                    Surface :{' '}
+                    <span className="text-slate-200 font-mono font-semibold">
+                      {((motherWidth / 1000) * motherLength).toFixed(2)} m²
+                    </span>
+                    {isReusedOffcut && (
+                      <span className="text-emerald-400 ml-1.5 font-sans font-semibold">
+                        (0 tôle neuve entamée)
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -217,6 +256,28 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
 
               {isExpanded && (
                 <div className="p-4 space-y-4">
+                  {/* Bandeau explicatif quand il s'agit d'une reprise sur chute générée (ex: 3.5m dans chute de 4m) */}
+                  {isReusedOffcut && (
+                    <div className="bg-cyan-950/30 border border-cyan-500/40 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                      <div className="flex items-start sm:items-center gap-2.5">
+                        <Scissors className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5 sm:mt-0" />
+                        <div>
+                          <strong className="text-white block font-bold">
+                            Chute réemployée depuis l'OP #{slit.sourceOpIndex} (Économie d'une tôle mère neuve) :
+                          </strong>
+                          <span className="text-cyan-200/90 text-[11px]">
+                            1. Tronçonner la chute de {slit.originalOffcutLength} m à {motherLength} m
+                            {slit.offcutCutLength ? ` (chute de tête restante : ${slit.offcutCutLength} m)` : ''}.
+                            {' '}2. Refendre la laize de {motherWidth} mm vers {slit.usedWidth} mm
+                            (chute de rive : {scrapWidth} mm).
+                          </span>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 font-mono text-[11px] font-bold border border-cyan-500/30 whitespace-nowrap self-end sm:self-auto">
+                        ✓ Chute 100% valorisée
+                      </span>
+                    </div>
+                  )}
                   {/* Règle graduée d'atelier supérieure (millimètres) */}
                   <div className="relative w-full h-5 text-[9px] font-mono text-slate-500 select-none flex justify-between items-end border-b border-slate-800/80 pb-0.5">
                     <span>0 mm</span>
@@ -347,6 +408,21 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+                      {isReusedOffcut && (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-cyan-500/50 bg-cyan-950/60 text-cyan-200">
+                          <Scissors className="w-3.5 h-3.5 text-cyan-400" />
+                          <span className="text-[10px] text-cyan-300 font-bold">Mise à longueur :</span>
+                          <strong className="text-white">
+                            {slit.originalOffcutLength} m → {motherLength} m
+                          </strong>
+                          {slit.offcutCutLength && slit.offcutCutLength > 0 ? (
+                            <span className="text-cyan-400 text-[10px] ml-0.5">
+                              [Chute de tête : {slit.offcutCutLength} m]
+                            </span>
+                          ) : null}
+                        </div>
+                      )}
+
                       {cutPositions.map((cut, cIdx) => (
                         <div
                           key={cIdx}
@@ -372,7 +448,18 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
                         </div>
                       )}
 
-                      {!slit.isScrapReusable && scrapWidth > 0 && (
+                      {isParentReused && (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-cyan-500/40 bg-cyan-950/40 text-cyan-300">
+                          <PackageCheck className="w-3.5 h-3.5 text-cyan-400" />
+                          <span className="text-[10px] font-bold">Chute valorisée :</span>
+                          <strong>{scrapWidth} mm × {motherLength} m</strong>
+                          <span className="text-[10px] text-cyan-400">
+                            (Réemployée directement dans ce débit)
+                          </span>
+                        </div>
+                      )}
+
+                      {!slit.isScrapReusable && !isParentReused && scrapWidth > 0 && (
                         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-rose-500/40 bg-rose-950/40 text-rose-300">
                           <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
                           <span className="text-[10px]">Rebut :</span>

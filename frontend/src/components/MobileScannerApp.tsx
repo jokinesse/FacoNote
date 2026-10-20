@@ -1,3 +1,4 @@
+import { mobileApi, ApiError } from '../api';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Camera,
@@ -153,23 +154,16 @@ export function MobileScannerApp({
     setErrorMessage(null);
 
     try {
-      const res = await fetch('/api/mobile/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId,
-          imageBase64: payload,
-          filename: `croquis_mobile_${Date.now()}.jpg`,
-          mimeType: 'image/jpeg',
-          note,
-        }),
+      const response = await mobileApi.uploadImage({
+        session_id: sessionId,
+        image_base64: payload,
+        filename: `croquis_mobile_${Date.now()}.jpg`,
+        note: note || undefined,
       });
 
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || 'Erreur lors du transfert');
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Erreur lors du transfert');
       }
-
       setUploadSuccess(true);
       // Gentle haptic feedback if supported by smartphone
       if (navigator.vibrate) {

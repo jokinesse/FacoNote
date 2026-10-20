@@ -27,6 +27,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { ShapedPiece, STANDARD_MATERIALS } from '../types';
+import { mobileApi, aiApi, ApiError } from '../api';
 import { optimizeImageForOcr } from '../utils/imageOptimizer';
 
 interface VisualPreEncoderModalProps {
@@ -167,12 +168,9 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
     try {
       let currentSession = mobileSessionId;
       if (!currentSession) {
-        const res = await fetch('/api/mobile/session', { method: 'POST' });
-        const data = await res.json();
-        if (data.sessionId) {
-          currentSession = data.sessionId;
-          setMobileSessionId(currentSession);
-        }
+        const sessionRes = await mobileApi.createSession();
+        currentSession = sessionRes.data.session_id;
+        setMobileSessionId(currentSession);
       }
 
       if (currentSession) {
@@ -191,29 +189,27 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
         // Start polling every 1200ms
         pollingIntervalRef.current = setInterval(async () => {
           try {
-            const statusRes = await fetch(`/api/mobile/status/${currentSession}`);
-            if (statusRes.ok) {
-              const statusData = await statusRes.json();
-              if (statusData.status === 'ready' && statusData.imageBase64) {
-                stopPolling();
-                setMobileTransferSuccess(
-                  `Photo reçue depuis votre smartphone (${statusData.filename || 'croquis.jpg'})`
-                );
+            const statusRes = await mobileApi.getStatus(currentSession);
+            const statusData = statusRes.data;
+            if (statusData.status === 'ready' && statusData.image_base64) {
+              stopPolling();
+              setMobileTransferSuccess(
+                `Photo reçue depuis votre smartphone (${statusData.filename || 'croquis.jpg'})`
+              );
 
-                // Convert base64 data URL to File object
-                const blobRes = await fetch(statusData.imageBase64);
-                const blob = await blobRes.blob();
-                const file = new File(
-                  [blob],
-                  statusData.filename || `croquis_mobile_${Date.now()}.jpg`,
-                  { type: statusData.mimeType || 'image/jpeg' }
-                );
-                await handleFileSelected(file);
-                if (statusData.note && !manualText) {
-                  setManualText(`Note mobile : ${statusData.note}`);
-                }
-                setIsQrModeActive(false);
+              // Convert base64 data URL to File object
+              const blobRes = await fetch(statusData.image_base64);
+              const blob = await blobRes.blob();
+              const file = new File(
+                [blob],
+                statusData.filename || `croquis_mobile_${Date.now()}.jpg`,
+                { type: 'image/jpeg' }
+              );
+              await handleFileSelected(file);
+              if (statusData.note && !manualText) {
+                setManualText(`Note mobile : ${statusData.note}`);
               }
+              setIsQrModeActive(false);
             }
           } catch (e) {
             console.warn('Mobile status polling error:', e);
@@ -250,35 +246,26 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
 
       setProcessingStep('Analyse multimodale IA par Gemini Vision (détection des profils, cotes des ailes, plis)...');
 
-      const response = await fetch('/api/ai/parse-document', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileBase64,
-          mimeType,
-          manualText: manualText.trim() || undefined,
-          standardLength: 2.0,
-        }),
+      const response = await aiApi.parseDocument({
+        file_base64: fileBase64 || null,
+        mime_type: mimeType,
+        manual_text: manualText.trim() || null,
+        standard_length: 2.0,
       });
 
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => null);
-        throw new Error(errJson?.error || `Erreur serveur HTTP ${response.status}`);
-      }
+      const data = response.data;
 
-      const data = await response.json();
-
-      if (data.rawObservations) {
-        setRawAiObservations(data.rawObservations);
+      if (data.raw_observations) {
+        setRawAiObservations(data.raw_observations);
       } else if (data.notes) {
         setRawAiObservations(data.notes);
       }
 
-      if (data.client || data.chantier || data.detectedFinish) {
+      if (data.client || data.chantier || data.detected_finish) {
         setClientInfo({
           client: data.client,
           chantier: data.chantier,
-          finish: data.detectedFinish,
+          finish: data.detected_finish,
         });
       }
 

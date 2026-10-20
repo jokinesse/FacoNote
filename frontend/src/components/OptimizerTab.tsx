@@ -37,6 +37,14 @@ import {
 import { WorkshopPrintModal, WorkshopJobData } from './WorkshopPrintModal';
 import { cleanWorkshopText } from '../utils/textCleaner';
 import { VisualPreEncoderModal } from './VisualPreEncoderModal';
+import {
+  optimizerApi,
+  aiApi,
+  ApiError,
+  mapBackendOptimizationToResult,
+  mapShapedPieceToModel,
+} from '../api';
+import { CuttingPlan2D } from './CuttingPlan2D';
 
 interface OptimizerTabProps {
   initialPieces?: ShapedPiece[];
@@ -66,6 +74,10 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
 
   // Optimization Result
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
+  const [isCalculating, setIsCalculating] = useState<boolean>(false);
+  const [calculationTimeMs, setCalculationTimeMs] = useState<number | null>(null);
+  const [calculationError, setCalculationError] = useState<string | null>(null);
+  const [isPrintingSheet, setIsPrintingSheet] = useState<boolean>(false);
 
   // Manual piece entry form
   const [newLabel, setNewLabel] = useState<string>('');
@@ -137,44 +149,73 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
     return resolveAutoPieceBreakdown(meters, pieces, newMat || selectedMaterial, selectedForcedLength);
   }, [isAutoMeterMode, newLength, pieces, newMat, selectedMaterial, selectedForcedLength]);
 
-  // Core calculation function
-  const calculateOptimization = (
+  // Core calculation function connectée à l'API FastAPI (/api/v1/optimizer/calculate)
+  const calculateOptimization = async (
     currentPieces = pieces,
     withScraps = useWorkshopScraps,
     propIds = acceptedProposalIds
   ) => {
     if (currentPieces.length === 0) {
       setOptimizationResult(null);
+      setCalculationError(null);
       return;
     }
 
-    const orderMat: MaterialType = isAlu ? 'ALUMINIUM' : 'ZINC';
-    const synthThick = /0\.7/i.test(selectedMaterial)
-      ? '0.7'
-      : /1\.0/i.test(selectedMaterial)
-      ? '1.0'
-      : '0.8';
+    setIsCalculating(true);
+    setCalculationError(null);
 
-    const order = {
-      id: `ord-${Date.now()}`,
-      code: `FZ-DEBIT-${Date.now().toString().slice(-4)}`,
-      client: clientName,
-      chantier: chantierRef,
-      date: new Date().toISOString().split('T')[0],
-      material: orderMat,
-      finish: selectedMaterial,
-      thickness: synthThick,
-      pieces: currentPieces,
-      status: 'Brouillon' as const,
-    };
+    try {
+      const response = await optimizerApi.calculateNesting({
+        client_name: clientName || 'Client Comptoir',
+        chantier_ref: chantierRef || 'Chantier Standard',
+        material: selectedMaterial,
+        pieces: currentPieces.map(mapShapedPieceToModel),
+        available_mother_widths: activeMotherWidths,
+        use_workshop_scraps: withScraps,
+        accepted_proposal_ids: propIds,
+      });
 
-    const res = runOptimization(order, undefined, undefined, {
-      availableMotherWidths: activeMotherWidths,
-      useWorkshopScraps: withScraps,
-      acceptedProposalIds: propIds,
-    });
+      setCalculationTimeMs(response.executionTimeMs);
+      const res = mapBackendOptimizationToResult(response.data, currentPieces);
+      setOptimizationResult(res);
+    } catch (err: any) {
+      console.error('Erreur optimisation API:', err);
+      const msg = err instanceof ApiError ? err.message : err.message || "Erreur lors du calcul d'imbrication";
+      setCalculationError(msg);
+    } finally {
+      setIsCalculating(false);
+    }
+  };
 
-    setOptimizationResult(res);
+  const handlePrintOfficialA4Sheet = async () => {
+    if (pieces.length === 0) return;
+    setIsPrintingSheet(true);
+    try {
+      const { text: htmlContent } = await optimizerApi.getPrintSheetHtml({
+        client_name: clientName || 'Client Comptoir',
+        chantier_ref: chantierRef || 'Chantier Standard',
+        material: selectedMaterial,
+        pieces: pieces.map(mapShapedPieceToModel),
+        available_mother_widths: activeMotherWidths,
+        use_workshop_scraps: useWorkshopScraps,
+        accepted_proposal_ids: acceptedProposalIds,
+      });
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.open();
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+        }, 300);
+      }
+    } catch (err: any) {
+      setActionNotice(`Erreur lors de la génération de la fiche d'impression : ${err.message}`);
+    } finally {
+      setIsPrintingSheet(false);
+    }
   };
 
   // Re-run optimization when pieces or widths change
@@ -495,28 +536,16 @@ async function optimizeImageForOcr(file: File): Promise<{ base64: string; mimeTy
 
       setAnalyzingStep("Analyse multimodale IA par Gemini (détection des profils, cotes et plis)...");
 
-      const response = await fetch('/api/ai/parse-document', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fileBase64: base64,
-          mimeType,
-          fileName: file.name,
-          standardLength: 2.0,
-        }),
+      const response = await aiApi.parseDocument({
+        file_base64: base64,
+        mime_type: mimeType,
+        standard_length: 2.0,
       });
 
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => null);
-        throw new Error(errJson?.error || `Erreur serveur HTTP ${response.status}`);
-      }
+      const data = response.data;
 
-      const data = await response.json();
-
-      if (data.rawObservations) {
-        setAiObservations(data.rawObservations);
+      if (data.raw_observations) {
+        setAiObservations(data.raw_observations);
       } else if (data.notes) {
         setAiObservations(data.notes);
       }
@@ -535,9 +564,9 @@ async function optimizeImageForOcr(file: File): Promise<{ base64: string; mimeTy
         setPieces((prev) => [...prev, ...cleaned]);
         if (data.client) setClientName(cleanWorkshopText(data.client));
         if (data.chantier) setChantierRef(cleanWorkshopText(data.chantier));
-        if (data.detectedFinish && STANDARD_MATERIALS.includes(data.detectedFinish)) {
-          setSelectedMaterial(data.detectedFinish);
-          setNewMat(data.detectedFinish);
+        if (data.detected_finish && STANDARD_MATERIALS.includes(data.detected_finish)) {
+          setSelectedMaterial(data.detected_finish);
+          setNewMat(data.detected_finish);
         }
         setActionNotice(`${cleaned.length} pièce(s) détectée(s) et importée(s) avec succès depuis ${file.name}.`);
       } else {
@@ -665,20 +694,35 @@ Sois direct, pro et concis en français.`;
             <button
               type="button"
               onClick={() => calculateOptimization()}
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold flex items-center gap-2 border border-slate-700 transition-colors"
+              disabled={isCalculating || pieces.length === 0}
+              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center gap-2 border border-slate-700 transition-colors cursor-pointer"
             >
-              <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-              <span>Recalculer le Débit</span>
+              <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${isCalculating ? 'animate-spin' : ''}`} />
+              <span>{isCalculating ? 'Calcul FastAPI...' : 'Recalculer le Débit'}</span>
+              {calculationTimeMs !== null && !isCalculating && (
+                <span className="text-[10px] text-amber-400/90 font-mono">({calculationTimeMs}ms)</span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrintOfficialA4Sheet}
+              disabled={isPrintingSheet || pieces.length === 0}
+              className="px-4 py-2 bg-amber-400 hover:bg-amber-300 active:bg-amber-500 disabled:opacity-40 text-slate-950 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors shadow-sm cursor-pointer"
+              title="Génère et imprime la fiche d'atelier normalisée A4 officielle du backend FastAPI"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>{isPrintingSheet ? 'Génération A4...' : 'Imprimer Fiche A4 Directe'}</span>
             </button>
 
             <button
               type="button"
               onClick={() => setIsPrintModalOpen(true)}
               disabled={pieces.length === 0}
-              className="px-4 py-2 bg-amber-400 hover:bg-amber-300 disabled:opacity-40 text-slate-950 font-bold text-xs rounded-lg flex items-center gap-2 transition-colors shadow-sm"
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-300 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Aperçu dans la fenêtre modale"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Imprimer Bon Atelier (A4)</span>
+              <span>Aperçu Écran</span>
             </button>
           </div>
         </div>
@@ -736,6 +780,25 @@ Sois direct, pro et concis en français.`;
           </div>
         </div>
       </div>
+
+      {calculationError && (
+        <div className="bg-rose-950/60 border border-rose-800/80 rounded-xl p-4 flex items-center justify-between gap-3 text-rose-300 text-xs">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+            <div>
+              <strong className="block font-bold">Erreur du serveur d'optimisation :</strong>
+              <span>{calculationError}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCalculationError(null)}
+            className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-900 border border-slate-700"
+          >
+            Fermer
+          </button>
+        </div>
+      )}
 
       {/* SECTION 1: Pièces à Façonner (Transférées du Calculateur ou Saisies) */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
@@ -1533,115 +1596,13 @@ Sois direct, pro et concis en français.`;
             </div>
           )}
 
-          {/* DÉTAIL DES FEUILLES / BOBINES MÈRES À SORTIR & DIAGRAMMES VISUELS */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                  Détail des Feuilles / Bobines Mères à Débiter ({optimizationResult.motherItemsNeeded.length} opérations)
-                </h4>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Plan de refente longitudinal : découpe des largeurs en parallèle
-                </p>
-              </div>
-            </div>
+          {/* Visualiseur de Calepinage 2D Haute Résolution */}
+          <CuttingPlan2D
+            motherItems={optimizationResult.motherItemsNeeded}
+            selectedMaterial={selectedMaterial}
+          />
 
-            <div className="space-y-4">
-              {optimizationResult.motherItemsNeeded.map((mItem, idx) => {
-                const slit = mItem.slits[0];
-                if (!slit) return null;
-
-                return (
-                  <div
-                    key={idx}
-                    className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 space-y-3"
-                  >
-                    {/* Header of cut */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-mono text-xs border-b border-slate-800/80 pb-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-white px-2 py-0.5 rounded bg-slate-800 text-[11px]">
-                          Opération #{idx + 1}
-                        </span>
-                        <span className="px-2 py-0.5 rounded text-[11px] font-sans font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                          {mItem.material || selectedMaterial}
-                        </span>
-                        <span className="font-bold text-amber-300">
-                          Bobine mère : {mItem.motherWidth} mm
-                        </span>
-                        <span className="text-slate-600">·</span>
-                        <span className="text-slate-300">
-                          Longueur à dérouler : <strong>{mItem.motherLength} m</strong>
-                        </span>
-                      </div>
-                      <div className="text-slate-400 text-[11px]">
-                        Surface : {((mItem.motherWidth / 1000) * mItem.motherLength).toFixed(2)} m²
-                        {' · '}
-                        Perte : <span className={slit.scrapWidth > 100 ? 'text-emerald-400' : 'text-rose-400 font-bold'}>{slit.scrapWidth} mm</span>
-                      </div>
-                    </div>
-
-                    {/* Diagramme de refente proportionnel */}
-                    <div className="h-10 w-full bg-slate-900 rounded-lg overflow-hidden flex border border-slate-700 text-[11px] font-mono select-none shadow-inner">
-                      {slit.strips.map((s, stripIdx) => {
-                        const widthPct = (s.dev / mItem.motherWidth) * 100;
-                        return (
-                          <div
-                            key={stripIdx}
-                            style={{ width: `${widthPct}%` }}
-                            className="bg-amber-500/20 border-r border-amber-500/40 text-amber-200 flex flex-col items-center justify-center px-1 truncate hover:bg-amber-500/30 transition-colors"
-                            title={`${s.label} : Dév ${s.dev}mm × ${s.length}m`}
-                          >
-                            <span className="font-bold truncate text-[11px]">{s.dev} mm</span>
-                            <span className="text-[9px] text-amber-400/80 truncate">
-                              {s.label}
-                            </span>
-                          </div>
-                        );
-                      })}
-
-                      {slit.scrapWidth > 0 && (
-                        <div
-                          style={{ width: `${(slit.scrapWidth / mItem.motherWidth) * 100}%` }}
-                          className={`flex flex-col items-center justify-center px-1 truncate ${
-                            slit.isScrapReusable
-                              ? 'bg-emerald-950/40 text-emerald-300 border-l border-emerald-700/60'
-                              : 'bg-rose-950/50 text-rose-300 border-l border-rose-700/60'
-                          }`}
-                          title={
-                            slit.isScrapReusable
-                              ? `Chute réutilisable à conserver (${slit.scrapWidth} mm)`
-                              : `Rebut / Perte (${slit.scrapWidth} mm)`
-                          }
-                        >
-                          <span className="font-bold truncate text-[11px]">{slit.scrapWidth} mm</span>
-                          <span className="text-[8px] uppercase tracking-wider truncate">
-                            {slit.isScrapReusable ? 'Chute Rack' : 'Rebut'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* List of strips in this sheet */}
-                    <div className="flex flex-wrap gap-2 text-[11px] font-mono text-slate-400 pt-1">
-                      <span className="font-sans font-semibold text-slate-500">Bandes :</span>
-                      {slit.strips.map((s, sIdx) => (
-                        <span key={sIdx} className="bg-slate-900 px-2 py-0.5 rounded border border-slate-800 text-slate-300">
-                          {s.label} (Dév {s.dev}mm)
-                        </span>
-                      ))}
-                      {slit.isScrapReusable && (
-                        <span className="bg-emerald-950/30 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800/40">
-                          Chute générée : {slit.scrapWidth} mm × {mItem.motherLength} m
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* AI ADVISORY PANEL */}
+                    {/* AI ADVISORY PANEL */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">

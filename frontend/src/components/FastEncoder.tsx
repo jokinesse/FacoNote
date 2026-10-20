@@ -31,6 +31,12 @@ import {
   getMaterialWeightDetails,
   resolveAutoPieceBreakdown,
 } from '../utils/optimizer';
+import {
+  optimizerApi,
+  ApiError,
+  BreakdownOption,
+  FastEncoderEntryResponse,
+} from '../api';
 import { WorkshopCalculator } from './WorkshopCalculator';
 import { VisualPreEncoderModal } from './VisualPreEncoderModal';
 
@@ -69,7 +75,12 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     success: boolean;
     message: string;
     boundMatched?: number;
+    executionTimeMs?: number;
   } | null>(null);
+
+  // API loading & auto-calepinage alternatives
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [breakdownAlternatives, setBreakdownAlternatives] = useState<BreakdownOption[]>([]);
 
   // Refs for smooth Tab/Enter navigation between the 3 boxes
   const devRef = useRef<HTMLInputElement>(null);
@@ -88,8 +99,8 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     setLastFeedback(null);
   };
 
-  // Main Submit handler using the 3 cases
-  const handleSubmitEntry = (
+  // Main Submit handler using the 3 cases connected to FastAPI
+  const handleSubmitEntry = async (
     overrideDev?: string,
     overrideLen?: string,
     overrideQty?: string
@@ -98,36 +109,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     const lenStr = overrideLen !== undefined ? overrideLen : inputLength;
     const qtyStr = overrideQty !== undefined ? overrideQty : inputQuantity;
 
-    // Check if the user typed "175/8*3" or "dev/qty*len" into the dev box by habit
-    if (devStr.includes('/')) {
-      const slashIdx = devStr.indexOf('/');
-      const parsedDev = parseFloat(devStr.substring(0, slashIdx).replace(',', '.').trim());
-      const remainder = devStr.substring(slashIdx + 1).trim();
-
-      // Check if remainder is "qty*len" or "len*qty"
-      if (remainder.includes('*')) {
-        const parts = remainder.split('*').map((p) => p.trim());
-        const first = parseFloat(parts[0].replace(',', '.'));
-        const second = parseFloat(parts[1].replace(',', '.'));
-
-        if (!isNaN(parsedDev) && !isNaN(first) && !isNaN(second)) {
-          // If first looks like count (integer e.g. 8) and second looks like length (e.g. 3)
-          const qty = Number.isInteger(first) && first > 0 ? first : Math.round(second);
-          const len = Number.isInteger(first) && first > 0 ? second : first;
-          processDirectValues(parsedDev, len, qty, `${parsedDev}/${first}*${second}`);
-          return;
-        }
-      } else {
-        const evaluatedLen = evaluateExpression(remainder);
-        if (!isNaN(parsedDev) && !isNaN(evaluatedLen)) {
-          const qty = parseInt(qtyStr, 10) || 1;
-          processDirectValues(parsedDev, evaluatedLen, qty, `${parsedDev}/${remainder}`);
-          return;
-        }
-      }
-    }
-
-    // Normal 3-box validation
     if (!devStr.trim()) {
       setLastFeedback({
         success: false,
@@ -140,61 +121,158 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
       return;
     }
 
-    const dev = evaluateExpression(devStr);
-    if (isNaN(dev) || dev < 0 || (preset === 'DEV_PIECE' && dev === 0)) {
-      setLastFeedback({
-        success: false,
-        message:
-          preset === 'DEV_PIECE' && dev === 0
-            ? 'En mode DEV PIÈCE, le développement doit être supérieur à 0 mm (les chutes sont réservées au mode DEV BOBINE).'
-            : 'Développement invalide (nombre positif requis).',
-      });
-      devRef.current?.focus();
-      return;
-    }
+    setIsSubmitting(true);
+    setBreakdownAlternatives([]);
 
-    const evaluatedLen = evaluateExpression(lenStr);
-    if (isNaN(evaluatedLen) || evaluatedLen <= 0) {
-      setLastFeedback({
-        success: false,
-        message: 'Longueur invalide (ex: 2.0 ou 3 ou 1.5+1.5).',
-      });
-      lengthRef.current?.focus();
-      return;
-    }
+    try {
+      // Cas 1: Quantité = 0 -> Auto-calepinage du métrage linéaire (Section 3.2 du CDC)
+      const parsedQty = parseInt(qtyStr, 10);
+      if (parsedQty === 0 && !devStr.includes('/')) {
+        const parsedDev = evaluateExpression(devStr);
+        if (isNaN(parsedDev) || parsedDev <= 0) {
+          throw new Error('Développement de pièce invalide (> 0 mm requis).');
+        }
 
-    const qty = parseInt(qtyStr, 10);
-    if (isNaN(qty) || qty < 0) {
-      setLastFeedback({
-        success: false,
-        message: 'Nombre de pièces invalide (entier positif ou 0 pour auto-calepinage du métrage).',
-      });
-      qtyRef.current?.focus();
-      return;
-    }
+        const evaluatedLen = evaluateExpression(lenStr);
+        if (isNaN(evaluatedLen) || evaluatedLen <= 0) {
+          throw new Error('Métrage total invalide (> 0 m requis).');
+        }
 
-    // Unit conversion: if mm selected, convert to meters
-    const unitLengthM = lengthUnit === 'mm' ? evaluatedLen / 1000 : evaluatedLen;
+        const currentPiecesForEngine = intervals
+          .filter((row) => row.accumulatedLength > 0)
+          .map((row, idx) => ({
+            id: `p-${idx}`,
+            label: `Pièce borne ${row.bound}mm`,
+            dev: row.bound,
+            length: 2.0,
+            quantity: row.count || 1,
+            material: activeMaterial,
+          }));
 
-    if (qty === 0) {
-      // Auto meterage breakdown mode
-      const breakdown = resolveAutoPieceBreakdown(unitLengthM, [], activeMaterial);
-      const rawExpression = `Dév ${dev} · ${breakdown.quantity} pcs × ${breakdown.length}m (Total ${unitLengthM}m auto)`;
-      processDirectValues(dev, breakdown.length, breakdown.quantity, rawExpression);
-      setLastFeedback({
-        success: true,
-        message: `⚡ Métrage de ${unitLengthM}m auto-calepiné : ${breakdown.quantity} pièces de ${breakdown.length}m (${breakdown.reason})`,
+        const breakdownResp = await optimizerApi.autoBreakdown({
+          total_meters: evaluatedLen,
+          current_pieces: currentPiecesForEngine,
+          target_material: activeMaterial,
+        });
+
+        const breakdown = breakdownResp.data;
+        setBreakdownAlternatives(breakdown.alternatives || []);
+
+        const rawExpression = `Dév ${parsedDev} · ${breakdown.quantity} pcs × ${breakdown.length}m (Total ${evaluatedLen}m auto)`;
+        processDirectValues(parsedDev, breakdown.length, breakdown.quantity, rawExpression);
+
+        setLastFeedback({
+          success: true,
+          message: `⚡ Métrage de ${evaluatedLen}m auto-calepiné (${breakdownResp.executionTimeMs}ms) : ${breakdown.quantity} pièces de ${breakdown.length}m (${breakdown.reason})`,
+          executionTimeMs: breakdownResp.executionTimeMs,
+        });
+
+        setInputDev('');
+        setInputLength('2.0');
+        setInputQuantity('1');
+        devRef.current?.focus();
+        return;
+      }
+
+      // Cas 2: Expression unifiée pour l'endpoint FastAPI /quick-encode
+      let rawExpressionToEncode = devStr.trim();
+      if (!rawExpressionToEncode.includes('/')) {
+        const cleanLen = lenStr.trim() || '2.0';
+        const cleanQty = qtyStr.trim() || '1';
+        rawExpressionToEncode = `${devStr}/${cleanQty}*${cleanLen}`;
+      }
+
+      const apiResult = await optimizerApi.quickEncode({
+        raw_input: rawExpressionToEncode,
+        material: activeMaterial,
+        length_unit: lengthUnit,
+        preset: preset === 'DEV_BOBINE' ? 'DEV_BOBINE' : 'DEV_PIECE',
       });
+
+      const entry = apiResult.data;
+      const totalAddedM = entry.total_length_m;
+      const isChute = entry.is_chute;
+      const matToUse = entry.material;
+
+      if (isChute) {
+        setChuteLength((prev) => Math.round((prev + totalAddedM) * 1000) / 1000);
+        setChuteCount((prev) => prev + entry.quantity);
+
+        const newEntry: EncodedEntry = {
+          id: `entry-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          rawInput: entry.raw_input,
+          dev: 0,
+          lengthExpression: `${entry.quantity} × ${entry.unit_length_m}m`,
+          unitLength: entry.unit_length_m,
+          quantity: entry.quantity,
+          evaluatedLength: totalAddedM,
+          matchedBound: 0,
+          isChute: true,
+          material: matToUse,
+          timestamp: new Date().toLocaleTimeString(),
+        };
+        setEntriesHistory((prev) => [newEntry, ...prev]);
+
+        setLastFeedback({
+          success: true,
+          message: `Chute enregistrée (${apiResult.executionTimeMs}ms) : ${entry.quantity} pièce(s) de ${entry.unit_length_m}m = +${totalAddedM}m [${matToUse}] (Total chutes : ${(chuteLength + totalAddedM).toFixed(2)}m)`,
+          executionTimeMs: apiResult.executionTimeMs,
+        });
+      } else {
+        const matchedBound = entry.matched_bound;
+
+        setIntervals((prev) =>
+          prev.map((item) => {
+            if (item.bound === matchedBound) {
+              return {
+                ...item,
+                accumulatedLength:
+                  Math.round((item.accumulatedLength + totalAddedM) * 1000) / 1000,
+                count: item.count + entry.quantity,
+              };
+            }
+            return item;
+          })
+        );
+
+        const newEntry: EncodedEntry = {
+          id: `entry-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          rawInput: entry.raw_input,
+          dev: entry.dev,
+          lengthExpression: `${entry.quantity} × ${entry.unit_length_m}m`,
+          unitLength: entry.unit_length_m,
+          quantity: entry.quantity,
+          evaluatedLength: totalAddedM,
+          matchedBound,
+          isChute: false,
+          material: matToUse,
+          timestamp: new Date().toLocaleTimeString(),
+        };
+        setEntriesHistory((prev) => [newEntry, ...prev]);
+
+        setLastFeedback({
+          success: true,
+          message: `Saisie validée (${apiResult.executionTimeMs}ms) : Dév ${entry.dev}mm (${entry.quantity} pcs × ${entry.unit_length_m}m = ${totalAddedM}m) [${matToUse}] → Borne ≤ ${matchedBound}mm · ${entry.surface_net_m2} m² · ${entry.weight_net_kg} kg`,
+          boundMatched: matchedBound,
+          executionTimeMs: apiResult.executionTimeMs,
+        });
+      }
+
       setInputDev('');
-      setInputLength('');
-      setInputQuantity('1');
       devRef.current?.focus();
-      return;
+    } catch (err: any) {
+      const errorMsg =
+        err instanceof ApiError
+          ? err.message
+          : err.message || 'Erreur lors du traitement de la saisie.';
+      setLastFeedback({
+        success: false,
+        message: errorMsg,
+      });
+      devRef.current?.focus();
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const rawExpression = `Dév ${dev} · ${qty} pcs × ${unitLengthM}m`;
-
-    processDirectValues(dev, unitLengthM, qty, rawExpression);
   };
 
   const processDirectValues = (
@@ -209,7 +287,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     const matToUse = customMat || activeMaterial;
 
     if (isChute) {
-      // Chute accumulation
       setChuteLength((prev) => Math.round((prev + totalAddedM) * 1000) / 1000);
       setChuteCount((prev) => prev + qty);
 
@@ -227,13 +304,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
         timestamp: new Date().toLocaleTimeString(),
       };
       setEntriesHistory((prev) => [newEntry, ...prev]);
-
-      setLastFeedback({
-        success: true,
-        message: `Chute enregistrée : ${qty} pièce(s) de ${unitLengthM}m = +${totalAddedM}m [${matToUse}] (Total chutes : ${(chuteLength + totalAddedM).toFixed(2)}m)`,
-      });
     } else {
-      // Find matching standard bound
       const matchedBound = findMatchingBound(dev, intervals);
 
       if (matchedBound !== null) {
@@ -265,19 +336,8 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
           timestamp: new Date().toLocaleTimeString(),
         };
         setEntriesHistory((prev) => [newEntry, ...prev]);
-
-        setLastFeedback({
-          success: true,
-          message: `Saisie validée : Dév ${dev}mm (${qty} pcs × ${unitLengthM}m = ${totalAddedM}m) [${matToUse}] affecté à la borne ${matchedBound}mm`,
-          boundMatched: matchedBound,
-        });
       }
     }
-
-    // Reset inputs and focus back on Dev for rapid continuous data entry
-    setInputDev('');
-    // Keep length and qty at convenient defaults
-    devRef.current?.focus();
   };
 
   // Modify material on an individual history entry
@@ -969,8 +1029,12 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
-                  lengthRef.current?.focus();
-                  lengthRef.current?.select();
+                  if (inputDev.includes('/')) {
+                    handleSubmitEntry();
+                  } else {
+                    lengthRef.current?.focus();
+                    lengthRef.current?.select();
+                  }
                 }
               }}
               placeholder={preset === 'DEV_BOBINE' ? 'ex: 650 (ou 0 = chute)' : 'ex: 175 (ou 200, 250...)'}
@@ -1045,11 +1109,21 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
           <div className="sm:col-span-1">
             <button
               type="button"
+              disabled={isSubmitting}
               onClick={() => handleSubmitEntry()}
-              className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 active:bg-amber-500 text-slate-950 font-bold rounded-lg text-sm flex items-center justify-center gap-2 transition-colors shadow-sm"
+              className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 active:bg-amber-500 disabled:opacity-50 text-slate-950 font-bold rounded-lg text-sm flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
-              <span>Valider [Entrée]</span>
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                  <span>Calcul API...</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span>Valider [Entrée]</span>
+                </>
+              )}
             </button>
             <span className="text-[10px] text-slate-500 mt-1 block text-center">
               Total : {((parseFloat(inputLength) || 0) * (parseInt(inputQuantity, 10) || 0)).toFixed(2)}m
@@ -1189,7 +1263,40 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
         )}
       </div>
 
-      {/* Summary KPI Strip */}
+      {breakdownAlternatives.length > 0 && (
+          <div className="bg-slate-950/80 border border-amber-500/30 rounded-lg p-3 space-y-2">
+            <div className="text-[11px] font-bold text-amber-300 uppercase tracking-wider flex items-center justify-between">
+              <span>Variantes d'auto-calepinage calculées par l'API FastAPI :</span>
+              <span className="text-[10px] text-slate-400 font-normal">Cliquez sur une variante pour l'appliquer</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {breakdownAlternatives.map((alt, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    handleUndoLast();
+                    const devToUse = entriesHistory[0]?.dev || 175;
+                    processDirectValues(devToUse, alt.length, alt.quantity, `Dév ${devToUse} · ${alt.label}`);
+                    setLastFeedback({
+                      success: true,
+                      message: `Variante appliquée : ${alt.quantity} pcs de ${alt.length}m (Total ${alt.total_produced}m)`,
+                    });
+                    setBreakdownAlternatives([]);
+                  }}
+                  className={`px-2.5 py-1 rounded text-xs font-mono transition-all border cursor-pointer ${
+                    alt.is_exact
+                      ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300 hover:bg-emerald-900/60'
+                      : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  {alt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* Summary KPI Strip */}
       <div
         className={`grid grid-cols-1 sm:grid-cols-2 ${
           preset === 'DEV_BOBINE' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'

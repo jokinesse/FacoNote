@@ -127,17 +127,34 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
           const scrapWidth = slit.scrapWidth;
 
           // Calcul des cotes cumulées de refente pour les opérateurs massicot
+          // Chaque strip est déplié selon sa quantité (st.qty) pour représenter chaque bande physique sur la tôle mère
           let accumulatedX = 0;
-          const cutPositions: { xMm: number; strip: typeof slit.strips[0]; color: typeof STRIP_COLORS[0] }[] = [];
+          const cutPositions: {
+            passNumber: number;
+            instanceIdx: number;
+            totalInstances: number;
+            xStartMm: number;
+            xMm: number;
+            strip: typeof slit.strips[0];
+            color: typeof STRIP_COLORS[0];
+          }[] = [];
 
           slit.strips.forEach((st) => {
             const color = colorMap.get(st.pieceId) || STRIP_COLORS[0];
-            cutPositions.push({
-              xMm: accumulatedX + st.dev,
-              strip: st,
-              color,
-            });
-            accumulatedX += st.dev;
+            const count = Math.max(1, st.qty || 1);
+            for (let q = 0; q < count; q++) {
+              const xStartMm = accumulatedX;
+              accumulatedX += st.dev;
+              cutPositions.push({
+                passNumber: cutPositions.length + 1,
+                instanceIdx: q + 1,
+                totalInstances: count,
+                xStartMm,
+                xMm: accumulatedX,
+                strip: st,
+                color,
+              });
+            }
           });
 
           return (
@@ -212,21 +229,27 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
                   {/* PLAN DE COUPE 2D GÉOMÉTRIQUE PROPORTIONNEL */}
                   <div
                     className="relative w-full rounded-lg overflow-hidden border-2 border-slate-700 bg-slate-900 shadow-inner flex"
-                    style={{ height: viewMode === 'detailed' ? '90px' : '52px' }}
+                    style={{ height: viewMode === 'detailed' ? '92px' : '52px' }}
                   >
-                    {/* Bandes de refente usinées */}
-                    {slit.strips.map((strip, sIdx) => {
+                    {/* Bandes de refente usinées (dépliées selon chaque passe physique) */}
+                    {cutPositions.map((cut, sIdx) => {
+                      const { strip, color, passNumber, xStartMm, xMm } = cut;
                       const widthPct = (strip.dev / motherWidth) * 100;
-                      const color = colorMap.get(strip.pieceId) || STRIP_COLORS[0];
                       const isHovered = activeStripId === strip.pieceId;
 
                       return (
                         <div
-                          key={sIdx}
-                          style={{ width: `${widthPct}%` }}
+                          key={`${strip.pieceId}-${sIdx}`}
+                          style={{
+                            width: `${widthPct}%`,
+                            flexBasis: `${widthPct}%`,
+                            flexGrow: strip.dev,
+                            containerType: 'inline-size',
+                          }}
                           onMouseEnter={() => setActiveStripId(strip.pieceId)}
                           onMouseLeave={() => setActiveStripId(null)}
-                          className={`relative h-full flex flex-col justify-center items-center px-1.5 transition-all border-r-2 ${
+                          title={`Passe #${passNumber} · ${strip.label} — Dév ${strip.dev} mm × ${strip.length} m (Repère : ${xStartMm} → ${xMm} mm)`}
+                          className={`@container relative h-full min-w-0 flex flex-col justify-center items-center px-1 transition-all border-r-2 ${
                             color.border
                           } ${color.bg} ${
                             isHovered ? 'brightness-125 ring-2 ring-inset ring-white/60 z-10' : ''
@@ -235,27 +258,32 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
                           {/* Trait de refente massicot */}
                           <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-amber-400/80 shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
 
-                          {/* Dimensions & Libellé */}
+                          {/* Dimensions & Libellé adaptés à la largeur disponible de la bande (@container) */}
                           <div className="text-center w-full truncate">
-                            <span className={`block font-mono font-black text-sm tracking-tight ${color.text} drop-shadow-sm`}>
-                              {strip.dev} mm
+                            <span
+                              className={`block font-mono font-black text-[11px] @[72px]:text-sm tracking-tight ${color.text} drop-shadow-sm truncate`}
+                            >
+                              {strip.dev} <span className="hidden @[56px]:inline">mm</span>
                             </span>
 
                             {viewMode === 'detailed' && (
                               <>
-                                <span className="block text-[11px] text-white font-medium truncate mt-0.5">
+                                <span className="hidden @[64px]:block text-[11px] text-white font-medium truncate mt-0.5">
                                   {strip.label}
                                 </span>
-                                <span className="text-[10px] text-slate-300 font-mono block opacity-90">
+                                <span className="hidden @[52px]:block text-[10px] text-slate-300 font-mono opacity-90 truncate">
                                   L = {strip.length} m
                                 </span>
                               </>
                             )}
                           </div>
 
-                          {/* Badge de position */}
-                          <span className="absolute bottom-1 right-1.5 text-[9px] font-mono text-slate-400/80 opacity-70">
-                            #{sIdx + 1}
+                          {/* Repère cumulé en haut à gauche et numéro de passe en bas à droite */}
+                          <span className="hidden @[80px]:block absolute top-1 left-1.5 text-[9px] font-mono text-amber-300/80">
+                            {xMm}mm
+                          </span>
+                          <span className="hidden @[38px]:block absolute bottom-1 right-1.5 text-[9px] font-mono text-slate-300/80">
+                            #{passNumber}
                           </span>
                         </div>
                       );
@@ -264,8 +292,13 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
                     {/* Zone de chute résiduelle */}
                     {scrapWidth > 0 && (
                       <div
-                        style={{ width: `${(scrapWidth / motherWidth) * 100}%` }}
-                        className={`h-full flex flex-col items-center justify-center px-2 text-center relative overflow-hidden ${
+                        style={{
+                          width: `${(scrapWidth / motherWidth) * 100}%`,
+                          flexBasis: `${(scrapWidth / motherWidth) * 100}%`,
+                          flexGrow: scrapWidth,
+                          containerType: 'inline-size',
+                        }}
+                        className={`@container h-full min-w-0 flex flex-col items-center justify-center px-1 text-center relative overflow-hidden ${
                           slit.isScrapReusable
                             ? 'bg-emerald-950/60 text-emerald-300 border-l border-emerald-500/50'
                             : 'bg-rose-950/60 text-rose-300 border-l border-rose-500/50'
@@ -284,12 +317,12 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
                           }}
                         />
 
-                        <span className="relative font-mono font-bold text-xs truncate">
-                          {scrapWidth} mm
+                        <span className="relative font-mono font-bold text-[10px] @[56px]:text-xs truncate w-full">
+                          {scrapWidth} <span className="hidden @[48px]:inline">mm</span>
                         </span>
 
                         <span
-                          className={`relative text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded mt-1 truncate ${
+                          className={`hidden @[42px]:inline-block relative text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded mt-1 truncate max-w-full ${
                             slit.isScrapReusable
                               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                               : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'

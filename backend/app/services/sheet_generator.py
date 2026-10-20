@@ -77,9 +77,10 @@ def generate_workshop_sheet_html(
         # Section Bobines mères à sortir
         coil_items = []
         for slit in optimization.slits:
+            total_strips = sum(st.qty for st in slit.strips)
             coil_items.append(
                 f"<li><strong>Bobine Laize {slit.mother_width} mm</strong> ({slit.material}) : <strong>{slit.mother_length} m</strong> "
-                f"<span style='color: #64748b;'>(Découpe de {len(slit.strips)} bande(s), reste {slit.scrap_width} mm)</span></li>"
+                f"<span style='color: #64748b;'>(Découpe de {total_strips} bande(s), reste {slit.scrap_width} mm)</span></li>"
             )
         for scrap in optimization.applied_workshop_scraps:
             coil_items.append(

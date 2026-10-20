@@ -121,6 +121,16 @@ async def run(args: argparse.Namespace) -> list[Result]:
         return issued < args.requests
 
     async with httpx.AsyncClient(base_url=args.url, timeout=args.timeout, limits=limits) as client:
+        token: str | None = args.admin_token
+        if not token and args.admin_password:
+            auth_resp = await client.post("/api/v1/admin/login", json={"password": args.admin_password})
+            if auth_resp.status_code != 200:
+                print(f"Erreur d'authentification admin [{auth_resp.status_code}]: {auth_resp.text}")
+                raise SystemExit(1)
+            token = auth_resp.json()["token"]
+            print("Jeton admin obtenu — pare-feu de charge contourné.")
+
+        req_headers = {"X-Admin-Token": token} if token else {}
 
         async def worker() -> None:
             nonlocal issued
@@ -130,7 +140,7 @@ async def run(args: argparse.Namespace) -> list[Result]:
                 body = sc.body(args) if sc.body else None
                 t0 = time.perf_counter()
                 try:
-                    resp = await client.request(sc.method, sc.path, json=body)
+                    resp = await client.request(sc.method, sc.path, json=body, headers=req_headers)
                     _ = resp.content
                     ok = resp.status_code == sc.expected
                     results.append(Result(name, (time.perf_counter() - t0) * 1000, resp.status_code, ok,
@@ -200,6 +210,8 @@ def main() -> None:
     parser.add_argument("-c", "--concurrency", type=int, default=50, help="Utilisateurs simultanés")
     parser.add_argument("-t", "--timeout", type=float, default=30.0)
     parser.add_argument("--pieces", type=int, default=40, help="Pièces pour calculate-heavy")
+    parser.add_argument("--admin-password", default=None, help="Mot de passe admin pour contourner le pare-feu de charge")
+    parser.add_argument("--admin-token", default=None, help="Jeton HMAC admin déjà émis (en-tête X-Admin-Token)")
     args = parser.parse_args()
 
     print(f"Lancement : {args.scenario} → {args.url} ({args.concurrency} utilisateurs)")

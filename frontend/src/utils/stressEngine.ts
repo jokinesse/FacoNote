@@ -200,6 +200,7 @@ export interface StressConfig {
   thinkTimeMs: number;
   heavyPieces: number;
   baseUrl: string;
+  adminToken?: string;
 }
 
 export interface Sample {
@@ -255,9 +256,13 @@ async function fireOne(
 
   const t0 = performance.now();
   try {
+    const headers: Record<string, string> = {};
+    if (scenario.method === 'POST') headers['Content-Type'] = 'application/json';
+    if (config.adminToken) headers['X-Admin-Token'] = config.adminToken;
+
     const res = await fetch(url, {
       method: scenario.method,
-      headers: scenario.method === 'POST' ? { 'Content-Type': 'application/json' } : undefined,
+      headers,
       body: scenario.buildBody ? JSON.stringify(scenario.buildBody({ heavyPieces: config.heavyPieces })) : undefined,
       signal: ctrl.signal,
       cache: 'no-store',

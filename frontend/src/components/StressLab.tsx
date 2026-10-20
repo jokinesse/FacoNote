@@ -15,6 +15,8 @@ import {
   Users,
   Wrench,
   Info,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   SCENARIOS,
@@ -233,7 +235,13 @@ const Sparkline: React.FC<{ points: HealthPoint[] }> = ({ points }) => {
 // Composant principal
 // ---------------------------------------------------------------------------
 
-export const StressLab: React.FC = () => {
+interface StressLabProps {
+  adminToken: string;
+  expiresInSec: number;
+  onLock: () => void;
+}
+
+export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, onLock }) => {
   const [config, setConfig] = useState<StressConfig>(DEFAULT_CONFIG);
   const [targetMode, setTargetMode] = useState<'proxy' | 'direct' | 'custom'>('direct');
   const [customUrl, setCustomUrl] = useState<string>('http://192.168.1.10:8000');
@@ -320,7 +328,7 @@ export const StressLab: React.FC = () => {
 
   const handleStart = useCallback(async () => {
     if (isRunning) return;
-    const runConfig: StressConfig = { ...config, baseUrl };
+    const runConfig: StressConfig = { ...config, baseUrl, adminToken };
     samplesRef.current = [];
     abortRef.current = new AbortController();
     setStats(null);
@@ -360,7 +368,7 @@ export const StressLab: React.FC = () => {
           `p95 ${fmtMs(final.p95)}, ${final.errorRate.toFixed(1)} % d'erreurs. Verdict : ${VERDICT_META[verdict].label}.`
       );
     }
-  }, [config, baseUrl, isRunning]);
+  }, [config, baseUrl, adminToken, isRunning]);
 
   const handleStop = () => abortRef.current?.abort();
 
@@ -400,15 +408,32 @@ export const StressLab: React.FC = () => {
       {/* EN-TÊTE + MONITEUR DE SANTÉ */}
       <section className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-amber-400/10 border border-amber-400/30 text-amber-400">
-              <Wrench className="w-5 h-5" />
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-lg bg-amber-400/10 border border-amber-400/30 text-amber-400">
+                <Wrench className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white tracking-tight">Stress Lab — Boîte à outils de charge</h2>
+                <p className="text-xs text-slate-400">
+                  Envoie de vraies requêtes au backend FastAPI et mesure débit, latences (p50/p95/p99) et stabilité.
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-white tracking-tight">Stress Lab — Boîte à outils de charge</h2>
-              <p className="text-xs text-slate-400">
-                Envoie de vraies requêtes au backend FastAPI et mesure débit, latences (p50/p95/p99) et stabilité.
-              </p>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-700/50 text-emerald-300 text-[11px] font-mono flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Admin actif ({Math.floor(expiresInSec / 60)}:{String(expiresInSec % 60).padStart(2, '0')})
+              </span>
+              <button
+                type="button"
+                onClick={onLock}
+                className="px-3 py-1 rounded-lg bg-rose-950/70 hover:bg-rose-900 border border-rose-700/60 text-rose-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                title="Révoquer immédiatement le jeton Admin et masquer le Stress Lab"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                Verrouiller
+              </button>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Préréglages de test">

@@ -6,11 +6,13 @@ export type AppTab = 'calculator' | 'optimizer' | 'stress';
 interface HeaderProps {
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
+  isAdminUnlocked?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
+  isAdminUnlocked = false,
 }) => {
   return (
     <header className="no-print bg-slate-950/90 border-b border-slate-800 sticky top-0 z-30 backdrop-blur-md">
@@ -57,17 +59,20 @@ export const Header: React.FC<HeaderProps> = ({
               <span>Optimisation Matière & Analyse PDF</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab('stress')}
-              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-md transition-colors whitespace-nowrap ${
-                activeTab === 'stress'
-                  ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              <Gauge className="w-3.5 h-3.5" />
-              <span>Stress Lab</span>
-            </button>
+            {/* Onglet Stress Lab furtif : visible uniquement après authentification Admin */}
+            {isAdminUnlocked && (
+              <button
+                onClick={() => setActiveTab('stress')}
+                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-md transition-colors whitespace-nowrap ${
+                  activeTab === 'stress'
+                    ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
+                    : 'text-sky-400/80 hover:text-sky-300 hover:bg-slate-800/60'
+                }`}
+              >
+                <Gauge className="w-3.5 h-3.5" />
+                <span>Stress Lab (Admin)</span>
+              </button>
+            )}
           </nav>
         </div>
 
@@ -85,12 +90,14 @@ export const Header: React.FC<HeaderProps> = ({
           >
             Optimisation Matière
           </button>
-          <button
-            onClick={() => setActiveTab('stress')}
-            className={`py-1 px-4 font-medium ${activeTab === 'stress' ? 'text-sky-300 border-b-2 border-sky-300' : 'text-slate-400'}`}
-          >
-            Stress Lab
-          </button>
+          {isAdminUnlocked && (
+            <button
+              onClick={() => setActiveTab('stress')}
+              className={`py-1 px-4 font-medium ${activeTab === 'stress' ? 'text-sky-300 border-b-2 border-sky-300' : 'text-slate-400'}`}
+            >
+              Stress Lab
+            </button>
+          )}
         </div>
       </div>
     </header>

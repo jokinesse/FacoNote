@@ -1,10 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { Header, AppTab } from './components/Header';
-import { StressLab } from './components/StressLab';
 import { FastEncoder } from './components/FastEncoder';
 import { OptimizerTab } from './components/OptimizerTab';
 import { MobileScannerApp } from './components/MobileScannerApp';
+import { AdminAuthModal } from './components/AdminAuthModal';
+import { ADMIN_TOKEN_STORAGE_KEY, adminApi } from './api';
 import { ShapedPiece } from './types';
+
+// Code-splitting : le bundle de StressLab n'est téléchargé qu'une fois l'Admin authentifié
+const LazyStressLab = React.lazy(() =>
+  import('./components/StressLab').then((m) => ({ default: m.StressLab }))
+);
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('calculator');
@@ -17,6 +23,81 @@ export default function App() {
 
   // Pieces transferred from Calculator to Optimizer
   const [transferredPieces, setTransferredPieces] = useState<ShapedPiece[]>([]);
+
+  // État d'authentification Admin (Coffre-Fort 5 piliers)
+  const [adminToken, setAdminToken] = useState<string | null>(null);
+  const [adminExpiresIn, setAdminExpiresIn] = useState<number>(0);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState<boolean>(false);
+
+  // Vérification initiale d'un éventuel jeton déjà présent en sessionStorage
+  useEffect(() => {
+    const saved = sessionStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
+    const hasAdminQuery = new URLSearchParams(window.location.search).get('admin') === '1';
+
+    if (saved) {
+      adminApi
+        .getStatus(saved)
+        .then((res) => {
+          if (res.data.authenticated && res.data.expires_in_sec > 0) {
+            setAdminToken(saved);
+            setAdminExpiresIn(res.data.expires_in_sec);
+            if (hasAdminQuery) setActiveTab('stress');
+          } else {
+            sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+            if (hasAdminQuery) setIsAdminModalOpen(true);
+          }
+        })
+        .catch(() => {
+          if (hasAdminQuery) setIsAdminModalOpen(true);
+        });
+    } else if (hasAdminQuery) {
+      setIsAdminModalOpen(true);
+    }
+  }, []);
+
+  // Décompte du temps restant de la session Admin (30 min max)
+  useEffect(() => {
+    if (!adminToken) return;
+    const id = setInterval(() => {
+      setAdminExpiresIn((prev) => {
+        if (prev <= 1) {
+          sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+          setAdminToken(null);
+          setActiveTab((tab) => (tab === 'stress' ? 'calculator' : tab));
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [adminToken]);
+
+  // Raccourci clavier furtif : Ctrl + Shift + L pour ouvrir / rejoindre le Stress Lab
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        if (adminToken) {
+          setActiveTab('stress');
+        } else {
+          setIsAdminModalOpen(true);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [adminToken]);
+
+  const handleLockAdmin = useCallback(() => {
+    const token = adminToken;
+    sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+    setAdminToken(null);
+    setAdminExpiresIn(0);
+    setActiveTab('calculator');
+    if (token) {
+      adminApi.logout(token).catch(() => {});
+    }
+  }, [adminToken]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -53,6 +134,7 @@ export default function App() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        isAdminUnlocked={Boolean(adminToken)}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -65,10 +147,36 @@ export default function App() {
           <OptimizerTab initialPieces={transferredPieces} />
         </div>
 
-        <div className={activeTab === 'stress' ? 'block' : 'hidden'}>
-          <StressLab />
-        </div>
+        {adminToken && (
+          <div className={activeTab === 'stress' ? 'block' : 'hidden'}>
+            <Suspense
+              fallback={
+                <div className="p-8 text-center text-xs text-slate-400">
+                  Chargement sécurisé du Stress Lab...
+                </div>
+              }
+            >
+              <LazyStressLab
+                adminToken={adminToken}
+                expiresInSec={adminExpiresIn}
+                onLock={handleLockAdmin}
+              />
+            </Suspense>
+          </div>
+        )}
       </main>
+
+      <AdminAuthModal
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
+        onAuthenticated={(token, ttlSec) => {
+          sessionStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, token);
+          setAdminToken(token);
+          setAdminExpiresIn(ttlSec);
+          setIsAdminModalOpen(false);
+          setActiveTab('stress');
+        }}
+      />
 
       {/* Footer */}
       <footer className="no-print border-t border-slate-900 bg-slate-950/90 py-4 mt-auto">

@@ -1,9 +1,11 @@
 import React from 'react';
-import { Calculator, FileSearch } from 'lucide-react';
+import { Calculator, FileSearch, Gauge } from 'lucide-react';
+
+export type AppTab = 'calculator' | 'optimizer' | 'stress';
 
 interface HeaderProps {
-  activeTab: 'calculator' | 'optimizer';
-  setActiveTab: (tab: 'calculator' | 'optimizer') => void;
+  activeTab: AppTab;
+  setActiveTab: (tab: AppTab) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -54,6 +56,18 @@ export const Header: React.FC<HeaderProps> = ({
               <FileSearch className="w-3.5 h-3.5" />
               <span>Optimisation Matière & Analyse PDF</span>
             </button>
+
+            <button
+              onClick={() => setActiveTab('stress')}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-md transition-colors whitespace-nowrap ${
+                activeTab === 'stress'
+                  ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <Gauge className="w-3.5 h-3.5" />
+              <span>Stress Lab</span>
+            </button>
           </nav>
         </div>
 
@@ -70,6 +84,12 @@ export const Header: React.FC<HeaderProps> = ({
             className={`py-1 px-4 font-medium ${activeTab === 'optimizer' ? 'text-amber-400 border-b-2 border-amber-400' : 'text-slate-400'}`}
           >
             Optimisation Matière
+          </button>
+          <button
+            onClick={() => setActiveTab('stress')}
+            className={`py-1 px-4 font-medium ${activeTab === 'stress' ? 'text-sky-300 border-b-2 border-sky-300' : 'text-slate-400'}`}
+          >
+            Stress Lab
           </button>
         </div>
       </div>

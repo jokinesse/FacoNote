@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Header } from './components/Header';
+import { Header, AppTab } from './components/Header';
+import { StressLab } from './components/StressLab';
 import { FastEncoder } from './components/FastEncoder';
 import { OptimizerTab } from './components/OptimizerTab';
 import { MobileScannerApp } from './components/MobileScannerApp';
 import { ShapedPiece } from './types';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'calculator' | 'optimizer'>('calculator');
+  const [activeTab, setActiveTab] = useState<AppTab>('calculator');
   const [isMobileMode, setIsMobileMode] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const path = window.location.pathname;
@@ -62,6 +63,10 @@ export default function App() {
 
         <div className={activeTab === 'optimizer' ? 'block' : 'hidden'}>
           <OptimizerTab initialPieces={transferredPieces} />
+        </div>
+
+        <div className={activeTab === 'stress' ? 'block' : 'hidden'}>
+          <StressLab />
         </div>
       </main>
 

@@ -1,0 +1,226 @@
+"""
+Tests unitaires pour le moteur de refente et nesting 1D/2D (nesting_engine).
+Spécification technique : Section 3.3 du Cahier des Charges.
+"""
+
+import pytest
+from app.models.optimizer import OptimizationRequest
+from app.models.pieces import ShapedPieceModel
+from app.services.nesting_engine import run_nesting_optimization
+
+
+def test_material_segregation() -> None:
+    """
+    Étape 1 : Ségrégation par matière.
+    Les pièces en Zinc et Aluminium ne doivent jamais être découpées sur une même feuille mère.
+    """
+    pieces = [
+        ShapedPieceModel(
+            id="p-zinc",
+            label="Bavette Zinc",
+            dev=250,
+            length=2.0,
+            quantity=2,
+            bends=2,
+            material="Zinc Naturel 0.7",
+        ),
+        ShapedPieceModel(
+            id="p-alu",
+            label="Bavette Alu",
+            dev=250,
+            length=2.0,
+            quantity=2,
+            bends=2,
+            material="Alu 7016 gris bleu 0.7",
+        ),
+    ]
+
+    req = OptimizationRequest(
+        client_name="Test Client",
+        chantier_ref="Chantier Mixte",
+        material="Zinc Naturel 0.7",
+        pieces=pieces,
+    )
+
+    resp = run_nesting_optimization(req)
+
+    # Vérification que chaque laize mère ne contient qu'une seule matière
+    assert len(resp.slits) >= 2
+    for slit in resp.slits:
+        materials_in_slit = {s.material for s in slit.strips}
+        assert len(materials_in_slit) == 1
+        # La matière de la laize correspond à la matière des bandes
+        assert slit.material in ("Zinc Naturel 0.7", "Alu 7016 gris bleu 0.7")
+
+
+def test_length_cohort_partitioning() -> None:
+    """
+    Étape 2 : Cohortes de longueur.
+    Les bandes sont partitionnées par longueur unitaire L.
+    Une feuille de 2.0m ne peut pas contenir de bandes de 3.0m.
+    """
+    pieces = [
+        ShapedPieceModel(
+            id="p-2m",
+            label="Pièce 2m",
+            dev=200,
+            length=2.0,
+            quantity=2,
+            bends=1,
+            material="Zinc Naturel 0.7",
+        ),
+        ShapedPieceModel(
+            id="p-3m",
+            label="Pièce 3m",
+            dev=200,
+            length=3.0,
+            quantity=2,
+            bends=1,
+            material="Zinc Naturel 0.7",
+        ),
+    ]
+
+    req = OptimizationRequest(
+        material="Zinc Naturel 0.7",
+        pieces=pieces,
+    )
+
+    resp = run_nesting_optimization(req)
+
+    for slit in resp.slits:
+        lengths_in_slit = {s.length for s in slit.strips}
+        assert len(lengths_in_slit) == 1
+        assert slit.mother_length in (2.0, 3.0)
+
+
+def test_transversal_combination_perfect_fit() -> None:
+    """
+    Étape 3 : Combinaison transversale (Subset-Sum / Branch & Bound).
+    Deux bandes de 250 mm et une bande de 500 mm sur une laize de 1000 mm :
+    Développé total = 250 + 250 + 500 = 1000 mm -> Chute = 0 mm.
+    """
+    pieces = [
+        ShapedPieceModel(
+            id="p-250",
+            label="Couvre-mur 250",
+            dev=250,
+            length=2.5,
+            quantity=2,
+            bends=2,
+            material="Zinc Naturel 0.7",
+        ),
+        ShapedPieceModel(
+            id="p-500",
+            label="Couvre-mur 500",
+            dev=500,
+            length=2.5,
+            quantity=1,
+            bends=2,
+            material="Zinc Naturel 0.7",
+        ),
+    ]
+
+    req = OptimizationRequest(
+        material="Zinc Naturel 0.7",
+        pieces=pieces,
+        available_mother_widths=[1000],
+    )
+
+    resp = run_nesting_optimization(req)
+
+    assert len(resp.slits) == 1
+    slit = resp.slits[0]
+    assert slit.mother_width == 1000
+    assert slit.used_width == 1000
+    assert slit.scrap_width == 0
+    assert resp.net_loss_surface_m2 == 0.0
+    assert resp.material_efficiency_rate == 100.0
+
+
+def test_reusable_scrap_qualification() -> None:
+    """
+    Étape 4 : Qualification des chutes.
+    Une chute de largeur >= 100 mm et longueur >= 1.0 m est qualifiée de chute réutilisable
+    avec code CHU-MAT-WIDTH-LENM.
+    Si largeur < 100 mm, perte sèche.
+    """
+    # 1 pièce de dev 800 mm sur laize 1000 mm, longueur 2.0 m -> chute de 200 mm >= 100 mm
+    pieces = [
+        ShapedPieceModel(
+            id="p-800",
+            label="Bande 800",
+            dev=800,
+            length=2.0,
+            quantity=1,
+            bends=1,
+            material="Zinc Naturel 0.7",
+        )
+    ]
+
+    req = OptimizationRequest(
+        material="Zinc Naturel 0.7",
+        pieces=pieces,
+        available_mother_widths=[1000],
+    )
+
+    resp = run_nesting_optimization(req)
+
+    assert len(resp.slits) == 1
+    slit = resp.slits[0]
+    assert slit.scrap_width == 200
+    assert slit.is_scrap_reusable is True
+    assert slit.suggested_scrap_ref == "CHU-ZN-200-2.0M"
+    # Surface chute réutilisable = 0.20 * 2.0 = 0.40 m²
+    assert resp.reusable_scrap_surface_m2 == 0.40
+    # Perte sèche = 0.0
+    assert resp.net_loss_surface_m2 == 0.0
+
+
+def test_rack_scrap_detection_and_substitution() -> None:
+    """
+    Étape 5 : Détection des chutes de rack.
+    Si une tôle isolée génère une perte >= 45%, émettre une proposition de rack scrap.
+    Si use_workshop_scraps est True, substituer et éviter le débit de la tôle mère.
+    """
+    # 1 pièce isolée de dev 120 mm, longueur 2.0m
+    # Sur laize min Zinc (600 mm) : chute = 480 mm -> 480/600 = 80% de perte (> 45%)
+    pieces = [
+        ShapedPieceModel(
+            id="p-iso",
+            label="Profilé isolé",
+            dev=120,
+            length=2.0,
+            quantity=1,
+            bends=2,
+            material="Zinc Naturel 0.7",
+        )
+    ]
+
+    # Sans substitution (baseline)
+    req_baseline = OptimizationRequest(
+        material="Zinc Naturel 0.7",
+        pieces=pieces,
+        use_workshop_scraps=False,
+    )
+    resp_baseline = run_nesting_optimization(req_baseline)
+
+    assert len(resp_baseline.workshop_scrap_proposals) >= 1
+    prop = resp_baseline.workshop_scrap_proposals[0]
+    assert prop.piece_id == "p-iso"
+    assert prop.recommended_scrap_dev == 120  # Trouve la bande de 120 mm dans [100, 120, 150, 200, 250]
+    assert prop.area_saved_m2 > 0
+
+    # Avec substitution activée
+    req_with_scraps = OptimizationRequest(
+        material="Zinc Naturel 0.7",
+        pieces=pieces,
+        use_workshop_scraps=True,
+    )
+    resp_scraps = run_nesting_optimization(req_with_scraps)
+
+    # La pièce a été substituée par une chute de rack -> aucune bobine mère débitée
+    assert len(resp_scraps.slits) == 0
+    assert len(resp_scraps.applied_workshop_scraps) == 1
+    assert resp_scraps.applied_workshop_scraps[0].scrap_dev == 120
+    # Surface brute = 0.12 * 2.0 = 0.24 m² (au lieu de 0.60 * 2.0 = 1.20 m²)
+    assert resp_scraps.total_gross_surface_m2 == 0.24

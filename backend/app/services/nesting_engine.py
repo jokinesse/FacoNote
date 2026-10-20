@@ -1,0 +1,410 @@
+"""
+Moteur d'Optimisation de Refente et Nesting 1D/2D (nesting_engine).
+Spécification technique : Section 3.3 du Cahier des Charges.
+Entièrement découplé du framework Web.
+"""
+
+import time
+from dataclasses import dataclass
+from typing import Optional
+
+from app.core.constants import (
+    RACK_SCRAP_WIDTHS,
+    calculate_surface_m2,
+    calculate_weight_kg,
+    resolve_material_spec,
+    round_meters,
+)
+from app.models.optimizer import (
+    AppliedWorkshopScrapModel,
+    OptimizationRequest,
+    OptimizationResponse,
+    SlitNestResultModel,
+    SlitStripModel,
+    WorkshopScrapProposalModel,
+)
+
+
+@dataclass(frozen=True)
+class FlattenedCut:
+    id: str
+    piece_id: str
+    label: str
+    dev: int
+    length: float
+    material: str
+
+
+@dataclass
+class BestSlitCombination:
+    packed: list[FlattenedCut]
+    used_width: int
+    scrap_width: int
+
+
+def _find_best_slit_combination(
+    cuts: list[FlattenedCut],
+    mother_width: int,
+) -> Optional[BestSlitCombination]:
+    """
+    Algorithme Subset-Sum / Branch & Bound pour trouver la combinaison de développés
+    qui maximise la largeur utilisée (minimise la chute transversale W - somme(dev)).
+    """
+    if not cuts:
+        return None
+
+    eligible = [c for c in cuts if c.dev <= mother_width]
+    if not eligible:
+        return None
+
+    best_packed: list[FlattenedCut] = []
+    best_used_width = 0
+    best_scrap_width = mother_width
+
+    # Recherche combinatoire exacte par Branch & Bound si <= 18 coupes
+    if len(eligible) <= 18:
+
+        def search(idx: int, current_packed: list[FlattenedCut], current_used: int) -> None:
+            nonlocal best_used_width, best_scrap_width, best_packed
+
+            if current_used > mother_width:
+                return
+
+            current_scrap = mother_width - current_used
+            if current_packed and current_scrap < best_scrap_width:
+                best_scrap_width = current_scrap
+                best_used_width = current_used
+                best_packed = list(current_packed)
+                if best_scrap_width == 0:
+                    return  # Ajustement parfait (0 chute transversale)
+
+            for i in range(idx, len(eligible)):
+                next_cut = eligible[i]
+                if current_used + next_cut.dev <= mother_width:
+                    current_packed.append(next_cut)
+                    search(i + 1, current_packed, current_used + next_cut.dev)
+                    current_packed.pop()
+                    if best_scrap_width == 0:
+                        return
+
+        search(0, [], 0)
+    else:
+        # Fallback Greedy First-Fit Descending pour les cohortes volumineuses (> 18 coupes)
+        sorted_cuts = sorted(eligible, key=lambda c: c.dev, reverse=True)
+        packed: list[FlattenedCut] = []
+        cur_used = 0
+        for c in sorted_cuts:
+            if cur_used + c.dev <= mother_width:
+                packed.append(c)
+                cur_used += c.dev
+
+        best_packed = packed
+        best_used_width = cur_used
+        best_scrap_width = mother_width - cur_used
+
+    if not best_packed:
+        return None
+
+    return BestSlitCombination(
+        packed=best_packed,
+        used_width=best_used_width,
+        scrap_width=best_scrap_width,
+    )
+
+
+def _pack_cuts_into_mother_coils(
+    cuts_to_pack: list[FlattenedCut],
+    requested_mother_widths: Optional[list[int]],
+) -> tuple[list[SlitNestResultModel], float]:
+    """
+    Imbrique une liste de coupes sur les laizes mères en respectant :
+    - Étape 1 : Ségrégation stricte par matière
+    - Étape 2 : Partitionnement par cohortes de longueur unitaire
+    - Étape 3 : Combinaison transversale sur laizes mères
+    - Étape 4 : Qualification des chutes réutilisables d'atelier (>=100mm et >=1.0m)
+    """
+    # 1. Regroupement strict par nuance de matière
+    material_groups: dict[str, list[FlattenedCut]] = {}
+    for cut in cuts_to_pack:
+        material_groups.setdefault(cut.material, []).append(cut)
+
+    slits_result: list[SlitNestResultModel] = []
+    total_reusable_scrap_area = 0.0
+
+    for mat_name, mat_cuts in material_groups.items():
+        spec = resolve_material_spec(mat_name)
+
+        # Détermination des laizes mères candidates pour cette matière
+        if requested_mother_widths:
+            # Filtrer les laizes demandées compatibles avec la matière
+            candidate_widths = [w for w in requested_mother_widths if w in spec.standard_mother_widths_mm]
+            if not candidate_widths:
+                candidate_widths = list(spec.standard_mother_widths_mm)
+        else:
+            candidate_widths = list(spec.standard_mother_widths_mm)
+
+        # 2. Partitionnement en cohortes de longueur unitaire L
+        cohorts: dict[float, list[FlattenedCut]] = {}
+        for c in mat_cuts:
+            rounded_len = round_meters(c.length)
+            cohorts.setdefault(rounded_len, []).append(c)
+
+        # Découpe des cohortes par longueur décroissante
+        sorted_lengths = sorted(cohorts.keys(), reverse=True)
+
+        for length_m in sorted_lengths:
+            remaining_cuts = list(cohorts[length_m])
+
+            while remaining_cuts:
+                best_res: Optional[tuple[int, BestSlitCombination, float]] = None
+
+                for m_width in candidate_widths:
+                    res = _find_best_slit_combination(remaining_cuts, m_width)
+                    if res:
+                        efficiency = res.used_width / m_width
+                        if (
+                            best_res is None
+                            or efficiency > best_res[2]
+                            or (efficiency == best_res[2] and res.scrap_width < best_res[1].scrap_width)
+                        ):
+                            best_res = (m_width, res, efficiency)
+
+                # Si aucune pièce ne rentre dans les laizes autorisées
+                if best_res is None:
+                    largest_cut = remaining_cuts[0]
+                    actual_width = max(max(candidate_widths), largest_cut.dev)
+                    comb = BestSlitCombination(
+                        packed=[largest_cut],
+                        used_width=largest_cut.dev,
+                        scrap_width=max(0, actual_width - largest_cut.dev),
+                    )
+                    best_res = (actual_width, comb, largest_cut.dev / actual_width)
+
+                chosen_mother_width, combination, _ = best_res
+
+                # Retrait des pièces imbriquées de la cohorte
+                packed_ids = {p.id for p in combination.packed}
+                remaining_cuts = [c for c in remaining_cuts if c.id not in packed_ids]
+
+                # Étape 4 : Qualification des chutes réutilisables d'atelier (>= 100mm et >= 1.0m)
+                is_reusable = combination.scrap_width >= 100 and length_m >= 1.0
+                scrap_ref: Optional[str] = None
+
+                if is_reusable:
+                    mat_code = "ZN" if spec.metal_type == "ZINC" else ("ALU" if spec.metal_type == "ALUMINIUM" else "MET")
+                    scrap_ref = f"CHU-{mat_code}-{combination.scrap_width}-{length_m:.1f}M"
+                    total_reusable_scrap_area += calculate_surface_m2(float(combination.scrap_width), length_m)
+
+                # Regroupement des bandes identiques dans le slit pour affichage lisible
+                strips_by_piece: dict[str, SlitStripModel] = {}
+                for p in combination.packed:
+                    if p.piece_id in strips_by_piece:
+                        prev = strips_by_piece[p.piece_id]
+                        strips_by_piece[p.piece_id] = SlitStripModel(
+                            piece_id=prev.piece_id,
+                            label=prev.label,
+                            dev=prev.dev,
+                            length=prev.length,
+                            qty=prev.qty + 1,
+                            material=prev.material,
+                        )
+                    else:
+                        strips_by_piece[p.piece_id] = SlitStripModel(
+                            piece_id=p.piece_id,
+                            label=p.label,
+                            dev=p.dev,
+                            length=p.length,
+                            qty=1,
+                            material=p.material,
+                        )
+
+                slits_result.append(
+                    SlitNestResultModel(
+                        mother_width=chosen_mother_width,
+                        mother_length=length_m,
+                        material=spec.name,
+                        strips=list(strips_by_piece.values()),
+                        used_width=combination.used_width,
+                        scrap_width=combination.scrap_width,
+                        is_scrap_reusable=is_reusable,
+                        suggested_scrap_ref=scrap_ref,
+                    )
+                )
+
+    return slits_result, total_reusable_scrap_area
+
+
+def run_nesting_optimization(request: OptimizationRequest) -> OptimizationResponse:
+    """
+    Exécute l'optimisation complète de refente et calepinage selon Section 3.3.
+    """
+    timestamp = time.time()
+    order_id = f"OPT-{int(timestamp)}"
+
+    # Aplatissement de toutes les pièces en coupes unitaires
+    all_cuts: list[FlattenedCut] = []
+    cut_counter = 1
+
+    for p in request.pieces:
+        p_mat_spec = resolve_material_spec(p.material if p.material else request.material)
+        for _ in range(p.quantity):
+            all_cuts.append(
+                FlattenedCut(
+                    id=f"cut-{cut_counter}",
+                    piece_id=p.id,
+                    label=p.label,
+                    dev=p.dev,
+                    length=round_meters(p.length),
+                    material=p_mat_spec.name,
+                )
+            )
+            cut_counter += 1
+
+    # 1. Calcul de base ("baseline" sans substitution de chutes de rack)
+    baseline_slits, _ = _pack_cuts_into_mother_coils(
+        cuts_to_pack=all_cuts,
+        requested_mother_widths=request.available_mother_widths,
+    )
+
+    # 2. Étape 5 : Détection des opportunités de substitution par chutes de rack
+    # Si une tôle mère entière est débitée pour une seule bande isolée ou si perte >= 45%
+    proposals: list[WorkshopScrapProposalModel] = []
+
+    for idx, slit in enumerate(baseline_slits):
+        total_strips_count = sum(s.qty for s in slit.strips)
+        is_single_strip = total_strips_count == 1
+        is_high_waste = slit.scrap_width >= (slit.mother_width * 0.45)
+
+        if is_single_strip or is_high_waste:
+            for strip in slit.strips:
+                if strip.dev <= 250:
+                    matching_rack_scrap = next(
+                        (w for w in RACK_SCRAP_WIDTHS if w >= strip.dev),
+                        250,
+                    )
+                    spec = resolve_material_spec(strip.material)
+                    area_saved = calculate_surface_m2(float(slit.mother_width), slit.mother_length)
+                    weight_saved = calculate_weight_kg(
+                        float(slit.mother_width), slit.mother_length, spec.surface_density_kg_m2
+                    )
+
+                    proposals.append(
+                        WorkshopScrapProposalModel(
+                            id=f"prop-{strip.piece_id}-{idx}",
+                            piece_id=strip.piece_id,
+                            piece_label=strip.label,
+                            piece_dev=strip.dev,
+                            piece_length=strip.length,
+                            recommended_scrap_dev=matching_rack_scrap,
+                            material=strip.material,
+                            reason=(
+                                f"Évite de débiter une feuille mère complète de {slit.mother_width} mm × "
+                                f"{slit.mother_length} m ({strip.material}) pour une seule bande "
+                                f"(perte évitée de {slit.scrap_width} mm)."
+                            ),
+                            mother_width_saved=slit.mother_width,
+                            mother_length_saved=slit.mother_length,
+                            area_saved_m2=area_saved,
+                            weight_saved_kg=weight_saved,
+                        )
+                    )
+                    break
+
+    # 3. Application des substitutions de chutes de rack si activée
+    applied_scraps: list[AppliedWorkshopScrapModel] = []
+    final_slits = baseline_slits
+    accepted_ids = set(request.accepted_proposal_ids or [])
+
+    if request.use_workshop_scraps and proposals:
+        cuts_fulfilled_by_rack: set[str] = set()
+
+        for prop in proposals:
+            if not accepted_ids or prop.id in accepted_ids:
+                # Chercher une coupe correspondante non encore affectée
+                match_cut = next(
+                    (c for c in all_cuts if c.piece_id == prop.piece_id and c.id not in cuts_fulfilled_by_rack),
+                    None,
+                )
+                if match_cut:
+                    cuts_fulfilled_by_rack.add(match_cut.id)
+                    applied_scraps.append(
+                        AppliedWorkshopScrapModel(
+                            piece_id=prop.piece_id,
+                            piece_label=prop.piece_label,
+                            piece_dev=prop.piece_dev,
+                            piece_length=prop.piece_length,
+                            scrap_dev=prop.recommended_scrap_dev,
+                            material=prop.material,
+                        )
+                    )
+
+        if cuts_fulfilled_by_rack:
+            remaining_cuts = [c for c in all_cuts if c.id not in cuts_fulfilled_by_rack]
+            final_slits, _ = _pack_cuts_into_mother_coils(
+                cuts_to_pack=remaining_cuts,
+                requested_mother_widths=request.available_mother_widths,
+            )
+
+    # 4. Calculs des métriques de synthèse avec déterminisme numérique
+    total_net_surface = 0.0
+    net_weight_acc = 0.0
+
+    for p in request.pieces:
+        p_spec = resolve_material_spec(p.material if p.material else request.material)
+        p_surf = (p.dev / 1000.0) * p.length * p.quantity
+        total_net_surface += p_surf
+        net_weight_acc += p_surf * p_spec.surface_density_kg_m2
+
+    total_gross_surface = 0.0
+    gross_weight_acc = 0.0
+
+    for slit in final_slits:
+        s_spec = resolve_material_spec(slit.material)
+        slit_surf = (slit.mother_width / 1000.0) * slit.mother_length
+        total_gross_surface += slit_surf
+        gross_weight_acc += slit_surf * s_spec.surface_density_kg_m2
+
+    for scrap in applied_scraps:
+        scrap_spec = resolve_material_spec(scrap.material)
+        sc_surf = (scrap.scrap_dev / 1000.0) * scrap.piece_length
+        total_gross_surface += sc_surf
+        gross_weight_acc += sc_surf * scrap_spec.surface_density_kg_m2
+
+    reusable_scrap_surface = 0.0
+    for slit in final_slits:
+        if slit.is_scrap_reusable:
+            reusable_scrap_surface += (slit.scrap_width / 1000.0) * slit.mother_length
+
+    net_loss_surface = max(0.0, total_gross_surface - total_net_surface - reusable_scrap_surface)
+
+    # Taux de rendement matière (%) : (Surface nette + Chutes réutilisables) / Surface brute
+    if total_gross_surface > 0:
+        efficiency_rate = round(
+            ((total_net_surface + reusable_scrap_surface) / total_gross_surface) * 100.0,
+            1,
+        )
+    else:
+        efficiency_rate = 100.0
+
+    summary_msg = (
+        f"Optimisation terminée : {len(request.pieces)} repères usinés. "
+        f"Rendement matière de {efficiency_rate}% "
+        f"({round(total_net_surface, 2)} m² nets sur {round(total_gross_surface, 2)} m² bruts). "
+        f"Poids total de débit : {round(gross_weight_acc, 2)} kg."
+    )
+
+    return OptimizationResponse(
+        order_id=order_id,
+        timestamp=timestamp,
+        material_efficiency_rate=efficiency_rate,
+        total_net_surface_m2=round(total_net_surface, 2),
+        total_gross_surface_m2=round(total_gross_surface, 2),
+        reusable_scrap_surface_m2=round(reusable_scrap_surface, 2),
+        net_loss_surface_m2=round(net_loss_surface, 2),
+        net_weight_kg=round(net_weight_acc, 2),
+        gross_weight_kg=round(gross_weight_acc, 2),
+        slits=final_slits,
+        workshop_scrap_proposals=proposals,
+        applied_workshop_scraps=applied_scraps,
+        summary_message=summary_msg,
+    )

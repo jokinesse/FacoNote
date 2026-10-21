@@ -1,21 +1,59 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Open Sans', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+  --color-faco-blue: #00478a;
+  --color-faco-blue-dark: #003566;
+  --color-faco-sky: #3ca7da;
+  --color-faco-orange: #e7511f;
+  --color-faco-orange-hover: #cf4315;
+  --color-faco-bg: #f3f4f6;
+  --color-faco-surface: #ffffff;
+  --color-faco-border: #dde2e8;
+  --color-faco-text: #282828;
+  --color-faco-muted: #64748b;
 }
 
 @layer base {
   html {
     font-family: var(--font-sans);
-    color-scheme: dark;
-    background-color: #020617;
+    color-scheme: light;
+    background-color: #f3f4f6;
+    color: #282828;
   }
   body {
-    background-color: #020617;
-    color: #f8fafc;
+    background-color: #f3f4f6;
+    color: #282828;
     min-height: 100vh;
     margin: 0;
+  }
+}
+
+/* Accessible & responsive table wrapper (modern-web-guidance: responsive-table) */
+.table-wrapper {
+  overflow: auto;
+  max-inline-size: 100%;
+  container-type: inline-size;
+}
+
+.table-wrapper table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.table-wrapper thead {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+}
+
+/* Forced colors mode support (modern-web-guidance: color) */
+@media (forced-colors: active) {
+  .faco-card,
+  .faco-btn,
+  .faco-input {
+    border: 1px solid CanvasText;
   }
 }
 

@@ -14,6 +14,7 @@ export interface ShapedPieceModel {
   workshop_split_reason?: string | null;
   notes?: string | null;
   original_total_length_requested?: number | null;
+  source_type?: 'BOBINE' | 'RACK_SCRAP';
 }
 
 export interface FastEncoderInputRequest {
@@ -92,16 +93,35 @@ export interface SlitModel {
   parent_scrap_ref?: string | null;
 }
 
+export interface AppliedScrapModel {
+  piece_id?: string;
+  piece_label?: string;
+  piece_dev?: number;
+  piece_length?: number;
+  scrap_dev?: number;
+  material?: string;
+}
+
 export interface ScrapProposalModel {
-  proposal_id: string;
+  id?: string;
+  proposal_id?: string;
   piece_id: string;
-  label: string;
-  dev: number;
-  length: number;
-  rack_scrap_width: number;
-  rack_scrap_ref: string;
-  initial_loss_percent: number;
+  piece_label?: string;
+  label?: string;
+  piece_dev?: number;
+  dev?: number;
+  piece_length?: number;
+  length?: number;
+  recommended_scrap_dev?: number;
+  rack_scrap_width?: number;
+  rack_scrap_ref?: string;
+  material?: string;
+  initial_loss_percent?: number;
   reason: string;
+  mother_width_saved?: number;
+  mother_length_saved?: number;
+  area_saved_m2?: number;
+  weight_saved_kg?: number;
 }
 
 export interface OptimizationRequest {
@@ -127,7 +147,7 @@ export interface OptimizationResponse {
   gross_weight_kg: number;
   slits: SlitModel[];
   workshop_scrap_proposals: ScrapProposalModel[];
-  applied_workshop_scraps: string[];
+  applied_workshop_scraps: (AppliedScrapModel | string)[];
   summary_message: string;
 }
 

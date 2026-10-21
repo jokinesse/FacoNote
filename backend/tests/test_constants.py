@@ -8,6 +8,7 @@ from app.core.constants import (
     ALU_FINISHES,
     DEV_BOBINE_BOUNDS,
     DEV_PIECE_BOUNDS,
+    OFFICIAL_MATERIALS,
     RACK_SCRAP_WIDTHS,
     STANDARDIZED_MATERIALS,
     ZINC_FINISHES,
@@ -18,34 +19,57 @@ from app.core.constants import (
 )
 
 
+def test_official_materials_exact_list() -> None:
+    """Vérifie que la liste officielle stricte contient exactement les 13 matières demandées."""
+    expected_materials = (
+        # Alu épaisseur 0,7
+        "Alu RAL 7016 0.7",
+        "Alu RAL 9005 0.7",
+        "Alu RAL 9010 0.7",
+        "Alu RAL 7039 0.7",
+        # Alu épaisseur 1.5
+        "Alu 1.5 Brut",
+        # Zinc épaisseur 0.7
+        "Zinc Naturel 0.7",
+        "Zinc ATZ 0.7",
+        "Zinc Quartz 0.7",
+        # Zinc épaisseur 0.8
+        "Zinc Naturel 0.8",
+        "Zinc ATZ 0.8",
+        "Zinc Quartz 0.8",
+        "Zinc Pigmento Rouge 0.8",
+        # Zinc épaisseur 1
+        "Zinc Perforée 1.0",
+    )
+    assert OFFICIAL_MATERIALS == expected_materials
+    assert len(OFFICIAL_MATERIALS) == 13
+
+    for mat in OFFICIAL_MATERIALS:
+        assert mat in STANDARDIZED_MATERIALS
+
+
 def test_zinc_finishes_list() -> None:
     """Vérifie la présence des finitions Zinc demandées."""
-    expected_finishes = {"Naturel", "Noir ATZ", "Quartz", "Pigmento Rouge", "Perforée"}
+    expected_finishes = {"Naturel", "ATZ", "Quartz", "Pigmento Rouge", "Perforée"}
     assert set(ZINC_FINISHES) == expected_finishes
 
-    # Test des densités surfaciques en 0.7mm (5.04 kg/m²) et 0.8mm (5.76 kg/m²)
-    for finish in expected_finishes:
-        key_07 = f"Zinc {finish} 0.7"
-        key_08 = f"Zinc {finish} 0.8"
-        assert key_07 in STANDARDIZED_MATERIALS
-        assert key_08 in STANDARDIZED_MATERIALS
+    # Test des densités surfaciques en 0.7mm (5.04 kg/m²), 0.8mm (5.76 kg/m²) et 1.0mm (7.20 kg/m²)
+    assert STANDARDIZED_MATERIALS["Zinc Naturel 0.7"].surface_density_kg_m2 == 5.04
+    assert STANDARDIZED_MATERIALS["Zinc ATZ 0.7"].surface_density_kg_m2 == 5.04
+    assert STANDARDIZED_MATERIALS["Zinc Quartz 0.7"].surface_density_kg_m2 == 5.04
 
-        spec_07 = STANDARDIZED_MATERIALS[key_07]
-        spec_08 = STANDARDIZED_MATERIALS[key_08]
+    assert STANDARDIZED_MATERIALS["Zinc Naturel 0.8"].surface_density_kg_m2 == 5.76
+    assert STANDARDIZED_MATERIALS["Zinc ATZ 0.8"].surface_density_kg_m2 == 5.76
+    assert STANDARDIZED_MATERIALS["Zinc Quartz 0.8"].surface_density_kg_m2 == 5.76
+    assert STANDARDIZED_MATERIALS["Zinc Pigmento Rouge 0.8"].surface_density_kg_m2 == 5.76
 
-        assert spec_07.surface_density_kg_m2 == 5.04
-        assert spec_07.thickness_mm == 0.70
-        assert spec_07.metal_type == "ZINC"
-        assert spec_07.standard_mother_widths_mm == (600, 650, 670, 750, 1000, 1100)
-
-        assert spec_08.surface_density_kg_m2 == 5.76
-        assert spec_08.thickness_mm == 0.80
-        assert spec_08.metal_type == "ZINC"
+    assert STANDARDIZED_MATERIALS["Zinc Perforée 1.0"].surface_density_kg_m2 == 7.20
+    assert STANDARDIZED_MATERIALS["Zinc Perforée 1.0"].thickness_mm == 1.00
 
 
 def test_alu_finishes_list() -> None:
     """Vérifie la présence des finitions Alu demandées."""
-    expected_finishes = {"7016 gris bleu", "9005 Noir texturé", "9010 Blanc", "Quartz", "1.5 Brut"}
+    expected_finishes = {"RAL 7016", "RAL 9005", "RAL 9010", "RAL 7039", "1.5 Brut"}
     assert set(ALU_FINISHES) == expected_finishes
 
     # Alu 1.5 Brut spécifique
@@ -54,13 +78,12 @@ def test_alu_finishes_list() -> None:
     assert spec_brut.surface_density_kg_m2 == 4.05  # 2700 * 0.0015
     assert spec_brut.metal_type == "ALUMINIUM"
 
-    # Vérification des nuances laquées en 0.8mm et 0.7mm
-    for finish in ["7016 gris bleu", "9005 Noir texturé", "9010 Blanc", "Quartz"]:
-        spec_08 = STANDARDIZED_MATERIALS[f"Alu {finish} 0.8"]
-        spec_07 = STANDARDIZED_MATERIALS[f"Alu {finish} 0.7"]
-        assert spec_08.surface_density_kg_m2 == 2.16
-        assert spec_07.surface_density_kg_m2 == 1.89
-        assert spec_08.metal_type == "ALUMINIUM"
+    # Nuances laquées 0.7mm
+    for finish in ["RAL 7016", "RAL 9005", "RAL 9010", "RAL 7039"]:
+        spec = STANDARDIZED_MATERIALS[f"Alu {finish} 0.7"]
+        assert spec.surface_density_kg_m2 == 1.89
+        assert spec.thickness_mm == 0.70
+        assert spec.metal_type == "ALUMINIUM"
 
 
 def test_standard_bounds_counts() -> None:
@@ -109,24 +132,27 @@ def test_round_meters_three_decimals() -> None:
 
 
 def test_resolve_material_spec_new_nuances() -> None:
-    """Vérifie la résolution dynamique des nouvelles nuances d'atelier."""
+    """Vérifie la résolution dynamique des nuances d'atelier selon la liste stricte."""
     # Zinc
     assert resolve_material_spec("Zinc Naturel 0.7").name == "Zinc Naturel 0.7"
-    assert resolve_material_spec("Noir ATZ 0.8").name == "Zinc Noir ATZ 0.8"
+    assert resolve_material_spec("Noir ATZ 0.8").name == "Zinc ATZ 0.8"
+    assert resolve_material_spec("Zinc ATZ 0.7").name == "Zinc ATZ 0.7"
     assert resolve_material_spec("Quatz 0.7").name == "Zinc Quartz 0.7"
-    assert resolve_material_spec("Pigemento Rouge 0.8").name == "Zinc Pigmento Rouge 0.8"
-    assert resolve_material_spec("Zinc Perforée 0.7").name == "Zinc Perforée 0.7"
+    assert resolve_material_spec("Quartz 0.8").name == "Zinc Quartz 0.8"
+    assert resolve_material_spec("Pigmento Rouge").name == "Zinc Pigmento Rouge 0.8"
+    assert resolve_material_spec("Zinc Perforée").name == "Zinc Perforée 1.0"
+    assert resolve_material_spec("Zinc Perforée 1").name == "Zinc Perforée 1.0"
 
-    # Alu (0.7 mm standard par défaut, sauf 1.5 Brut)
-    assert resolve_material_spec("7016 gris bleu").name == "Alu 7016 gris bleu 0.7"
-    assert resolve_material_spec("7016 gris bleu").surface_density_kg_m2 == 1.89
-    assert resolve_material_spec("Alu 7016 0.8").name == "Alu 7016 gris bleu 0.8"
-    assert resolve_material_spec("Alu 7016 0.8").surface_density_kg_m2 == 2.16
-    assert resolve_material_spec("9005 Noir texturé").name == "Alu 9005 Noir texturé 0.7"
-    assert resolve_material_spec("9005 Noir texturé").surface_density_kg_m2 == 1.89
-    assert resolve_material_spec("9010 Blanc").name == "Alu 9010 Blanc 0.7"
-    assert resolve_material_spec("9010 Blanc").surface_density_kg_m2 == 1.89
-    assert resolve_material_spec("Alu Quarz").name == "Alu Quartz 0.7"
-    assert resolve_material_spec("Alu Quarz").surface_density_kg_m2 == 1.89
+    # Alu 0.7 (RAL 7016, 9005, 9010, 7039)
+    assert resolve_material_spec("7016").name == "Alu RAL 7016 0.7"
+    assert resolve_material_spec("Alu 7016").surface_density_kg_m2 == 1.89
+    assert resolve_material_spec("9005").name == "Alu RAL 9005 0.7"
+    assert resolve_material_spec("Alu 9005 Noir texturé").name == "Alu RAL 9005 0.7"
+    assert resolve_material_spec("9010 Blanc").name == "Alu RAL 9010 0.7"
+    assert resolve_material_spec("7039").name == "Alu RAL 7039 0.7"
+    assert resolve_material_spec("Alu RAL 7039 0.7").surface_density_kg_m2 == 1.89
+
+    # Alu 1.5 Brut
     assert resolve_material_spec("1.5 Brut").name == "Alu 1.5 Brut"
+    assert resolve_material_spec("Alu Brut").name == "Alu 1.5 Brut"
     assert resolve_material_spec("Alu 1.5 Brut").surface_density_kg_m2 == 4.05

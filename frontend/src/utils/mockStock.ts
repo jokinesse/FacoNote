@@ -81,7 +81,7 @@ export const INITIAL_STOCK_ITEMS: StockMotherItem[] = [
   {
     id: 'stock-zn-qz-08-670',
     material: 'ZINC',
-    finish: 'Quartz-Zinc',
+    finish: 'Quartz',
     thickness: '0.8',
     width: 670,
     lengthAvailable: 78.0,
@@ -93,7 +93,7 @@ export const INITIAL_STOCK_ITEMS: StockMotherItem[] = [
   {
     id: 'stock-zn-qz-08-1000',
     material: 'ZINC',
-    finish: 'Quartz-Zinc',
+    finish: 'Quartz',
     thickness: '0.8',
     width: 1000,
     lengthAvailable: 65.0,
@@ -107,7 +107,7 @@ export const INITIAL_STOCK_ITEMS: StockMotherItem[] = [
   {
     id: 'stock-zn-atz-08-670',
     material: 'ZINC',
-    finish: 'ATZ (Anthra-Zinc)',
+    finish: 'ATZ',
     thickness: '0.8',
     width: 670,
     lengthAvailable: 50.0,
@@ -119,7 +119,7 @@ export const INITIAL_STOCK_ITEMS: StockMotherItem[] = [
   {
     id: 'stock-zn-atz-08-1000',
     material: 'ZINC',
-    finish: 'ATZ (Anthra-Zinc)',
+    finish: 'ATZ',
     thickness: '0.8',
     width: 1000,
     lengthAvailable: 70.0,
@@ -133,7 +133,7 @@ export const INITIAL_STOCK_ITEMS: StockMotherItem[] = [
   {
     id: 'stock-alu-noir-07-650',
     material: 'ALUMINIUM',
-    finish: 'Alu Noir RAL 9005',
+    finish: 'RAL 9005',
     thickness: '0.7',
     width: 650,
     lengthAvailable: 80.0,
@@ -145,7 +145,7 @@ export const INITIAL_STOCK_ITEMS: StockMotherItem[] = [
   {
     id: 'stock-alu-noir-07-1000',
     material: 'ALUMINIUM',
-    finish: 'Alu Noir RAL 9005',
+    finish: 'RAL 9005',
     thickness: '0.7',
     width: 1000,
     lengthAvailable: 95.0,
@@ -159,7 +159,7 @@ export const INITIAL_STOCK_ITEMS: StockMotherItem[] = [
   {
     id: 'stock-alu-blanc-07-650',
     material: 'ALUMINIUM',
-    finish: 'Alu Blanc RAL 9010',
+    finish: 'RAL 9010',
     thickness: '0.7',
     width: 650,
     lengthAvailable: 60.0,
@@ -171,7 +171,7 @@ export const INITIAL_STOCK_ITEMS: StockMotherItem[] = [
   {
     id: 'stock-alu-blanc-07-1000',
     material: 'ALUMINIUM',
-    finish: 'Alu Blanc RAL 9010',
+    finish: 'RAL 9010',
     thickness: '0.7',
     width: 1000,
     lengthAvailable: 75.0,
@@ -181,11 +181,11 @@ export const INITIAL_STOCK_ITEMS: StockMotherItem[] = [
     minAlert: 15.0,
   },
 
-  // ALU QZ (Aspect Quartz) 0.7 mm
+  // ALU RAL 7039 0.7 mm
   {
-    id: 'stock-alu-qz-07-650',
+    id: 'stock-alu-7039-07-650',
     material: 'ALUMINIUM',
-    finish: 'Alu QZ (Quartz)',
+    finish: 'RAL 7039',
     thickness: '0.7',
     width: 650,
     lengthAvailable: 55.0,
@@ -195,9 +195,9 @@ export const INITIAL_STOCK_ITEMS: StockMotherItem[] = [
     minAlert: 10.0,
   },
   {
-    id: 'stock-alu-qz-07-1000',
+    id: 'stock-alu-7039-07-1000',
     material: 'ALUMINIUM',
-    finish: 'Alu QZ (Quartz)',
+    finish: 'RAL 7039',
     thickness: '0.7',
     width: 1000,
     lengthAvailable: 60.0,
@@ -205,6 +205,33 @@ export const INITIAL_STOCK_ITEMS: StockMotherItem[] = [
     coilOrSheet: 'bobine',
     location: 'Rack Alu G2',
     minAlert: 15.0,
+  },
+  // ALU 1.5 BRUT
+  {
+    id: 'stock-alu-brut-15-1000',
+    material: 'ALUMINIUM',
+    finish: '1.5 Brut',
+    thickness: '1.5',
+    width: 1000,
+    lengthAvailable: 40.0,
+    weightKg: 162.0,
+    coilOrSheet: 'feuille',
+    location: 'Rack Alu G3',
+    minAlert: 10.0,
+  },
+
+  // ZINC PERFORÉ 1.0 mm
+  {
+    id: 'stock-zn-perf-10-1000',
+    material: 'ZINC',
+    finish: 'Perforée',
+    thickness: '1.0',
+    width: 1000,
+    lengthAvailable: 35.0,
+    weightKg: 252.0,
+    coilOrSheet: 'feuille',
+    location: 'Rack Bobines D3',
+    minAlert: 10.0,
   },
 ];
 
@@ -228,7 +255,7 @@ export const INITIAL_REUSABLE_SCRAPS: ReusableScrap[] = [
     id: 'scrap-002',
     refCode: 'CHU-ZN-QZ-250-3.5',
     material: 'ZINC',
-    finish: 'Quartz-Zinc',
+    finish: 'Quartz',
     thickness: '0.8',
     dev: 250,
     length: 3.5,
@@ -242,7 +269,7 @@ export const INITIAL_REUSABLE_SCRAPS: ReusableScrap[] = [
     id: 'scrap-003',
     refCode: 'CHU-ALU-NR-350-2.8',
     material: 'ALUMINIUM',
-    finish: 'Alu Noir RAL 9005',
+    finish: 'RAL 9005',
     thickness: '0.7',
     dev: 350,
     length: 2.8,
@@ -256,7 +283,7 @@ export const INITIAL_REUSABLE_SCRAPS: ReusableScrap[] = [
     id: 'scrap-004',
     refCode: 'CHU-ZN-ATZ-200-5.0',
     material: 'ZINC',
-    finish: 'ATZ (Anthra-Zinc)',
+    finish: 'ATZ',
     thickness: '0.7',
     dev: 200,
     length: 5.0,
@@ -270,7 +297,7 @@ export const INITIAL_REUSABLE_SCRAPS: ReusableScrap[] = [
     id: 'scrap-005',
     refCode: 'CHU-ALU-BL-400-3.0',
     material: 'ALUMINIUM',
-    finish: 'Alu Blanc RAL 9010',
+    finish: 'RAL 9010',
     thickness: '0.7',
     dev: 400,
     length: 3.0,

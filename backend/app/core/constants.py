@@ -19,18 +19,40 @@ class MaterialSpec(NamedTuple):
 # Finitions normalisées
 ZINC_FINISHES: Final[tuple[str, ...]] = (
     "Naturel",
-    "Noir ATZ",
+    "ATZ",
     "Quartz",
     "Pigmento Rouge",
     "Perforée",
 )
 
 ALU_FINISHES: Final[tuple[str, ...]] = (
-    "7016 gris bleu",
-    "9005 Noir texturé",
-    "9010 Blanc",
-    "Quartz",
+    "RAL 7016",
+    "RAL 9005",
+    "RAL 9010",
+    "RAL 7039",
     "1.5 Brut",
+)
+
+# Liste officielle stricte des matières et finitions Facozinc
+OFFICIAL_MATERIALS: Final[tuple[str, ...]] = (
+    # Alu épaisseur 0,7
+    "Alu RAL 7016 0.7",
+    "Alu RAL 9005 0.7",
+    "Alu RAL 9010 0.7",
+    "Alu RAL 7039 0.7",
+    # Alu épaisseur 1.5
+    "Alu 1.5 Brut",
+    # Zinc épaisseur 0.7
+    "Zinc Naturel 0.7",
+    "Zinc ATZ 0.7",
+    "Zinc Quartz 0.7",
+    # Zinc épaisseur 0.8
+    "Zinc Naturel 0.8",
+    "Zinc ATZ 0.8",
+    "Zinc Quartz 0.8",
+    "Zinc Pigmento Rouge 0.8",
+    # Zinc épaisseur 1
+    "Zinc Perforée 1.0",
 )
 
 # Table officielle des densités volumétriques
@@ -53,10 +75,19 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         surface_density_kg_m2=5.04,
         standard_mother_widths_mm=(600, 650, 670, 750, 1000, 1100),
     ),
-    "Zinc Noir ATZ 0.7": MaterialSpec(
-        name="Zinc Noir ATZ 0.7",
+    "Zinc ATZ 0.7": MaterialSpec(
+        name="Zinc ATZ 0.7",
         metal_type="ZINC",
-        finish="Noir ATZ",
+        finish="ATZ",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=7200.0,
+        surface_density_kg_m2=5.04,
+        standard_mother_widths_mm=(600, 650, 670, 750, 1000, 1100),
+    ),
+    "Zinc Noir ATZ 0.7": MaterialSpec(
+        name="Zinc ATZ 0.7",
+        metal_type="ZINC",
+        finish="ATZ",
         thickness_mm=0.70,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=5.04,
@@ -66,24 +97,6 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         name="Zinc Quartz 0.7",
         metal_type="ZINC",
         finish="Quartz",
-        thickness_mm=0.70,
-        volumetric_density_kg_m3=7200.0,
-        surface_density_kg_m2=5.04,
-        standard_mother_widths_mm=(600, 650, 670, 750, 1000, 1100),
-    ),
-    "Zinc Pigmento Rouge 0.7": MaterialSpec(
-        name="Zinc Pigmento Rouge 0.7",
-        metal_type="ZINC",
-        finish="Pigmento Rouge",
-        thickness_mm=0.70,
-        volumetric_density_kg_m3=7200.0,
-        surface_density_kg_m2=5.04,
-        standard_mother_widths_mm=(600, 650, 670, 750, 1000, 1100),
-    ),
-    "Zinc Perforée 0.7": MaterialSpec(
-        name="Zinc Perforée 0.7",
-        metal_type="ZINC",
-        finish="Perforée",
         thickness_mm=0.70,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=5.04,
@@ -100,10 +113,19 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         surface_density_kg_m2=5.76,
         standard_mother_widths_mm=(600, 650, 670, 750, 1000, 1100),
     ),
-    "Zinc Noir ATZ 0.8": MaterialSpec(
-        name="Zinc Noir ATZ 0.8",
+    "Zinc ATZ 0.8": MaterialSpec(
+        name="Zinc ATZ 0.8",
         metal_type="ZINC",
-        finish="Noir ATZ",
+        finish="ATZ",
+        thickness_mm=0.80,
+        volumetric_density_kg_m3=7200.0,
+        surface_density_kg_m2=5.76,
+        standard_mother_widths_mm=(600, 650, 670, 750, 1000, 1100),
+    ),
+    "Zinc Noir ATZ 0.8": MaterialSpec(
+        name="Zinc ATZ 0.8",
+        metal_type="ZINC",
+        finish="ATZ",
         thickness_mm=0.80,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=5.76,
@@ -127,18 +149,204 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         surface_density_kg_m2=5.76,
         standard_mother_widths_mm=(600, 650, 670, 750, 1000, 1100),
     ),
-    "Zinc Perforée 0.8": MaterialSpec(
-        name="Zinc Perforée 0.8",
+
+    # --- ZINC 1.00 mm (7.20 kg/m²) ---
+    "Zinc Perforée 1.0": MaterialSpec(
+        name="Zinc Perforée 1.0",
         metal_type="ZINC",
         finish="Perforée",
+        thickness_mm=1.00,
+        volumetric_density_kg_m3=7200.0,
+        surface_density_kg_m2=7.20,
+        standard_mother_widths_mm=(600, 650, 670, 750, 1000, 1100),
+    ),
+    "Zinc Perforée 1": MaterialSpec(
+        name="Zinc Perforée 1.0",
+        metal_type="ZINC",
+        finish="Perforée",
+        thickness_mm=1.00,
+        volumetric_density_kg_m3=7200.0,
+        surface_density_kg_m2=7.20,
+        standard_mother_widths_mm=(600, 650, 670, 750, 1000, 1100),
+    ),
+    "Zinc Perforée 0.7": MaterialSpec(
+        name="Zinc Perforée 1.0",
+        metal_type="ZINC",
+        finish="Perforée",
+        thickness_mm=1.00,
+        volumetric_density_kg_m3=7200.0,
+        surface_density_kg_m2=7.20,
+        standard_mother_widths_mm=(600, 650, 670, 750, 1000, 1100),
+    ),
+    "Zinc Perforée 0.8": MaterialSpec(
+        name="Zinc Perforée 1.0",
+        metal_type="ZINC",
+        finish="Perforée",
+        thickness_mm=1.00,
+        volumetric_density_kg_m3=7200.0,
+        surface_density_kg_m2=7.20,
+        standard_mother_widths_mm=(600, 650, 670, 750, 1000, 1100),
+    ),
+    "Zinc Pigmento Rouge 0.7": MaterialSpec(
+        name="Zinc Pigmento Rouge 0.8",
+        metal_type="ZINC",
+        finish="Pigmento Rouge",
         thickness_mm=0.80,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=5.76,
         standard_mother_widths_mm=(600, 650, 670, 750, 1000, 1100),
     ),
 
-    # --- ALUMINIUM LAQUÉ & BRUT ---
-    # Alu 1.5 Brut (4.05 kg/m²)
+    # --- ALUMINIUM LAQUÉ (0.70 mm -> 1.89 kg/m²) ---
+    "Alu RAL 7016 0.7": MaterialSpec(
+        name="Alu RAL 7016 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 7016",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(500, 600, 650, 750, 1000, 1250),
+    ),
+    "Alu 7016 gris bleu 0.7": MaterialSpec(
+        name="Alu RAL 7016 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 7016",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(500, 600, 650, 750, 1000, 1250),
+    ),
+    "Alu 7016 gris bleu": MaterialSpec(
+        name="Alu RAL 7016 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 7016",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(500, 600, 650, 750, 1000, 1250),
+    ),
+    "Alu 7016 gris bleu 0.8": MaterialSpec(
+        name="Alu RAL 7016 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 7016",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(500, 600, 650, 750, 1000, 1250),
+    ),
+
+    "Alu RAL 9005 0.7": MaterialSpec(
+        name="Alu RAL 9005 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 9005",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(650, 1000),
+    ),
+    "Alu 9005 Noir texturé 0.7": MaterialSpec(
+        name="Alu RAL 9005 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 9005",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(650, 1000),
+    ),
+    "Alu 9005 Noir texturé": MaterialSpec(
+        name="Alu RAL 9005 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 9005",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(650, 1000),
+    ),
+    "Alu 9005 Noir texturé 0.8": MaterialSpec(
+        name="Alu RAL 9005 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 9005",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(650, 1000),
+    ),
+
+    "Alu RAL 9010 0.7": MaterialSpec(
+        name="Alu RAL 9010 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 9010",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(650, 1000, 1250),
+    ),
+    "Alu 9010 Blanc 0.7": MaterialSpec(
+        name="Alu RAL 9010 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 9010",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(650, 1000, 1250),
+    ),
+    "Alu 9010 Blanc": MaterialSpec(
+        name="Alu RAL 9010 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 9010",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(650, 1000, 1250),
+    ),
+    "Alu 9010 Blanc 0.8": MaterialSpec(
+        name="Alu RAL 9010 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 9010",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(650, 1000, 1250),
+    ),
+
+    "Alu RAL 7039 0.7": MaterialSpec(
+        name="Alu RAL 7039 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 7039",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(650, 1000, 1250),
+    ),
+    "Alu Quartz 0.7": MaterialSpec(
+        name="Alu RAL 7039 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 7039",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(650, 1000, 1250),
+    ),
+    "Alu Quartz": MaterialSpec(
+        name="Alu RAL 7039 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 7039",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(650, 1000, 1250),
+    ),
+    "Alu Quartz 0.8": MaterialSpec(
+        name="Alu RAL 7039 0.7",
+        metal_type="ALUMINIUM",
+        finish="RAL 7039",
+        thickness_mm=0.70,
+        volumetric_density_kg_m3=2700.0,
+        surface_density_kg_m2=1.89,
+        standard_mother_widths_mm=(650, 1000, 1250),
+    ),
+
+    # --- ALUMINIUM 1.5 BRUT (4.05 kg/m²) ---
     "Alu 1.5 Brut": MaterialSpec(
         name="Alu 1.5 Brut",
         metal_type="ALUMINIUM",
@@ -148,120 +356,8 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         surface_density_kg_m2=4.05,
         standard_mother_widths_mm=(1000, 1250, 1500),
     ),
-    # 7016 gris bleu (0.70 mm standard -> 1.89 kg/m²)
-    "Alu 7016 gris bleu": MaterialSpec(
-        name="Alu 7016 gris bleu 0.7",
-        metal_type="ALUMINIUM",
-        finish="7016 gris bleu",
-        thickness_mm=0.70,
-        volumetric_density_kg_m3=2700.0,
-        surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(500, 600, 650, 750, 1000, 1250),
-    ),
-    "Alu 7016 gris bleu 0.7": MaterialSpec(
-        name="Alu 7016 gris bleu 0.7",
-        metal_type="ALUMINIUM",
-        finish="7016 gris bleu",
-        thickness_mm=0.70,
-        volumetric_density_kg_m3=2700.0,
-        surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(500, 600, 650, 750, 1000, 1250),
-    ),
-    "Alu 7016 gris bleu 0.8": MaterialSpec(
-        name="Alu 7016 gris bleu 0.8",
-        metal_type="ALUMINIUM",
-        finish="7016 gris bleu",
-        thickness_mm=0.80,
-        volumetric_density_kg_m3=2700.0,
-        surface_density_kg_m2=2.16,
-        standard_mother_widths_mm=(500, 600, 650, 750, 1000, 1250),
-    ),
-    # 9005 Noir texturé (0.70 mm standard -> 1.89 kg/m², laizes 650 et 1000)
-    "Alu 9005 Noir texturé": MaterialSpec(
-        name="Alu 9005 Noir texturé 0.7",
-        metal_type="ALUMINIUM",
-        finish="9005 Noir texturé",
-        thickness_mm=0.70,
-        volumetric_density_kg_m3=2700.0,
-        surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(650, 1000),
-    ),
-    "Alu 9005 Noir texturé 0.7": MaterialSpec(
-        name="Alu 9005 Noir texturé 0.7",
-        metal_type="ALUMINIUM",
-        finish="9005 Noir texturé",
-        thickness_mm=0.70,
-        volumetric_density_kg_m3=2700.0,
-        surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(650, 1000),
-    ),
-    "Alu 9005 Noir texturé 0.8": MaterialSpec(
-        name="Alu 9005 Noir texturé 0.8",
-        metal_type="ALUMINIUM",
-        finish="9005 Noir texturé",
-        thickness_mm=0.80,
-        volumetric_density_kg_m3=2700.0,
-        surface_density_kg_m2=2.16,
-        standard_mother_widths_mm=(650, 1000),
-    ),
-    # 9010 Blanc (0.70 mm standard -> 1.89 kg/m²)
-    "Alu 9010 Blanc": MaterialSpec(
-        name="Alu 9010 Blanc 0.7",
-        metal_type="ALUMINIUM",
-        finish="9010 Blanc",
-        thickness_mm=0.70,
-        volumetric_density_kg_m3=2700.0,
-        surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(650, 1000, 1250),
-    ),
-    "Alu 9010 Blanc 0.7": MaterialSpec(
-        name="Alu 9010 Blanc 0.7",
-        metal_type="ALUMINIUM",
-        finish="9010 Blanc",
-        thickness_mm=0.70,
-        volumetric_density_kg_m3=2700.0,
-        surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(650, 1000, 1250),
-    ),
-    "Alu 9010 Blanc 0.8": MaterialSpec(
-        name="Alu 9010 Blanc 0.8",
-        metal_type="ALUMINIUM",
-        finish="9010 Blanc",
-        thickness_mm=0.80,
-        volumetric_density_kg_m3=2700.0,
-        surface_density_kg_m2=2.16,
-        standard_mother_widths_mm=(650, 1000, 1250),
-    ),
-    # Quartz (0.70 mm standard -> 1.89 kg/m², laizes 650 et 1000)
-    "Alu Quartz": MaterialSpec(
-        name="Alu Quartz 0.7",
-        metal_type="ALUMINIUM",
-        finish="Quartz",
-        thickness_mm=0.70,
-        volumetric_density_kg_m3=2700.0,
-        surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(650, 1000),
-    ),
-    "Alu Quartz 0.7": MaterialSpec(
-        name="Alu Quartz 0.7",
-        metal_type="ALUMINIUM",
-        finish="Quartz",
-        thickness_mm=0.70,
-        volumetric_density_kg_m3=2700.0,
-        surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(650, 1000),
-    ),
-    "Alu Quartz 0.8": MaterialSpec(
-        name="Alu Quartz 0.8",
-        metal_type="ALUMINIUM",
-        finish="Quartz",
-        thickness_mm=0.80,
-        volumetric_density_kg_m3=2700.0,
-        surface_density_kg_m2=2.16,
-        standard_mother_widths_mm=(650, 1000),
-    ),
 
-    # --- AUTRES MÉTAUX HISTORIQUES ---
+    # --- MÉTAUX HISTORIQUES (REPLI UNIQUEMENT) ---
     "Cuivre 0.60": MaterialSpec(
         name="Cuivre 0.60mm",
         metal_type="CUIVRE",
@@ -311,59 +407,68 @@ ALL_STANDARD_LENGTHS: Final[tuple[float, ...]] = (
 
 def resolve_material_spec(material_name: str) -> MaterialSpec:
     """
-    Résout intelligemment la nuance de métal exacte selon le libellé utilisateur.
-    Prend en compte les listes Alu et Zinc mises à jour.
+    Résout la nuance de métal exacte selon le libellé utilisateur ou atelier.
+    Conforme à la liste stricte Facozinc :
+    - Alu 0.7 (RAL 7016, RAL 9005, RAL 9010, RAL 7039)
+    - Alu 1.5 Brut
+    - Zinc 0.7 (Naturel, ATZ, Quartz)
+    - Zinc 0.8 (Naturel, ATZ, Quartz, Pigmento Rouge)
+    - Zinc 1.0 (Perforée)
     """
     clean = material_name.lower().strip()
 
-    # Cuivre & Plomb
+    # 1.5 Brut Aluminium
+    if ("1.5" in clean and "brut" in clean) or ("brut" in clean and "alu" in clean) or clean == "brut" or clean == "1.5 brut":
+        return STANDARDIZED_MATERIALS["Alu 1.5 Brut"]
+
+    # Zinc Perforée (épaisseur 1)
+    if "perfor" in clean:
+        return STANDARDIZED_MATERIALS["Zinc Perforée 1.0"]
+
+    # Alu 0.7 RAL
+    if "7016" in clean or "gris bleu" in clean:
+        return STANDARDIZED_MATERIALS["Alu RAL 7016 0.7"]
+    if "9005" in clean or (("noir" in clean or "textur" in clean) and "alu" in clean):
+        return STANDARDIZED_MATERIALS["Alu RAL 9005 0.7"]
+    if "9010" in clean or ("blanc" in clean and "alu" in clean):
+        return STANDARDIZED_MATERIALS["Alu RAL 9010 0.7"]
+    if "7039" in clean:
+        return STANDARDIZED_MATERIALS["Alu RAL 7039 0.7"]
+
+    # Zinc Pigmento Rouge (épaisseur 0.8)
+    if "pigment" in clean or "rouge" in clean:
+        return STANDARDIZED_MATERIALS["Zinc Pigmento Rouge 0.8"]
+
+    # Détection épaisseur Zinc (0.8 vs 0.7)
+    is_08 = "0.8" in clean or "0,8" in clean
+    thick = "0.8" if is_08 else "0.7"
+
+    # Quartz (Zinc ou Alu si précisé)
+    if "quarz" in clean or "quartz" in clean or "quatz" in clean or "qz" in clean:
+        if "alu" in clean:
+            return STANDARDIZED_MATERIALS["Alu RAL 7039 0.7"]
+        return STANDARDIZED_MATERIALS[f"Zinc Quartz {thick}"]
+
+    # ATZ Zinc
+    if "atz" in clean or "anthra" in clean or ("noir" in clean and "zinc" in clean):
+        return STANDARDIZED_MATERIALS[f"Zinc ATZ {thick}"]
+
+    # Zinc Naturel
+    if "naturel" in clean or "nat" in clean:
+        return STANDARDIZED_MATERIALS[f"Zinc Naturel {thick}"]
+
+    # Cuivre & Plomb (historique)
     if "cuivre" in clean:
         return STANDARDIZED_MATERIALS["Cuivre 0.60"]
     if "plomb" in clean:
         return STANDARDIZED_MATERIALS["Plomb 1.25"]
 
-    # 1.5 Brut Aluminium
-    if ("1.5" in clean and "brut" in clean) or ("brut" in clean and "alu" in clean):
-        return STANDARDIZED_MATERIALS["Alu 1.5 Brut"]
-
-    # Analyse de l'épaisseur demandée (0.7 mm par défaut pour Alu et Zinc, 1.5 mm pour Alu Brut)
-    is_07 = "0.7" in clean or "0,7" in clean
-    is_08 = "0.8" in clean or "0,8" in clean
-
-    # ALUMINIUM
-    is_explicit_alu = "alu" in clean or "aluminium" in clean
-    has_alu_code = any(k in clean for k in ("7016", "9005", "9010", "gris bleu", "texturé", "textur"))
-
-    if is_explicit_alu or has_alu_code:
-        # L'Aluminium laqué est en 0.7 mm par défaut
-        thick_suffix = "0.8" if is_08 else "0.7"
-        if "7016" in clean or "gris bleu" in clean:
-            return STANDARDIZED_MATERIALS[f"Alu 7016 gris bleu {thick_suffix}"]
-        if "9005" in clean or "noir" in clean or "textur" in clean:
-            return STANDARDIZED_MATERIALS[f"Alu 9005 Noir texturé {thick_suffix}"]
-        if "9010" in clean or "blanc" in clean:
-            return STANDARDIZED_MATERIALS[f"Alu 9010 Blanc {thick_suffix}"]
-        if "quarz" in clean or "quartz" in clean or "quatz" in clean or "qz" in clean:
-            return STANDARDIZED_MATERIALS[f"Alu Quartz {thick_suffix}"]
-        # Par défaut Alu
-        return STANDARDIZED_MATERIALS[f"Alu 7016 gris bleu {thick_suffix}"]
-
-    # ZINC (par défaut ou explicite)
-    zinc_thick = "0.8" if is_08 else "0.7"
-
-    if "quarz" in clean or "quartz" in clean or "quatz" in clean or "qz" in clean:
-        return STANDARDIZED_MATERIALS[f"Zinc Quartz {zinc_thick}"]
-    if "atz" in clean or "noir" in clean:
-        return STANDARDIZED_MATERIALS[f"Zinc Noir ATZ {zinc_thick}"]
-    if "pigmento" in clean or "rouge" in clean:
-        return STANDARDIZED_MATERIALS[f"Zinc Pigmento Rouge {zinc_thick}"]
-    if "perfor" in clean:
-        return STANDARDIZED_MATERIALS[f"Zinc Perforée {zinc_thick}"]
-    if "naturel" in clean or "nat" in clean:
-        return STANDARDIZED_MATERIALS[f"Zinc Naturel {zinc_thick}"]
+    # Si explicitement Alu sans code
+    if "alu" in clean or "aluminium" in clean:
+        return STANDARDIZED_MATERIALS["Alu RAL 7016 0.7"]
 
     # Repli par défaut
-    return STANDARDIZED_MATERIALS[f"Zinc Naturel {zinc_thick}"]
+    return STANDARDIZED_MATERIALS[f"Zinc Naturel {thick}"]
 
 
 def calculate_weight_kg(dev_mm: float, length_m: float, surface_density_kg_m2: float) -> float:

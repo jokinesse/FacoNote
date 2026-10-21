@@ -23,6 +23,7 @@ class ShapedPieceModel(BaseModel):
     workshop_split_reason: Optional[str] = Field(default=None, description="Explication du découpage en longueurs atelier si applicable")
     notes: Optional[str] = Field(default=None, description="Remarques spécifiques atelier")
     original_total_length_requested: Optional[float] = Field(default=None, description="Métrage linéaire total demandé à l'origine si saisie sans quantité")
+    source_type: Optional[Literal["BOBINE", "RACK_SCRAP"]] = Field(default="BOBINE", description="Origine atelier de la pièce : bobine mère ou chute de rack")
 
 
 class FastEncoderInputRequest(BaseModel):

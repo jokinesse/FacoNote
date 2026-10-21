@@ -50,7 +50,7 @@ def test_material_segregation() -> None:
         materials_in_slit = {s.material for s in slit.strips}
         assert len(materials_in_slit) == 1
         # La matière de la laize correspond à la matière des bandes
-        assert slit.material in ("Zinc Naturel 0.7", "Alu 7016 gris bleu 0.7")
+        assert slit.material in ("Zinc Naturel 0.7", "Alu RAL 7016 0.7", "Alu 7016 gris bleu 0.7")
 
 
 def test_length_cohort_partitioning() -> None:
@@ -306,3 +306,126 @@ def test_cross_length_generated_chute_reuse() -> None:
     assert resp_dis.total_gross_surface_m2 == 4.50  # 2 tôles mères complètes (2.40 + 2.10)
     # L'OP #2 consomme une pleine laize de 600 mm au lieu de la chute de 320 mm
     assert resp_dis.slits[1].mother_width == 600
+
+
+def test_manual_rack_scrap_piece_exclusion() -> None:
+    """
+    Vérifie qu'une pièce marquée explicitement source_type='RACK_SCRAP'
+    est exclue du calcul de refente sur bobine mère et directement assignée
+    aux chutes d'atelier (manual_rack_scraps).
+    """
+    pieces = [
+        ShapedPieceModel(
+            id="p-standard",
+            label="Gouttière",
+            dev=450,
+            length=3.0,
+            quantity=1,
+            bends=3,
+            material="Zinc Naturel 0.7",
+            source_type="BOBINE",
+        ),
+        ShapedPieceModel(
+            id="p-chute",
+            label="Petite pièce 150mm",
+            dev=150,
+            length=2.0,
+            quantity=1,
+            bends=1,
+            material="Zinc Naturel 0.7",
+            source_type="RACK_SCRAP",
+        ),
+    ]
+
+    req = OptimizationRequest(
+        material="Zinc Naturel 0.7",
+        pieces=pieces,
+        available_mother_widths=[500, 600],
+    )
+
+    resp = run_nesting_optimization(req)
+
+    # La pièce en chute manuelle doit figurer dans applied_workshop_scraps
+    assert len(resp.applied_workshop_scraps) == 1
+    assert resp.applied_workshop_scraps[0].piece_label == "Petite pièce 150mm"
+    assert resp.applied_workshop_scraps[0].piece_dev == 150
+    assert resp.applied_workshop_scraps[0].piece_length == 2.0
+    assert resp.applied_workshop_scraps[0].scrap_dev >= 150
+
+    # Seule la pièce 'p-standard' doit être refendue sur bobine
+    all_strips_pieces = [
+        strip.label
+        for slit in resp.slits
+        for strip in slit.strips
+    ]
+    assert "Petite pièce 150mm" not in all_strips_pieces
+    assert "Gouttière" in all_strips_pieces
+
+
+def test_partial_piece_split_155mm_individual_scrap() -> None:
+    """
+    Cas réel : 4 pièces de 155 mm sur bobine de 600 mm (3 rentrent sur la 1ère feuille = 465 mm,
+    la 4ème déborde seule sur une 2ème feuille).
+    Lorsque l'opérateur bascule uniquement 1 pièce sur les 4 en RACK_SCRAP (3 sur BOBINE + 1 en RACK_SCRAP),
+    la 2ème feuille disparaît et les 3 premières pièces restent sur la 1ère feuille mère.
+    """
+    # Avant scission : 4 pièces de 155 mm sur BOBINE -> nécessite 2 feuilles de 600 mm
+    req_before = OptimizationRequest(
+        material="Zinc Naturel 0.7",
+        pieces=[
+            ShapedPieceModel(
+                id="p-155",
+                label="Façonnage Dév 155 mm",
+                dev=155,
+                length=2.0,
+                quantity=4,
+                bends=2,
+                material="Zinc Naturel 0.7",
+                source_type="BOBINE",
+            )
+        ],
+        available_mother_widths=[600],
+    )
+    resp_before = run_nesting_optimization(req_before)
+    assert len(resp_before.slits) == 2
+
+    # Après scission unitaire : 3 pièces sur BOBINE + 1 pièce en RACK_SCRAP
+    req_after = OptimizationRequest(
+        material="Zinc Naturel 0.7",
+        pieces=[
+            ShapedPieceModel(
+                id="p-155",
+                label="Façonnage Dév 155 mm",
+                dev=155,
+                length=2.0,
+                quantity=3,
+                bends=2,
+                material="Zinc Naturel 0.7",
+                source_type="BOBINE",
+            ),
+            ShapedPieceModel(
+                id="p-155-chute",
+                label="Façonnage Dév 155 mm",
+                dev=155,
+                length=2.0,
+                quantity=1,
+                bends=2,
+                material="Zinc Naturel 0.7",
+                source_type="RACK_SCRAP",
+            ),
+        ],
+        available_mother_widths=[600],
+    )
+    resp_after = run_nesting_optimization(req_after)
+
+    # Une seule feuille mère de 600 mm contient les 3 pièces (3 x 155 = 465 mm)
+    assert len(resp_after.slits) == 1
+    assert resp_after.slits[0].used_width == 465
+    assert resp_after.slits[0].strips[0].qty == 3
+
+    # Et 1 seule pièce est prélevée en chute rack (200 mm)
+    assert len(resp_after.applied_workshop_scraps) == 1
+    assert resp_after.applied_workshop_scraps[0].piece_dev == 155
+    assert resp_after.applied_workshop_scraps[0].scrap_dev == 200
+
+

@@ -25,11 +25,12 @@ export function getMaterialDensity(material: string, thicknessStr?: string): num
   const isAlu = matLower.includes('alu');
 
   if (isNaN(thickness) || thickness <= 0) {
-    if (/0\.7/.test(material)) thickness = 0.7;
-    else if (/1\.0/.test(material)) thickness = 1.0;
-    else if (/1\.25/.test(material)) thickness = 1.25;
-    else if (/0\.6/.test(material)) thickness = 0.6;
+    if (/1\.5/.test(material) || matLower.includes('brut')) thickness = 1.5;
+    else if (/1(\.0)?(\s|$)/.test(material) || matLower.includes('perfor')) thickness = 1.0;
     else if (/0\.8/.test(material)) thickness = 0.8;
+    else if (/0\.7/.test(material)) thickness = 0.7;
+    else if (/0\.6/.test(material)) thickness = 0.6;
+    else if (/1\.25/.test(material)) thickness = 1.25;
     else thickness = 0.7; // Standard default chez Facozinc (Zinc & Alu 0.7)
   }
 
@@ -58,7 +59,8 @@ export function getMaterialWeightDetails(material: string): {
 
   if (matLower.includes('alu')) {
     materialType = 'ALUMINIUM';
-    if (matLower.includes('1.0')) thick = 1.0;
+    if (matLower.includes('1.5') || matLower.includes('brut')) thick = 1.5;
+    else if (matLower.includes('1.0')) thick = 1.0;
     else if (matLower.includes('0.8')) thick = 0.8;
     else thick = 0.7;
   } else if (matLower.includes('cuivre')) {
@@ -69,7 +71,8 @@ export function getMaterialWeightDetails(material: string): {
     thick = 1.25;
   } else {
     materialType = 'ZINC';
-    if (matLower.includes('0.8')) thick = 0.8;
+    if (matLower.includes('1.0') || (matLower.includes('1') && matLower.includes('perfor'))) thick = 1.0;
+    else if (matLower.includes('0.8')) thick = 0.8;
     else thick = 0.7;
   }
 
@@ -473,20 +476,36 @@ export function runOptimization(
 ): OptimizationResult {
   const timestamp = new Date().toISOString();
 
-  // 1. Flatten all cuts from pieces with their specific material
+  // 1. Flatten all cuts from pieces with their specific material (separate manual rack scraps)
+  const manualRackScraps: AppliedWorkshopScrap[] = [];
   const allCuts: FlattenedCut[] = [];
   let cutId = 1;
   for (const p of order.pieces) {
-    const pieceMat = p.material || order.finish || order.material || 'Zinc Quartz 0.7';
-    for (let q = 0; q < p.quantity; q++) {
-      allCuts.push({
-        id: `cut-${cutId++}-${p.id}`,
-        pieceId: p.id,
-        label: p.label,
-        dev: p.dev,
-        length: p.length,
-        material: pieceMat,
-      });
+    const pieceMat = p.material || order.finish || order.material || 'Zinc Naturel 0.7';
+    if (p.sourceType === 'RACK_SCRAP') {
+      const matchingScrapDev =
+        STANDARD_WORKSHOP_SCRAP_WIDTHS.find((w) => w >= p.dev) || Math.max(250, p.dev);
+      for (let q = 0; q < p.quantity; q++) {
+        manualRackScraps.push({
+          pieceId: p.id,
+          pieceLabel: p.label,
+          pieceDev: p.dev,
+          pieceLength: p.length,
+          scrapDev: matchingScrapDev,
+          material: pieceMat,
+        });
+      }
+    } else {
+      for (let q = 0; q < p.quantity; q++) {
+        allCuts.push({
+          id: `cut-${cutId++}-${p.id}`,
+          pieceId: p.id,
+          label: p.label,
+          dev: p.dev,
+          length: p.length,
+          material: pieceMat,
+        });
+      }
     }
   }
 
@@ -640,34 +659,38 @@ export function runOptimization(
     const slit = mItem.slits[0];
     if (!slit) return;
 
-    const isSingleStrip = slit.strips.length === 1;
-    const isHighWaste = slit.scrapWidth >= mItem.motherWidth * 0.45;
+    const totalStripsCount = slit.strips.reduce((acc, s) => acc + s.qty, 0);
+    const isSingleStrip = totalStripsCount === 1;
+    const isHighWaste = slit.scrapWidth >= mItem.motherWidth * 0.35;
+    const allStripsSmall = slit.strips.every((s) => s.dev <= 250) && slit.scrapWidth > 0;
 
-    if (isSingleStrip || isHighWaste) {
+    if (isSingleStrip || isHighWaste || allStripsSmall) {
       for (const strip of slit.strips) {
         if (strip.dev <= 250) {
           const matchingScrapDev =
             STANDARD_WORKSHOP_SCRAP_WIDTHS.find((w) => w >= strip.dev) || 250;
-          const stripMat = strip.material || mItem.material || order.finish || 'Zinc Quartz 0.7';
+          const stripMat = strip.material || mItem.material || order.finish || 'Zinc Naturel 0.7';
           const stripDensity = getMaterialDensity(stripMat);
-          const areaSaved = (mItem.motherWidth / 1000) * mItem.motherLength;
+          const areaSaved = (matchingScrapDev / 1000) * strip.length;
           const weightSaved = Math.round(areaSaved * stripDensity * 100) / 100;
+          const qty = strip.qty || 1;
 
-          proposals.push({
-            id: `prop-${strip.pieceId}-${idx}`,
-            pieceId: strip.pieceId,
-            pieceLabel: strip.label,
-            pieceDev: strip.dev,
-            pieceLength: strip.length,
-            recommendedScrapDev: matchingScrapDev,
-            material: stripMat,
-            reason: `Évite de débiter une feuille mère complète de ${mItem.motherWidth} mm × ${mItem.motherLength} m (${stripMat}) pour 1 seule pièce (perte évitée de ${slit.scrapWidth} mm)`,
-            motherWidthSaved: mItem.motherWidth,
-            motherLengthSaved: mItem.motherLength,
-            areaSavedM2: Math.round(areaSaved * 100) / 100,
-            weightSavedKg: weightSaved,
-          });
-          break;
+          for (let q = 0; q < qty; q++) {
+            proposals.push({
+              id: `prop-${strip.pieceId}-${idx}-${q}`,
+              pieceId: strip.pieceId,
+              pieceLabel: qty > 1 ? `${strip.label} (#${q + 1})` : strip.label,
+              pieceDev: strip.dev,
+              pieceLength: strip.length,
+              recommendedScrapDev: matchingScrapDev,
+              material: stripMat,
+              reason: `Évite de débiter une feuille mère complète de ${mItem.motherWidth} mm × ${mItem.motherLength} m (${stripMat}) pour cette pièce (perte évitée de ${slit.scrapWidth} mm)`,
+              motherWidthSaved: mItem.motherWidth,
+              motherLengthSaved: mItem.motherLength,
+              areaSavedM2: Math.round(areaSaved * 100) / 100,
+              weightSavedKg: weightSaved,
+            });
+          }
         }
       }
     }
@@ -677,9 +700,10 @@ export function runOptimization(
   const useScraps = options?.useWorkshopScraps || false;
   const acceptedIds = new Set(options?.acceptedProposalIds || []);
 
-  const appliedWorkshopScraps: AppliedWorkshopScrap[] = [];
+  const appliedWorkshopScraps: AppliedWorkshopScrap[] = [...manualRackScraps];
   let finalMotherItems = baseline.motherItems;
   let finalCreatedScraps = baseline.createdScraps;
+  let returnedProposals = proposals;
 
   if (useScraps && proposals.length > 0) {
     const cutsFulfilledByScraps = new Set<string>();
@@ -707,6 +731,49 @@ export function runOptimization(
       const recomputed = packCutsIntoMotherCoils(remainingCuts);
       finalMotherItems = recomputed.motherItems;
       finalCreatedScraps = recomputed.createdScraps;
+
+      // Residual proposal check on finalMotherItems
+      const residualProposals: WorkshopScrapProposal[] = [];
+      finalMotherItems.forEach((mItem, fIdx) => {
+        const slit = mItem.slits[0];
+        if (!slit) return;
+        const totalCount = slit.strips.reduce((acc, s) => acc + s.qty, 0);
+        const isSingle = totalCount === 1;
+        const isWaste = slit.scrapWidth >= mItem.motherWidth * 0.35;
+        const allSmall = slit.strips.every((s) => s.dev <= 250) && slit.scrapWidth > 0;
+
+        if (isSingle || isWaste || allSmall) {
+          for (const strip of slit.strips) {
+            if (strip.dev <= 250) {
+              const matchingScrapDev =
+                STANDARD_WORKSHOP_SCRAP_WIDTHS.find((w) => w >= strip.dev) || 250;
+              const stripMat = strip.material || mItem.material || order.finish || 'Zinc Naturel 0.7';
+              const stripDensity = getMaterialDensity(stripMat);
+              const areaSaved = (matchingScrapDev / 1000) * strip.length;
+              const weightSaved = Math.round(areaSaved * stripDensity * 100) / 100;
+              const qty = strip.qty || 1;
+
+              for (let q = 0; q < qty; q++) {
+                residualProposals.push({
+                  id: `prop-res-${strip.pieceId}-${fIdx}-${q}`,
+                  pieceId: strip.pieceId,
+                  pieceLabel: qty > 1 ? `${strip.label} (#${q + 1})` : strip.label,
+                  pieceDev: strip.dev,
+                  pieceLength: strip.length,
+                  recommendedScrapDev: matchingScrapDev,
+                  material: stripMat,
+                  reason: `Pièce résiduelle de ${strip.dev} mm : prélevable en chute rack ${matchingScrapDev} mm pour éviter de débiter une tôle mère entière de ${mItem.motherWidth} mm (perte résiduelle de ${slit.scrapWidth} mm)`,
+                  motherWidthSaved: mItem.motherWidth,
+                  motherLengthSaved: mItem.motherLength,
+                  areaSavedM2: Math.round(areaSaved * 100) / 100,
+                  weightSavedKg: weightSaved,
+                });
+              }
+            }
+          }
+        }
+      });
+      returnedProposals = residualProposals;
     }
   }
 
@@ -760,7 +827,7 @@ export function runOptimization(
     orderId: order.id,
     timestamp,
     piecesRequired: order.pieces,
-    workshopScrapProposals: proposals,
+    workshopScrapProposals: returnedProposals,
     appliedWorkshopScraps,
     usedScrapsFromStock: [],
     motherItemsNeeded: finalMotherItems,

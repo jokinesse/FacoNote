@@ -350,42 +350,65 @@ def run_nesting_optimization(request: OptimizationRequest) -> OptimizationRespon
     timestamp = time.time()
     order_id = f"OPT-{int(timestamp)}"
 
-    # Aplatissement de toutes les pièces en coupes unitaires
+    # Aplatissement des pièces : séparation bobine mère vs chute de rack directe
+    manual_rack_scraps: list[AppliedWorkshopScrapModel] = []
     all_cuts: list[FlattenedCut] = []
     cut_counter = 1
 
     for p in request.pieces:
         p_mat_spec = resolve_material_spec(p.material if p.material else request.material)
-        for _ in range(p.quantity):
-            all_cuts.append(
-                FlattenedCut(
-                    id=f"cut-{cut_counter}",
-                    piece_id=p.id,
-                    label=p.label,
-                    dev=p.dev,
-                    length=round_meters(p.length),
-                    material=p_mat_spec.name,
-                )
+        if p.source_type == "RACK_SCRAP":
+            matching_rack_scrap = next(
+                (w for w in RACK_SCRAP_WIDTHS if w >= p.dev),
+                max(250, p.dev),
             )
-            cut_counter += 1
+            for _ in range(p.quantity):
+                manual_rack_scraps.append(
+                    AppliedWorkshopScrapModel(
+                        piece_id=p.id,
+                        piece_label=p.label,
+                        piece_dev=p.dev,
+                        piece_length=round_meters(p.length),
+                        scrap_dev=matching_rack_scrap,
+                        material=p_mat_spec.name,
+                    )
+                )
+        else:
+            for _ in range(p.quantity):
+                all_cuts.append(
+                    FlattenedCut(
+                        id=f"cut-{cut_counter}",
+                        piece_id=p.id,
+                        label=p.label,
+                        dev=p.dev,
+                        length=round_meters(p.length),
+                        material=p_mat_spec.name,
+                    )
+                )
+                cut_counter += 1
 
-    # 1. Calcul de base ("baseline" sans substitution de chutes de rack)
-    baseline_slits, _ = _pack_cuts_into_mother_coils(
-        cuts_to_pack=all_cuts,
-        requested_mother_widths=request.available_mother_widths,
-        use_generated_scraps=request.use_generated_scraps,
-    )
+    # 1. Calcul de base ("baseline" sur tôles mères pour les pièces non passées en chute)
+    if all_cuts:
+        baseline_slits, _ = _pack_cuts_into_mother_coils(
+            cuts_to_pack=all_cuts,
+            requested_mother_widths=request.available_mother_widths,
+            use_generated_scraps=request.use_generated_scraps,
+        )
+    else:
+        baseline_slits = []
 
     # 2. Étape 5 : Détection des opportunités de substitution par chutes de rack
-    # Si une tôle mère entière est débitée pour une seule bande isolée ou si perte >= 45%
+    # Si une tôle mère entière est débitée pour une seule bande isolée, si perte >= 35%,
+    # ou si toutes les bandes sont de largeur <= 250 mm avec chute
     proposals: list[WorkshopScrapProposalModel] = []
 
     for idx, slit in enumerate(baseline_slits):
         total_strips_count = sum(s.qty for s in slit.strips)
         is_single_strip = total_strips_count == 1
-        is_high_waste = slit.scrap_width >= (slit.mother_width * 0.45)
+        is_high_waste = slit.scrap_width >= (slit.mother_width * 0.35)
+        all_strips_small = all(s.dev <= 250 for s in slit.strips) and slit.scrap_width > 0
 
-        if is_single_strip or is_high_waste:
+        if is_single_strip or is_high_waste or all_strips_small:
             for strip in slit.strips:
                 if strip.dev <= 250:
                     matching_rack_scrap = next(
@@ -398,30 +421,31 @@ def run_nesting_optimization(request: OptimizationRequest) -> OptimizationRespon
                         float(slit.mother_width), slit.mother_length, spec.surface_density_kg_m2
                     )
 
-                    proposals.append(
-                        WorkshopScrapProposalModel(
-                            id=f"prop-{strip.piece_id}-{idx}",
-                            piece_id=strip.piece_id,
-                            piece_label=strip.label,
-                            piece_dev=strip.dev,
-                            piece_length=strip.length,
-                            recommended_scrap_dev=matching_rack_scrap,
-                            material=strip.material,
-                            reason=(
-                                f"Évite de débiter une feuille mère complète de {slit.mother_width} mm × "
-                                f"{slit.mother_length} m ({strip.material}) pour une seule bande "
-                                f"(perte évitée de {slit.scrap_width} mm)."
-                            ),
-                            mother_width_saved=slit.mother_width,
-                            mother_length_saved=slit.mother_length,
-                            area_saved_m2=area_saved,
-                            weight_saved_kg=weight_saved,
+                    for q in range(strip.qty):
+                        prop_label = f"{strip.label} (#{q+1})" if strip.qty > 1 else strip.label
+                        proposals.append(
+                            WorkshopScrapProposalModel(
+                                id=f"prop-{strip.piece_id}-{idx}-{q}",
+                                piece_id=strip.piece_id,
+                                piece_label=prop_label,
+                                piece_dev=strip.dev,
+                                piece_length=strip.length,
+                                recommended_scrap_dev=matching_rack_scrap,
+                                material=strip.material,
+                                reason=(
+                                    f"Évite de débiter une feuille mère complète de {slit.mother_width} mm × "
+                                    f"{slit.mother_length} m ({strip.material}) pour cette pièce "
+                                    f"(perte évitée de {slit.scrap_width} mm)."
+                                ),
+                                mother_width_saved=slit.mother_width,
+                                mother_length_saved=slit.mother_length,
+                                area_saved_m2=area_saved,
+                                weight_saved_kg=weight_saved,
+                            )
                         )
-                    )
-                    break
 
     # 3. Application des substitutions de chutes de rack si activée
-    applied_scraps: list[AppliedWorkshopScrapModel] = []
+    applied_scraps: list[AppliedWorkshopScrapModel] = list(manual_rack_scraps)
     final_slits = baseline_slits
     accepted_ids = set(request.accepted_proposal_ids or [])
 
@@ -455,6 +479,53 @@ def run_nesting_optimization(request: OptimizationRequest) -> OptimizationRespon
                 requested_mother_widths=request.available_mother_widths,
                 use_generated_scraps=request.use_generated_scraps,
             )
+
+    # Déterminer la liste des propositions à renvoyer à l'opérateur
+    if not request.use_workshop_scraps:
+        returned_proposals = proposals
+    else:
+        # Vérifier si des pièces résiduelles <= 250 mm sont encore seules sur une tôle mère
+        returned_proposals = []
+        for f_idx, f_slit in enumerate(final_slits):
+            f_total_strips = sum(s.qty for s in f_slit.strips)
+            f_is_single = f_total_strips == 1
+            f_is_high_waste = f_slit.scrap_width >= (f_slit.mother_width * 0.35)
+            f_all_small = all(s.dev <= 250 for s in f_slit.strips) and f_slit.scrap_width > 0
+
+            if f_is_single or f_is_high_waste or f_all_small:
+                for strip in f_slit.strips:
+                    if strip.dev <= 250:
+                        matching_rack_scrap = next(
+                            (w for w in RACK_SCRAP_WIDTHS if w >= strip.dev),
+                            250,
+                        )
+                        spec = resolve_material_spec(strip.material)
+                        area_saved = calculate_surface_m2(float(f_slit.mother_width), f_slit.mother_length)
+                        weight_saved = calculate_weight_kg(
+                            float(f_slit.mother_width), f_slit.mother_length, spec.surface_density_kg_m2
+                        )
+                        for q in range(strip.qty):
+                            prop_label = f"{strip.label} (#{q+1})" if strip.qty > 1 else strip.label
+                            returned_proposals.append(
+                                WorkshopScrapProposalModel(
+                                    id=f"prop-res-{strip.piece_id}-{f_idx}-{q}",
+                                    piece_id=strip.piece_id,
+                                    piece_label=prop_label,
+                                    piece_dev=strip.dev,
+                                    piece_length=strip.length,
+                                    recommended_scrap_dev=matching_rack_scrap,
+                                    material=strip.material,
+                                    reason=(
+                                        f"Pièce résiduelle de {strip.dev} mm : peut être prélevée en chute de rack de "
+                                        f"{matching_rack_scrap} mm pour éviter de débiter une tôle mère entière de "
+                                        f"{f_slit.mother_width} mm (perte résiduelle de {f_slit.scrap_width} mm)."
+                                    ),
+                                    mother_width_saved=f_slit.mother_width,
+                                    mother_length_saved=f_slit.mother_length,
+                                    area_saved_m2=area_saved,
+                                    weight_saved_kg=weight_saved,
+                                )
+                            )
 
     # 4. Calculs des métriques de synthèse avec déterminisme numérique
     total_net_surface = 0.0
@@ -524,7 +595,7 @@ def run_nesting_optimization(request: OptimizationRequest) -> OptimizationRespon
         net_weight_kg=round(net_weight_acc, 2),
         gross_weight_kg=round(gross_weight_acc, 2),
         slits=final_slits,
-        workshop_scrap_proposals=proposals,
+        workshop_scrap_proposals=returned_proposals,
         applied_workshop_scraps=applied_scraps,
         summary_message=summary_msg,
     )

@@ -2,16 +2,12 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Calculator as CalcIcon,
   Delete,
-  ArrowRight,
   Copy,
   Check,
-  RotateCcw,
-  Sparkles,
   Layers,
   Hash,
   Ruler,
   PlusCircle,
-  HelpCircle,
 } from 'lucide-react';
 import { evaluateExpression } from '../utils/mathEvaluator';
 
@@ -38,16 +34,14 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const flashTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Trigger brief visual feedback on key button
   const flashKey = useCallback((keyToken: string) => {
     setActiveFlashedKey(keyToken);
     if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
     flashTimeoutRef.current = setTimeout(() => {
       setActiveFlashedKey(null);
-    }, 180);
+    }, 150);
   }, []);
 
-  // Evaluate current expression in real-time
   useEffect(() => {
     if (!expression.trim()) {
       setResult(null);
@@ -61,7 +55,6 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
     }
   }, [expression]);
 
-  // Append token to expression
   const appendToken = useCallback((token: string) => {
     setExpression((prev) => prev + token);
     inputRef.current?.focus();
@@ -78,19 +71,17 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
     inputRef.current?.focus();
   }, []);
 
-  // Handle calculation submission / commit
   const handleCommitCalculation = useCallback(() => {
     if (result !== null && !isNaN(result)) {
       setHistory((prev) => [
         { expr: expression, res: result },
-        ...prev.filter((h) => h.expr !== expression).slice(0, 4), // max 5 unique
+        ...prev.filter((h) => h.expr !== expression).slice(0, 4),
       ]);
       setExpression(result.toString());
       flashKey('=');
     }
   }, [expression, result, flashKey]);
 
-  // Global & Container Keyboard / Numpad capture
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       const activeEl = document.activeElement;
@@ -101,16 +92,9 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
           activeEl.tagName === 'SELECT') &&
         activeEl !== inputRef.current;
 
-      // If user is focused inside another form input (e.g. dev, length, qty box), let them type normally
-      if (isAnotherInput) {
-        return;
-      }
+      if (isAnotherInput) return;
 
       const key = e.key;
-      const code = e.code;
-      const isNumpad =
-        code.startsWith('Numpad') || code === 'NumpadEnter' || code === 'NumpadDecimal';
-
       if (/^[0-9]$/.test(key)) {
         e.preventDefault();
         appendToken(key);
@@ -141,7 +125,6 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [appendToken, handleBackspace, handleClear, handleCommitCalculation, flashKey]);
 
-  // Direct input field keydown
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === '=') {
       e.preventDefault();
@@ -174,40 +157,29 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
 
   const handleSendToDev = () => {
     const val = getActiveNumericValue();
-    if (val !== null && onInsertDev) {
-      onInsertDev(Math.round(val));
-    }
+    if (val !== null && onInsertDev) onInsertDev(Math.round(val));
   };
 
   const handleSendToLength = () => {
     const val = getActiveNumericValue();
-    if (val !== null && onInsertLength) {
-      onInsertLength(Math.round(val * 100) / 100);
-    }
+    if (val !== null && onInsertLength) onInsertLength(Math.round(val * 100) / 100);
   };
 
   const handleSendToQty = () => {
     const val = getActiveNumericValue();
-    if (val !== null && onInsertQty) {
-      onInsertQty(Math.max(1, Math.round(val)));
-    }
+    if (val !== null && onInsertQty) onInsertQty(Math.max(1, Math.round(val)));
   };
 
   const handleDirectAdd = () => {
     const val = getActiveNumericValue();
-    if (val !== null && onDirectAddEntry) {
-      onDirectAddEntry(Math.round(val));
-    }
+    if (val !== null && onDirectAddEntry) onDirectAddEntry(Math.round(val));
   };
 
-  // Helper button styling
   const getKeyStyle = (keyToken: string, baseColor: string) => {
     const isFlashed = activeFlashedKey === keyToken;
     return `${baseColor} ${
-      isFlashed
-        ? 'ring-2 ring-amber-400 brightness-150 scale-95 shadow-md shadow-amber-500/30'
-        : ''
-    } transition-all duration-75 active:scale-95 select-none`;
+      isFlashed ? 'ring-2 ring-[#00478a] scale-95' : ''
+    } transition-all duration-75 active:scale-95 select-none cursor-pointer`;
   };
 
   return (
@@ -215,101 +187,49 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
       ref={containerRef}
       tabIndex={0}
       onClick={() => inputRef.current?.focus()}
-      className={`bg-slate-900 border rounded-2xl p-5 shadow-sm transition-all duration-200 outline-none ${
-        isFocused
-          ? 'border-amber-400/80 shadow-md shadow-amber-500/10 ring-1 ring-amber-400/40'
-          : 'border-slate-800 hover:border-slate-700'
+      className={`faco-card bg-white border rounded-xl p-4 shadow-2xs transition-all outline-none ${
+        isFocused ? 'border-[#3ca7da] ring-1 ring-[#3ca7da]/30' : 'border-slate-200'
       }`}
     >
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 shrink-0">
-            <CalcIcon className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <span>Calculatrice Atelier & Pavé Numérique</span>
-              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                Numpad Actif
-              </span>
-            </h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Tapez vos cotes directement sur votre pavé numérique physique (ex:{' '}
-              <span className="text-amber-300 font-mono font-semibold">15+120+35+20</span>), le
-              résultat s'affiche en direct.
-            </p>
-          </div>
+      <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
+        <div className="flex items-center gap-2">
+          <CalcIcon className="w-4 h-4 text-[#00478a]" />
+          <h3 className="text-xs font-bold text-[#00478a] uppercase tracking-wider">
+            Calculatrice de Cotes
+          </h3>
         </div>
-
-        {/* Numpad keyboard hints */}
-        <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400 bg-slate-950/60 px-2.5 py-1 rounded-lg border border-slate-800 shrink-0">
-          <span className="text-slate-500">Pavé :</span>
-          <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200">0-9</kbd>
-          <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300">+</kbd>
-          <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300">-</kbd>
-          <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300">*</kbd>
-          <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300">/</kbd>
-          <kbd className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-            Entrée =
-          </kbd>
-        </div>
+        <span className="text-[11px] text-slate-400">
+          Pavé numérique actif
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mt-4 items-start">
-        {/* Left Column: LCD Screen & Keypad Grid */}
-        <div className="lg:col-span-7 space-y-3">
-          {/* LCD Screen Display */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mt-3 items-start">
+        {/* Left: Screen & Keypad */}
+        <div className="lg:col-span-7 space-y-2.5">
           <div
             onClick={(e) => {
               e.stopPropagation();
               inputRef.current?.focus();
             }}
-            className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2 focus-within:border-amber-400/80 transition-colors shadow-inner"
+            className="bg-[#f8fafc] border border-slate-300 rounded-lg px-3 py-2 flex items-center justify-between gap-2 focus-within:border-[#00478a]"
           >
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500">
-                Calcul en cours :
-              </span>
+            <input
+              ref={inputRef}
+              type="text"
+              value={expression}
+              onChange={(e) => setExpression(e.target.value)}
+              onKeyDown={handleInputKeyDown}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              placeholder="Ex: 15+120+35+20"
+              className="w-full bg-transparent text-base font-mono font-bold text-[#282828] focus:outline-none placeholder:text-slate-400"
+            />
+            <div className="flex items-center gap-2 shrink-0">
               {result !== null && (
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-mono text-emerald-400 font-medium">
-                    Résultat direct :
-                  </span>
-                  <span className="text-lg font-bold font-mono text-white tabular-nums bg-slate-900 px-2 py-0.5 rounded border border-emerald-500/30">
-                    = {result}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleCopyResult();
-                    }}
-                    className="p-1 hover:text-white transition-colors text-slate-400"
-                    title="Copier le résultat"
-                  >
-                    {copied ? (
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    ) : (
-                      <Copy className="w-3.5 h-3.5" />
-                    )}
-                  </button>
-                </div>
+                <span className="text-base font-bold font-mono text-[#00478a] bg-white px-2.5 py-0.5 rounded border border-slate-200 tabular-nums">
+                  = {result}
+                </span>
               )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={expression}
-                onChange={(e) => setExpression(e.target.value)}
-                onKeyDown={handleInputKeyDown}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                placeholder="Ex: 15+120+35+20 ou 8*2.5"
-                className="w-full bg-transparent text-xl font-mono font-bold text-amber-300 focus:outline-none placeholder:text-slate-600 tracking-wider"
-              />
               {expression && (
                 <button
                   type="button"
@@ -317,18 +237,34 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
                     e.stopPropagation();
                     handleClear();
                   }}
-                  className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors rounded hover:bg-slate-800"
-                  title="Effacer l'expression (Échap)"
+                  className="p-1 text-slate-400 hover:text-rose-600 transition-colors rounded"
+                  title="Effacer"
                 >
                   <Delete className="w-4 h-4" />
+                </button>
+              )}
+              {result !== null && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCopyResult();
+                  }}
+                  className="p-1 text-slate-400 hover:text-[#00478a] transition-colors"
+                  title="Copier"
+                >
+                  {copied ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
                 </button>
               )}
             </div>
           </div>
 
-          {/* Virtual Buttons Keypad Grid */}
+          {/* Keypad Grid */}
           <div className="grid grid-cols-5 gap-1.5 font-mono text-sm select-none">
-            {/* Row 1 */}
             <button
               type="button"
               onClick={(e) => {
@@ -338,9 +274,8 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 'C',
-                'py-2.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 font-bold rounded-lg border border-rose-800/50'
+                'py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-lg border border-rose-200'
               )}
-              title="Tout effacer (Échap)"
             >
               C
             </button>
@@ -353,7 +288,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '(',
-                'py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg border border-slate-700/80'
+                'py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg border border-slate-200'
               )}
             >
               (
@@ -367,7 +302,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 ')',
-                'py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg border border-slate-700/80'
+                'py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg border border-slate-200'
               )}
             >
               )
@@ -381,9 +316,8 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '⌫',
-                'py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700/80 flex items-center justify-center'
+                'py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-200 flex items-center justify-center'
               )}
-              title="Retour arrière"
             >
               ⌫
             </button>
@@ -396,55 +330,29 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '/',
-                'py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold rounded-lg border border-amber-500/40 text-base'
+                'py-2 bg-[#00478a]/10 hover:bg-[#00478a]/15 text-[#00478a] font-bold rounded-lg border border-[#00478a]/20'
               )}
             >
               ÷
             </button>
 
-            {/* Row 2 */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                appendToken('7');
-                flashKey('7');
-              }}
-              className={getKeyStyle(
-                '7',
-                'py-2.5 bg-slate-800/80 hover:bg-slate-700 text-white font-bold rounded-lg border border-slate-700/60 text-base'
-              )}
-            >
-              7
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                appendToken('8');
-                flashKey('8');
-              }}
-              className={getKeyStyle(
-                '8',
-                'py-2.5 bg-slate-800/80 hover:bg-slate-700 text-white font-bold rounded-lg border border-slate-700/60 text-base'
-              )}
-            >
-              8
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                appendToken('9');
-                flashKey('9');
-              }}
-              className={getKeyStyle(
-                '9',
-                'py-2.5 bg-slate-800/80 hover:bg-slate-700 text-white font-bold rounded-lg border border-slate-700/60 text-base'
-              )}
-            >
-              9
-            </button>
+            {['7', '8', '9'].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  appendToken(n);
+                  flashKey(n);
+                }}
+                className={getKeyStyle(
+                  n,
+                  'py-2 bg-[#f8fafc] hover:bg-slate-100 text-[#282828] font-semibold rounded-lg border border-slate-200'
+                )}
+              >
+                {n}
+              </button>
+            ))}
             <button
               type="button"
               onClick={(e) => {
@@ -454,7 +362,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '*',
-                'py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold rounded-lg border border-amber-500/40 text-base'
+                'py-2 bg-[#00478a]/10 hover:bg-[#00478a]/15 text-[#00478a] font-bold rounded-lg border border-[#00478a]/20'
               )}
             >
               ×
@@ -468,55 +376,29 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '-',
-                'py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold rounded-lg border border-amber-500/40 text-base'
+                'py-2 bg-[#00478a]/10 hover:bg-[#00478a]/15 text-[#00478a] font-bold rounded-lg border border-[#00478a]/20'
               )}
             >
               -
             </button>
 
-            {/* Row 3 */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                appendToken('4');
-                flashKey('4');
-              }}
-              className={getKeyStyle(
-                '4',
-                'py-2.5 bg-slate-800/80 hover:bg-slate-700 text-white font-bold rounded-lg border border-slate-700/60 text-base'
-              )}
-            >
-              4
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                appendToken('5');
-                flashKey('5');
-              }}
-              className={getKeyStyle(
-                '5',
-                'py-2.5 bg-slate-800/80 hover:bg-slate-700 text-white font-bold rounded-lg border border-slate-700/60 text-base'
-              )}
-            >
-              5
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                appendToken('6');
-                flashKey('6');
-              }}
-              className={getKeyStyle(
-                '6',
-                'py-2.5 bg-slate-800/80 hover:bg-slate-700 text-white font-bold rounded-lg border border-slate-700/60 text-base'
-              )}
-            >
-              6
-            </button>
+            {['4', '5', '6'].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  appendToken(n);
+                  flashKey(n);
+                }}
+                className={getKeyStyle(
+                  n,
+                  'py-2 bg-[#f8fafc] hover:bg-slate-100 text-[#282828] font-semibold rounded-lg border border-slate-200'
+                )}
+              >
+                {n}
+              </button>
+            ))}
             <button
               type="button"
               onClick={(e) => {
@@ -526,7 +408,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '+',
-                'py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold rounded-lg border border-amber-500/40 text-base'
+                'py-2 bg-[#00478a]/10 hover:bg-[#00478a]/15 text-[#00478a] font-bold rounded-lg border border-[#00478a]/20'
               )}
             >
               +
@@ -540,69 +422,29 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '.',
-                'py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg border border-slate-700/60 text-base'
+                'py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg border border-slate-200'
               )}
             >
               .
             </button>
 
-            {/* Row 4 */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                appendToken('1');
-                flashKey('1');
-              }}
-              className={getKeyStyle(
-                '1',
-                'py-2.5 bg-slate-800/80 hover:bg-slate-700 text-white font-bold rounded-lg border border-slate-700/60 text-base'
-              )}
-            >
-              1
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                appendToken('2');
-                flashKey('2');
-              }}
-              className={getKeyStyle(
-                '2',
-                'py-2.5 bg-slate-800/80 hover:bg-slate-700 text-white font-bold rounded-lg border border-slate-700/60 text-base'
-              )}
-            >
-              2
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                appendToken('3');
-                flashKey('3');
-              }}
-              className={getKeyStyle(
-                '3',
-                'py-2.5 bg-slate-800/80 hover:bg-slate-700 text-white font-bold rounded-lg border border-slate-700/60 text-base'
-              )}
-            >
-              3
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                appendToken('0');
-                flashKey('0');
-              }}
-              className={getKeyStyle(
-                '0',
-                'py-2.5 bg-slate-800/80 hover:bg-slate-700 text-white font-bold rounded-lg border border-slate-700/60 text-base col-span-1'
-              )}
-            >
-              0
-            </button>
+            {['1', '2', '3', '0'].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  appendToken(n);
+                  flashKey(n);
+                }}
+                className={getKeyStyle(
+                  n,
+                  'py-2 bg-[#f8fafc] hover:bg-slate-100 text-[#282828] font-semibold rounded-lg border border-slate-200'
+                )}
+              >
+                {n}
+              </button>
+            ))}
             <button
               type="button"
               onClick={(e) => {
@@ -612,58 +454,18 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '=',
-                'py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black rounded-lg text-base shadow-sm'
+                'py-2 bg-[#00478a] hover:bg-[#003566] text-white font-bold rounded-lg shadow-2xs'
               )}
-              title="Calculer (Entrée)"
             >
               =
             </button>
           </div>
-
-          {/* Quick Profile Shortcuts */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px] text-slate-400">
-            <span className="text-slate-500 font-mono text-[10px]">Exemples de profil :</span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setExpression('15+120+35+20');
-              }}
-              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[10px] border border-slate-700/50"
-            >
-              Bavette (15+120+35+20)
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setExpression('20+180+30+20');
-              }}
-              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[10px] border border-slate-700/50"
-            >
-              Rive (20+180+30+20)
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setExpression('20+35+200+35+20');
-              }}
-              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[10px] border border-slate-700/50"
-            >
-              Couvertine (20+35+200+35+20)
-            </button>
-          </div>
         </div>
 
-        {/* Right Column: Direct Injection & History */}
-        <div className="lg:col-span-5 space-y-3">
-          <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-              Injecter directement dans l'encodage :
-            </span>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-2">
+        {/* Right: Direct Injection & History */}
+        <div className="lg:col-span-5 space-y-2.5">
+          <div className="bg-[#f8fafc] border border-slate-200 rounded-lg p-3 space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-1.5">
               {onInsertDev && (
                 <button
                   type="button"
@@ -672,13 +474,13 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
                     handleSendToDev();
                   }}
                   disabled={getActiveNumericValue() === null}
-                  className="w-full px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-slate-800 text-amber-300 font-semibold rounded-lg text-xs flex items-center justify-between border border-slate-700 transition-colors shadow-sm"
+                  className="w-full px-3 py-1.5 bg-white hover:bg-slate-50 disabled:opacity-40 text-[#00478a] font-semibold rounded-md text-xs flex items-center justify-between border border-slate-200 transition-colors cursor-pointer"
                 >
                   <span className="flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-amber-400" />
+                    <Layers className="w-3.5 h-3.5 text-[#3ca7da]" />
                     <span>Vers Dév (mm)</span>
                   </span>
-                  <span className="font-mono font-bold text-white">
+                  <span className="font-mono font-bold text-[#282828]">
                     {getActiveNumericValue() !== null
                       ? `${Math.round(getActiveNumericValue()!)} mm`
                       : '-'}
@@ -694,13 +496,13 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
                     handleSendToLength();
                   }}
                   disabled={getActiveNumericValue() === null}
-                  className="w-full px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-slate-800 text-slate-200 font-semibold rounded-lg text-xs flex items-center justify-between border border-slate-700 transition-colors shadow-sm"
+                  className="w-full px-3 py-1.5 bg-white hover:bg-slate-50 disabled:opacity-40 text-slate-700 font-semibold rounded-md text-xs flex items-center justify-between border border-slate-200 transition-colors cursor-pointer"
                 >
                   <span className="flex items-center gap-1.5">
-                    <Ruler className="w-3.5 h-3.5 text-amber-400" />
+                    <Ruler className="w-3.5 h-3.5 text-[#3ca7da]" />
                     <span>Vers Longueur (m)</span>
                   </span>
-                  <span className="font-mono font-bold text-white">
+                  <span className="font-mono font-bold text-[#282828]">
                     {getActiveNumericValue() !== null
                       ? `${Math.round(getActiveNumericValue()! * 100) / 100} m`
                       : '-'}
@@ -716,13 +518,13 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
                     handleSendToQty();
                   }}
                   disabled={getActiveNumericValue() === null}
-                  className="w-full px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-slate-800 text-slate-200 font-semibold rounded-lg text-xs flex items-center justify-between border border-slate-700 transition-colors shadow-sm"
+                  className="w-full px-3 py-1.5 bg-white hover:bg-slate-50 disabled:opacity-40 text-slate-700 font-semibold rounded-md text-xs flex items-center justify-between border border-slate-200 transition-colors cursor-pointer"
                 >
                   <span className="flex items-center gap-1.5">
-                    <Hash className="w-3.5 h-3.5 text-amber-400" />
+                    <Hash className="w-3.5 h-3.5 text-[#3ca7da]" />
                     <span>Vers Quantité</span>
                   </span>
-                  <span className="font-mono font-bold text-white">
+                  <span className="font-mono font-bold text-[#282828]">
                     {getActiveNumericValue() !== null
                       ? `${Math.max(1, Math.round(getActiveNumericValue()!))} pcs`
                       : '-'}
@@ -731,7 +533,6 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               )}
             </div>
 
-            {/* Direct 1-click Add Piece Button */}
             {onDirectAddEntry && (
               <button
                 type="button"
@@ -740,42 +541,35 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
                   handleDirectAdd();
                 }}
                 disabled={getActiveNumericValue() === null}
-                className="w-full mt-1 px-3 py-2.5 bg-amber-400 hover:bg-amber-300 disabled:opacity-40 disabled:hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
+                className="w-full px-3 py-2 bg-[#e7511f] hover:bg-[#cf4315] disabled:opacity-40 text-white font-semibold rounded-md text-xs flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
               >
-                <PlusCircle className="w-4 h-4" />
+                <PlusCircle className="w-3.5 h-3.5" />
                 <span>
-                  Ajouter directement à l'encodage (Dév{' '}
+                  Ajouter directement{' '}
                   {getActiveNumericValue() !== null
-                    ? `${Math.round(getActiveNumericValue()!)}mm`
-                    : '...'}
-                  )
+                    ? `(${Math.round(getActiveNumericValue()!)} mm)`
+                    : ''}
                 </span>
               </button>
             )}
           </div>
 
-          {/* Recent History in this session */}
           {history.length > 0 && (
-            <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-3 space-y-1.5">
-              <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">
-                Derniers calculs :
-              </span>
-              <div className="space-y-1">
-                {history.map((h, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setExpression(h.res.toString());
-                    }}
-                    className="w-full px-2 py-1 rounded bg-slate-900/80 hover:bg-slate-800 text-[11px] font-mono flex items-center justify-between text-slate-300 border border-slate-800/80 text-left transition-colors"
-                  >
-                    <span className="text-slate-400 truncate max-w-[150px]">{h.expr}</span>
-                    <strong className="text-amber-400">= {h.res}</strong>
-                  </button>
-                ))}
-              </div>
+            <div className="flex flex-wrap gap-1.5">
+              {history.map((h, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpression(h.res.toString());
+                  }}
+                  className="px-2 py-1 rounded bg-white hover:bg-slate-50 text-[11px] font-mono flex items-center gap-1.5 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
+                >
+                  <span className="text-slate-400">{h.expr}</span>
+                  <strong className="text-[#00478a]">= {h.res}</strong>
+                </button>
+              ))}
             </div>
           )}
         </div>

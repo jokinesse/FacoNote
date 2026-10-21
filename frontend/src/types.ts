@@ -23,34 +23,81 @@ export interface EncodedEntry {
   material?: string; // Matière spécifique de la saisie (ex: Zinc Quartz 0.7, Alu Noir 9005 0.8)
 }
 
-export const STANDARD_MATERIALS: string[] = [
-  'Zinc Quartz 0.7',
-  'Zinc Naturel 0.7',
-  'Zinc ATZ (Anthra) 0.7',
-  'Zinc Quartz 0.8',
-  'Zinc Naturel 0.8',
-  'Zinc ATZ 0.8',
-  'Alu Noir RAL 9005 0.7',
-  'Alu Anthracite RAL 7016 0.7',
-  'Alu Blanc RAL 9010 0.7',
-  'Alu QZ (Quartz) 0.7',
-  'Alu Noir RAL 9005 0.8',
-  'Alu Anthracite RAL 7016 0.8',
-  'Alu Blanc RAL 9010 0.8',
-  'Alu QZ (Quartz) 0.8',
-  'Alu Noir RAL 9005 1.0',
-  'Alu Anthracite RAL 7016 1.0',
-  'Cuivre 0.6',
-  'Plomb 1.25',
+export interface MaterialGroup {
+  group: string;
+  items: { value: string; label: string }[];
+}
+
+export const MATERIAL_GROUPS: MaterialGroup[] = [
+  {
+    group: 'Alu épaisseur 0,7',
+    items: [
+      { value: 'Alu RAL 7016 0.7', label: 'RAL 7016' },
+      { value: 'Alu RAL 9005 0.7', label: 'RAL 9005' },
+      { value: 'Alu RAL 9010 0.7', label: 'RAL 9010' },
+      { value: 'Alu RAL 7039 0.7', label: 'RAL 7039' },
+    ],
+  },
+  {
+    group: 'Alu épaisseur 1.5',
+    items: [
+      { value: 'Alu 1.5 Brut', label: 'Brut' },
+    ],
+  },
+  {
+    group: 'Zinc épaisseur 0.7',
+    items: [
+      { value: 'Zinc Naturel 0.7', label: 'Naturel' },
+      { value: 'Zinc ATZ 0.7', label: 'ATZ' },
+      { value: 'Zinc Quartz 0.7', label: 'Quartz' },
+    ],
+  },
+  {
+    group: 'Zinc épaisseur 0.8',
+    items: [
+      { value: 'Zinc Naturel 0.8', label: 'Naturel' },
+      { value: 'Zinc ATZ 0.8', label: 'ATZ' },
+      { value: 'Zinc Quartz 0.8', label: 'Quartz' },
+      { value: 'Zinc Pigmento Rouge 0.8', label: 'Pigmento Rouge' },
+    ],
+  },
+  {
+    group: 'Zinc épaisseur 1',
+    items: [
+      { value: 'Zinc Perforée 1.0', label: 'Perforée' },
+    ],
+  },
 ];
+
+export const STANDARD_MATERIALS: string[] = MATERIAL_GROUPS.flatMap((g) =>
+  g.items.map((i) => i.value)
+);
 
 export type MaterialType = 'ZINC' | 'ALUMINIUM';
 
-export type ZincFinish = 'Zinc Naturel' | 'ATZ (Anthra-Zinc)' | 'Quartz-Zinc';
-export type AluFinish = 'Alu QZ (Quartz)' | 'Alu Noir RAL 9005' | 'Alu Blanc RAL 9010' | 'Alu Anthracite RAL 7016';
+export type ZincFinish =
+  | 'Zinc Naturel'
+  | 'Naturel'
+  | 'ATZ'
+  | 'ATZ (Anthra-Zinc)'
+  | 'Quartz'
+  | 'Quartz-Zinc'
+  | 'Pigmento Rouge'
+  | 'Perforée';
 
-export type ZincThickness = '0.7' | '0.8';
-export type AluThickness = '0.7' | '0.8' | '1.0';
+export type AluFinish =
+  | 'RAL 7016'
+  | 'RAL 9005'
+  | 'RAL 9010'
+  | 'RAL 7039'
+  | '1.5 Brut'
+  | 'Brut'
+  | 'Alu Anthracite RAL 7016'
+  | 'Alu Noir RAL 9005'
+  | 'Alu Blanc RAL 9010';
+
+export type ZincThickness = '0.7' | '0.8' | '1.0' | '1';
+export type AluThickness = '0.7' | '1.5';
 
 export interface ShapedPiece {
   id: string;
@@ -63,6 +110,7 @@ export interface ShapedPiece {
   originalTotalLengthRequested?: number; // si le client a donné un métrage total
   workshopSplitReason?: string; // explication du découpage en longueurs atelier
   notes?: string;
+  sourceType?: 'BOBINE' | 'RACK_SCRAP'; // Origine atelier : débit bobine mère ou chute de rack
 }
 
 export interface DocumentAnalysisResult {
@@ -160,6 +208,7 @@ export interface WorkshopScrapProposal {
 }
 
 export interface AppliedWorkshopScrap {
+  pieceId?: string;
   pieceLabel: string;
   pieceDev: number;
   pieceLength: number;

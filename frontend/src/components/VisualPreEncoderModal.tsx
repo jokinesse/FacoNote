@@ -26,7 +26,7 @@ import {
   ExternalLink,
   RefreshCw,
 } from 'lucide-react';
-import { ShapedPiece, STANDARD_MATERIALS } from '../types';
+import { ShapedPiece, STANDARD_MATERIALS, MATERIAL_GROUPS } from '../types';
 import { mobileApi, aiApi, ApiError } from '../api';
 import { optimizeImageForOcr } from '../utils/imageOptimizer';
 
@@ -43,7 +43,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
   onClose,
   onImportPieces,
   targetMode = 'calculator',
-  currentDefaultMaterial = 'Zinc Quartz 0.7',
+  currentDefaultMaterial = 'Zinc Naturel 0.7',
 }) => {
   const [activeInputTab, setActiveInputTab] = useState<'photo' | 'text'>('photo');
 
@@ -353,46 +353,39 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-      <div className="bg-slate-900 border border-amber-500/30 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/40 backdrop-blur-xs overflow-y-auto">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-xl overflow-hidden">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
-              <Camera className="w-5 h-5" />
+        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-[#f0f7fc] border border-[#b9dcf2] text-[#00478a]">
+              <Camera className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <span>Assistant Reconnaissance Visuelle & Pré-Encodage</span>
-                <span className="text-[10px] text-amber-300 font-mono px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 font-normal">
-                  IA Gemini Vision
-                </span>
+              <h2 className="text-sm font-bold text-[#282828] flex items-center gap-2">
+                <span>Import Croquis &amp; Plans (IA Vision)</span>
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Photographiez vos croquis de pliage, schémas manuscrits ou plans PDF. L'IA extrait
-                les cotes, ailes, plis et quantités avec contrôle visuel direct.
-              </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
           {/* Tabs: Photo / Plan vs Saisie Rapide Texte */}
-          <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
             <button
               onClick={() => setActiveInputTab('photo')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
                 activeInputTab === 'photo'
-                  ? 'bg-amber-400 text-slate-950 shadow-sm'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  ? 'bg-[#00478a] text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               <Camera className="w-4 h-4" />
@@ -400,14 +393,14 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
             </button>
             <button
               onClick={() => setActiveInputTab('text')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
                 activeInputTab === 'text'
-                  ? 'bg-amber-400 text-slate-950 shadow-sm'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  ? 'bg-[#00478a] text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               <FileText className="w-4 h-4" />
-              <span>Saisie Rapide Manuscrite (Texte brut)</span>
+              <span>Texte Brut</span>
             </button>
           </div>
 
@@ -449,14 +442,14 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                         setIsQrModeActive(false);
                       }
                     }}
-                    className={`px-3 py-2.5 font-bold rounded-xl text-xs flex items-center justify-center gap-2 border transition-all shadow-sm ${
+                    className={`px-3 py-2 font-semibold rounded-lg text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer ${
                       isQrModeActive
-                        ? 'bg-amber-500 text-slate-950 border-amber-400'
-                        : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 hover:text-white border-amber-500/40'
+                        ? 'bg-[#00478a] text-white border-[#00478a]'
+                        : 'bg-[#f0f7fc] hover:bg-[#e1effa] text-[#00478a] border-[#b9dcf2]'
                     }`}
                   >
-                    <QrCode className="w-4 h-4 text-amber-400" />
-                    <span>Scanner Smartphone (QR)</span>
+                    <QrCode className="w-4 h-4" />
+                    <span>Scanner Mobile (QR)</span>
                   </button>
 
                   <button
@@ -465,24 +458,24 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                       setIsQrModeActive(false);
                       fileInputRef.current?.click();
                     }}
-                    className="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs flex items-center justify-center gap-2 border border-slate-700 transition-colors shadow-sm"
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs flex items-center justify-center gap-2 border border-slate-200 transition-colors cursor-pointer"
                   >
-                    <Upload className="w-4 h-4 text-amber-400" />
+                    <Upload className="w-4 h-4 text-[#00478a]" />
                     <span>Choisir Fichier PC</span>
                   </button>
                 </div>
 
                 {/* Mobile Transfer Success Banner */}
                 {mobileTransferSuccess && (
-                  <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-2.5 flex items-center justify-between text-xs text-emerald-300 shadow-xs">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 flex items-center justify-between text-xs text-emerald-800">
                     <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span>{mobileTransferSuccess}</span>
                     </div>
                     <button
                       type="button"
                       onClick={startQrSession}
-                      className="text-[11px] font-semibold text-emerald-300 hover:text-white underline"
+                      className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-950 underline cursor-pointer"
                     >
                       Scanner autre
                     </button>
@@ -491,23 +484,23 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
 
                 {/* QR Code Scanner Mode vs Standard Dropzone / Preview */}
                 {isQrModeActive ? (
-                  <div className="border border-amber-500/40 rounded-2xl p-4 bg-slate-950/80 flex flex-col items-center justify-center text-center space-y-3 relative overflow-hidden shadow-lg shadow-amber-950/20">
+                  <div className="border border-[#b9dcf2] rounded-xl p-4 bg-[#f8fafc] flex flex-col items-center justify-center text-center space-y-3 relative overflow-hidden">
                     <div className="flex items-center justify-between w-full">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#00478a] flex items-center gap-1.5">
                         <Smartphone className="w-3.5 h-3.5" />
                         <span>Scanner avec votre smartphone</span>
                       </span>
                       <button
                         type="button"
                         onClick={() => setIsQrModeActive(false)}
-                        className="text-[11px] text-slate-400 hover:text-white underline"
+                        className="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
                       >
-                        Fermer le QR
+                        Fermer
                       </button>
                     </div>
 
                     {/* QR Code Container */}
-                    <div className="bg-white p-3 rounded-2xl shadow-xl border border-slate-700">
+                    <div className="bg-white p-3 rounded-xl shadow-xs border border-slate-200">
                       {qrCodeDataUrl ? (
                         <img
                           src={qrCodeDataUrl}
@@ -516,25 +509,24 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                         />
                       ) : (
                         <div className="w-44 h-44 flex items-center justify-center text-slate-400">
-                          <RefreshCw className="w-6 h-6 animate-spin text-slate-600" />
+                          <RefreshCw className="w-6 h-6 animate-spin text-slate-400" />
                         </div>
                       )}
                     </div>
 
                     {/* Live Listening Radar Banner */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 w-full flex items-center justify-between text-xs">
+                    <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 w-full flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2 text-left">
                         <span className="relative flex h-2.5 w-2.5 shrink-0">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#3ca7da] opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#00478a]"></span>
                         </span>
                         <div>
-                          <p className="font-semibold text-white text-[11px]">En attente de la photo...</p>
-                          <p className="text-[10px] text-slate-400">Prenez la photo avec votre téléphone</p>
+                          <p className="font-semibold text-slate-800 text-[11px]">En attente de la photo...</p>
                         </div>
                       </div>
 
-                      <span className="font-mono text-[11px] font-bold text-amber-300 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                      <span className="font-mono text-[11px] font-bold text-[#00478a] bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
                         {mobileSessionId}
                       </span>
                     </div>
@@ -549,16 +541,16 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                           setIsCopiedLink(true);
                           setTimeout(() => setIsCopiedLink(false), 2000);
                         }}
-                        className="flex-1 py-1.5 px-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-[11px] text-slate-300 hover:text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        className="flex-1 py-1.5 px-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                       >
                         {isCopiedLink ? (
                           <>
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
                             <span>Lien copié !</span>
                           </>
                         ) : (
                           <>
-                            <Copy className="w-3.5 h-3.5 text-amber-400" />
+                            <Copy className="w-3.5 h-3.5 text-[#00478a]" />
                             <span>Copier le lien mobile</span>
                           </>
                         )}
@@ -568,7 +560,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                         href={`/mobile?session=${mobileSessionId}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="py-1.5 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-[11px] text-slate-300 hover:text-amber-300 flex items-center gap-1.5 transition-colors"
+                        className="py-1.5 px-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 hover:text-[#00478a] flex items-center gap-1.5 transition-colors"
                         title="Tester le scanner mobile dans un nouvel onglet"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
@@ -585,7 +577,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                       const file = e.dataTransfer.files?.[0];
                       if (file) handleFileSelected(file);
                     }}
-                    className="border-2 border-dashed border-slate-700 hover:border-amber-400/50 rounded-xl p-3 bg-slate-950/50 flex flex-col items-center justify-center min-h-[220px] max-h-[340px] relative overflow-hidden group transition-colors"
+                    className="border-2 border-dashed border-slate-300 hover:border-[#00478a] rounded-xl p-3 bg-slate-50 flex flex-col items-center justify-center min-h-[200px] max-h-[320px] relative overflow-hidden group transition-colors"
                   >
                     {imagePreviewUrl ? (
                       <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
@@ -596,16 +588,16 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                             transform: `scale(${zoomLevel})`,
                             transition: 'transform 0.15s ease',
                           }}
-                          className="max-h-[300px] w-auto object-contain rounded-lg shadow"
+                          className="max-h-[280px] w-auto object-contain rounded-lg shadow-xs"
                         />
 
                         {/* Image adjustment toolbar overlay */}
-                        <div className="absolute bottom-2 left-2 right-2 bg-slate-900/90 backdrop-blur border border-slate-700/80 rounded-lg p-1.5 flex items-center justify-between text-xs text-slate-300">
+                        <div className="absolute bottom-2 left-2 right-2 bg-white/95 backdrop-blur border border-slate-200 rounded-lg p-1.5 flex items-center justify-between text-xs text-slate-700 shadow-xs">
                           <div className="flex items-center gap-1">
                             <button
                               type="button"
                               onClick={handleRotate}
-                              className="p-1 hover:text-white rounded hover:bg-slate-800"
+                              className="p-1 hover:text-[#00478a] rounded hover:bg-slate-100 cursor-pointer"
                               title="Pivoter 90°"
                             >
                               <RotateCw className="w-3.5 h-3.5" />
@@ -613,7 +605,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                             <button
                               type="button"
                               onClick={() => setZoomLevel((z) => Math.min(2.5, z + 0.2))}
-                              className="p-1 hover:text-white rounded hover:bg-slate-800"
+                              className="p-1 hover:text-[#00478a] rounded hover:bg-slate-100 cursor-pointer"
                               title="Zoom +"
                             >
                               <ZoomIn className="w-3.5 h-3.5" />
@@ -621,7 +613,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                             <button
                               type="button"
                               onClick={() => setZoomLevel((z) => Math.max(0.6, z - 0.2))}
-                              className="p-1 hover:text-white rounded hover:bg-slate-800"
+                              className="p-1 hover:text-[#00478a] rounded hover:bg-slate-100 cursor-pointer"
                               title="Zoom -"
                             >
                               <ZoomOut className="w-3.5 h-3.5" />
@@ -629,111 +621,82 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                             <button
                               type="button"
                               onClick={() => setZoomLevel(1)}
-                              className="p-1 hover:text-white rounded hover:bg-slate-800"
+                              className="p-1 hover:text-[#00478a] rounded hover:bg-slate-100 cursor-pointer"
                               title="Réinitialiser zoom"
                             >
                               1x
                             </button>
                           </div>
-                          <span className="text-[10px] text-slate-400 font-mono truncate max-w-[120px]">
+                          <span className="text-[10px] text-slate-500 font-mono truncate max-w-[120px]">
                             {selectedFile?.name}
                           </span>
                         </div>
                       </div>
                     ) : (
                       <div className="text-center p-4 space-y-2">
-                        <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
+                        <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center mx-auto text-slate-400">
                           <Upload className="w-5 h-5" />
                         </div>
-                        <p className="text-xs text-slate-300 font-medium">
-                          Glissez une photo ici ou collez depuis le presse-papier (<kbd className="font-mono bg-slate-800 px-1 rounded text-amber-300">Ctrl+V</kbd>)
+                        <p className="text-xs text-slate-600 font-medium">
+                          Glissez une image/PDF ou collez (<kbd className="font-mono bg-white border border-slate-200 px-1 rounded text-[#00478a]">Ctrl+V</kbd>)
                         </p>
-                        <p className="text-[11px] text-slate-500">
-                          Croquis papier, calepinage, photos d'atelier, PDF de devis
-                        </p>
-                        <div className="pt-2">
-                          <button
-                            type="button"
-                            onClick={startQrSession}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold transition-colors"
-                          >
-                            <QrCode className="w-3.5 h-3.5" />
-                            <span>Ou scanner avec votre smartphone</span>
-                          </button>
-                        </div>
                       </div>
                     )}
                   </div>
                 )}
-
-                {/* Optional Note or Hint */}
-                <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-2.5 text-[11px] text-slate-400 flex items-start gap-2">
-                  <HelpCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Astuce Atelier :</strong> Vous pouvez photographier vos croquis
-                    directement depuis votre téléphone via le QR Code ci-dessus, ou glisser vos plans PDF
-                    depuis votre PC.
-                  </span>
-                </div>
               </div>
 
               {/* Right Column: Launch Button & Real-time Status */}
               <div className="lg:col-span-7 space-y-3">
-                <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-amber-400" />
-                      <span>Lancement de l'Analyse Visuelle</span>
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-[#00478a]" />
+                      <span>Extraction automatique des cotes</span>
                     </span>
                     {selectedFile && (
-                      <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                         Document prêt
                       </span>
                     )}
                   </div>
 
-                  <p className="text-xs text-slate-400">
-                    L'IA va automatiquement sommer les segments de profil (ex: 15+120+35+20 =
-                    190mm), compter les plis et extraire les quantités. Vous pourrez vérifier et
-                    modifier chaque pièce ci-dessous avant validation.
-                  </p>
-
                   <button
                     type="button"
                     onClick={handleRunAnalysis}
                     disabled={!selectedFile || isProcessing}
-                    className="w-full py-3 bg-amber-400 hover:bg-amber-300 disabled:opacity-40 disabled:hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-colors shadow-sm"
+                    className="w-full py-2.5 bg-[#e7511f] hover:bg-[#cf4315] disabled:opacity-40 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-colors shadow-xs cursor-pointer"
                   >
                     {isProcessing ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         <span>{processingStep || 'Analyse en cours...'}</span>
                       </>
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4" />
-                        <span>Analyser le Croquis / Document</span>
+                        <span>Analyser le Document</span>
                       </>
                     )}
                   </button>
                 </div>
 
                 {errorMessage && (
-                  <div className="bg-rose-950/40 border border-rose-800/60 rounded-xl p-3.5 text-xs text-rose-300 flex items-start gap-2.5">
-                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                     <div>
-                      <strong className="block font-bold">Information de reconnaissance :</strong>
+                      <strong className="block font-bold">Information :</strong>
                       <span>{errorMessage}</span>
                     </div>
                   </div>
                 )}
 
                 {rawAiObservations && (
-                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-300 space-y-1">
-                    <strong className="font-semibold block text-amber-400">
-                      Observations visuelles de l'IA :
+                  <div className="bg-[#f0f7fc] border border-[#b9dcf2] rounded-xl p-3 text-xs text-slate-700 space-y-1">
+                    <strong className="font-semibold block text-[#00478a]">
+                      Observations :
                     </strong>
-                    <p className="text-[11px] text-slate-300 font-mono whitespace-pre-line">
+                    <p className="text-[11px] text-slate-600 font-mono whitespace-pre-line">
                       {rawAiObservations}
                     </p>
                   </div>
@@ -745,22 +708,22 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
           {/* TAB 2: Text / Shorthand Input */}
           {activeInputTab === 'text' && (
             <div className="space-y-3">
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
-                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-                  Collez ou écrivez vos notes d'atelier brutes :
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2.5">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Notes d'atelier :
                 </label>
                 <textarea
                   value={manualText}
                   onChange={(e) => setManualText(e.target.value)}
-                  placeholder="Exemples :&#10;8 pcs bavette 15+120+35+20 en 2m zinc quartz 0.7&#10;Rive 250 6x3m Alu Noir 9005&#10;4 couvertines dev 350 lg 2.5m 4 plis"
+                  placeholder="Exemples :&#10;8 pcs bavette 15+120+35+20 en 2m Zinc Quartz 0.7&#10;Rive 250 6x3m Alu RAL 9005 0.7"
                   rows={5}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-amber-400"
+                  className="w-full bg-white border border-slate-300 rounded-lg p-3 text-xs font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#00478a]"
                 />
                 <button
                   type="button"
                   onClick={handleRunAnalysis}
                   disabled={!manualText.trim() || isProcessing}
-                  className="px-5 py-2.5 bg-amber-400 hover:bg-amber-300 disabled:opacity-40 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-2 transition-colors"
+                  className="px-4 py-2 bg-[#e7511f] hover:bg-[#cf4315] disabled:opacity-40 text-white font-bold rounded-lg text-xs flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4" />
                   <span>Analyser le Descriptif</span>
@@ -771,36 +734,34 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
 
           {/* SECTION: EXTRACTED PIECES VERIFICATION & CORRECTION TABLE */}
           {extractedPieces.length > 0 && (
-            <div className="bg-slate-950 border border-amber-500/30 rounded-xl p-4 space-y-3">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
-                <div>
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Pièces Détectées ({extractedPieces.length}) - Contrôle & Validation</span>
-                  </h3>
-                  <span className="text-[11px] text-slate-400">
-                    Vérifiez les cotes avant insertion. Vous pouvez modifier n'importe quelle valeur en direct.
-                  </span>
-                </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                <h3 className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Pièces Détectées ({extractedPieces.length})</span>
+                </h3>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleAddEmptyPiece}
-                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg flex items-center gap-1.5 border border-slate-700"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Ajouter une pièce</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleAddEmptyPiece}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg flex items-center gap-1.5 border border-slate-200 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#00478a]" />
+                  <span>Ajouter une pièce</span>
+                </button>
               </div>
 
               {/* Editable Pieces Table */}
-              <div className="overflow-x-auto rounded-lg border border-slate-800">
+              <div
+                className="table-wrapper rounded-lg border border-slate-200"
+                tabIndex={0}
+                role="region"
+                aria-label="Pièces détectées par reconnaissance visuelle"
+              >
                 <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-900 text-slate-400 text-[11px] uppercase font-mono">
+                  <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-mono border-b border-slate-200">
                     <tr>
-                      <th className="py-2.5 px-3 w-10 text-center">
+                      <th className="py-2 px-3 w-10 text-center">
                         <input
                           type="checkbox"
                           checked={
@@ -814,26 +775,26 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                               setSelectedIndices([]);
                             }
                           }}
-                          className="rounded border-slate-700 text-amber-400 focus:ring-0"
+                          className="rounded border-slate-300 text-[#00478a] focus:ring-0"
                         />
                       </th>
-                      <th className="py-2.5 px-3">Désignation</th>
-                      <th className="py-2.5 px-3 text-right">Dév (mm)</th>
-                      <th className="py-2.5 px-3 text-right">Longueur (m)</th>
-                      <th className="py-2.5 px-3 text-right">Qté</th>
-                      <th className="py-2.5 px-3 text-center">Plis</th>
-                      <th className="py-2.5 px-3">Matière</th>
-                      <th className="py-2.5 px-3">Détail des Ailes / Calcul</th>
-                      <th className="py-2.5 px-3 text-center">Action</th>
+                      <th className="py-2 px-3">Désignation</th>
+                      <th className="py-2 px-3 text-right">Dév (mm)</th>
+                      <th className="py-2 px-3 text-right">Long. (m)</th>
+                      <th className="py-2 px-3 text-right">Qté</th>
+                      <th className="py-2 px-3 text-center">Plis</th>
+                      <th className="py-2 px-3">Matière</th>
+                      <th className="py-2 px-3">Détail</th>
+                      <th className="py-2 px-3 text-center"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800 bg-slate-950">
+                  <tbody className="divide-y divide-slate-100 bg-white">
                     {extractedPieces.map((p, idx) => {
                       const isSelected = selectedIndices.includes(idx);
                       return (
                         <tr
                           key={p.id}
-                          className={`hover:bg-slate-900/60 transition-colors ${
+                          className={`hover:bg-slate-50 transition-colors ${
                             !isSelected ? 'opacity-40' : ''
                           }`}
                         >
@@ -842,7 +803,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => handleToggleSelect(idx)}
-                              className="rounded border-slate-700 text-amber-400 focus:ring-0"
+                              className="rounded border-slate-300 text-[#00478a] focus:ring-0"
                             />
                           </td>
                           <td className="py-2 px-3">
@@ -850,7 +811,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                               type="text"
                               value={p.label}
                               onChange={(e) => handleUpdatePiece(idx, 'label', e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-medium focus:border-amber-400"
+                              className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-800 font-medium focus:border-[#00478a] focus:bg-white"
                             />
                           </td>
                           <td className="py-2 px-3 text-right">
@@ -860,7 +821,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                               onChange={(e) =>
                                 handleUpdatePiece(idx, 'dev', Number(e.target.value) || 0)
                               }
-                              className="w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono font-bold text-amber-400 text-right focus:border-amber-400"
+                              className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-mono font-bold text-[#00478a] text-right focus:border-[#00478a] focus:bg-white"
                             />
                           </td>
                           <td className="py-2 px-3 text-right">
@@ -871,7 +832,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                               onChange={(e) =>
                                 handleUpdatePiece(idx, 'length', Number(e.target.value) || 2.0)
                               }
-                              className="w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-100 text-right focus:border-amber-400"
+                              className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-mono text-slate-800 text-right focus:border-[#00478a] focus:bg-white"
                             />
                           </td>
                           <td className="py-2 px-3 text-right">
@@ -881,7 +842,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                               onChange={(e) =>
                                 handleUpdatePiece(idx, 'quantity', Number(e.target.value) || 1)
                               }
-                              className="w-16 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono font-bold text-white text-right focus:border-amber-400"
+                              className="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900 text-right focus:border-[#00478a] focus:bg-white"
                             />
                           </td>
                           <td className="py-2 px-3 text-center">
@@ -891,30 +852,34 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                               onChange={(e) =>
                                 handleUpdatePiece(idx, 'bends', Number(e.target.value) || 2)
                               }
-                              className="w-14 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-slate-300 text-center focus:border-amber-400"
+                              className="w-14 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-mono text-slate-600 text-center focus:border-[#00478a] focus:bg-white"
                             />
                           </td>
                           <td className="py-2 px-3">
                             <select
                               value={p.material || currentDefaultMaterial}
                               onChange={(e) => handleUpdatePiece(idx, 'material', e.target.value)}
-                              className="w-44 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200 focus:border-amber-400 font-sans"
+                              className="w-44 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:border-[#00478a] focus:bg-white font-sans"
                             >
-                              {STANDARD_MATERIALS.map((mat) => (
-                                <option key={mat} value={mat}>
-                                  {mat}
-                                </option>
+                              {MATERIAL_GROUPS.map((grp) => (
+                                <optgroup key={grp.group} label={grp.group}>
+                                  {grp.items.map((mat) => (
+                                    <option key={mat.value} value={mat.value}>
+                                      {mat.value}
+                                    </option>
+                                  ))}
+                                </optgroup>
                               ))}
                             </select>
                           </td>
-                          <td className="py-2 px-3 text-slate-400 font-mono text-[11px] truncate max-w-[200px]">
+                          <td className="py-2 px-3 text-slate-500 font-mono text-[11px] truncate max-w-[200px]">
                             {p.workshopSplitReason || '-'}
                           </td>
                           <td className="py-2 px-3 text-center">
                             <button
                               type="button"
                               onClick={() => handleDeletePiece(idx)}
-                              className="p-1 text-slate-500 hover:text-rose-400 rounded transition-colors"
+                              className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors cursor-pointer"
                               title="Supprimer cette ligne"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -931,23 +896,23 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 sm:p-5 border-t border-slate-800 bg-slate-950/80 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-xs text-slate-400">
+        <div className="p-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-xs text-slate-500">
             {extractedPieces.length > 0 ? (
               <span>
-                <strong className="text-white">{selectedIndices.length}</strong> pièce(s)
-                sélectionnée(s) sur {extractedPieces.length} détectée(s)
+                <strong className="text-slate-800">{selectedIndices.length}</strong> pièce(s)
+                sélectionnée(s) sur {extractedPieces.length}
               </span>
             ) : (
-              <span>En attente de chargement d'un croquis</span>
+              <span>Sélectionnez un document à analyser</span>
             )}
           </div>
 
-          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-lg text-xs transition-colors"
+              className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 font-medium rounded-lg text-xs transition-colors cursor-pointer"
             >
               Annuler
             </button>
@@ -957,12 +922,12 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                 type="button"
                 onClick={handleConfirmImport}
                 disabled={selectedIndices.length === 0}
-                className="px-5 py-2 bg-amber-400 hover:bg-amber-300 disabled:opacity-40 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-2 transition-colors shadow-sm"
+                className="px-5 py-2 bg-[#e7511f] hover:bg-[#cf4315] disabled:opacity-40 text-white font-bold rounded-lg text-xs flex items-center gap-2 transition-colors shadow-xs cursor-pointer"
               >
                 <Check className="w-4 h-4" />
                 <span>
                   {targetMode === 'calculator'
-                    ? "Valider et Injecter dans le Calculateur"
+                    ? 'Valider et Injecter'
                     : "Valider et Ajouter à l'Optimiseur"}
                 </span>
               </button>

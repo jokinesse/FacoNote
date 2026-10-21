@@ -4,6 +4,7 @@ Spécification technique : Section 4.3 du Cahier des Charges.
 """
 
 from fastapi import APIRouter, HTTPException, Response, status
+from app.core.constants import OFFICIAL_MATERIALS
 from app.models.optimizer import (
     AutoBreakdownRequest,
     AutoPieceBreakdownResponse,
@@ -17,6 +18,19 @@ from app.services.nesting_engine import run_nesting_optimization
 from app.services.sheet_generator import generate_workshop_sheet_html
 
 router = APIRouter(prefix="/optimizer", tags=["Optimiseur & Calepinage"])
+
+
+@router.get(
+    "/materials",
+    response_model=list[str],
+    status_code=status.HTTP_200_OK,
+    summary="Liste officielle des matières autorisées Facozinc",
+)
+def get_materials_endpoint() -> list[str]:
+    """
+    Retourne la liste stricte des matières et finitions officielles d'atelier.
+    """
+    return list(OFFICIAL_MATERIALS)
 
 
 @router.post(

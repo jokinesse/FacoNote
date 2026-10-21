@@ -35,7 +35,8 @@ def generate_workshop_sheet_html(
     pieces_rows_html = []
     for idx, p in enumerate(pieces, start=1):
         line_meters = round(p.length * p.quantity, 2)
-        split_reason = p.workshop_split_reason or "Longueur standard"
+        default_reason = "Chute Rack Atelier" if p.source_type == "RACK_SCRAP" else "Longueur standard"
+        split_reason = p.workshop_split_reason or default_reason
         row = f"""
         <tr>
             <td style="text-align: center; font-weight: bold;">{idx}</td>

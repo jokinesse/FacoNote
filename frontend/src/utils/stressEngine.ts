@@ -42,8 +42,8 @@ export interface PayloadOptions {
 }
 
 const DEV_BOUNDS = [100, 120, 150, 175, 187, 200, 250, 285, 300, 333, 375, 400, 450, 500];
-const ZINC_MATERIALS = ['Zinc Naturel 0.7', 'Zinc Quartz 0.7', 'Zinc Noir ATZ 0.7'];
-const ALU_MATERIALS = ['Alu 7016 gris bleu 0.7', 'Alu 9010 Blanc 0.7'];
+const ZINC_MATERIALS = ['Zinc Naturel 0.7', 'Zinc Quartz 0.7', 'Zinc ATZ 0.7', 'Zinc Naturel 0.8', 'Zinc Pigmento Rouge 0.8', 'Zinc Perforée 1.0'];
+const ALU_MATERIALS = ['Alu RAL 7016 0.7', 'Alu RAL 9005 0.7', 'Alu RAL 9010 0.7', 'Alu RAL 7039 0.7', 'Alu 1.5 Brut'];
 
 const pick = <T,>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)];
 const randInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;

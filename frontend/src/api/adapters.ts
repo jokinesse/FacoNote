@@ -64,27 +64,47 @@ export function mapBackendOptimizationToResult(
       isUsed: false,
     }));
 
-  const workshopScrapProposals = (backendData.workshop_scrap_proposals || []).map((p) => ({
-    id: p.proposal_id,
-    pieceId: p.piece_id,
-    pieceLabel: p.label,
-    pieceDev: p.dev,
-    pieceLength: p.length,
-    recommendedScrapDev: p.rack_scrap_width,
-    material: p.rack_scrap_ref,
-    reason: p.reason,
-    motherWidthSaved: p.rack_scrap_width,
-    motherLengthSaved: p.length,
-    areaSavedM2: Math.round(((p.rack_scrap_width / 1000) * p.length) * 100) / 100,
-    weightSavedKg: 0,
-  }));
+  const workshopScrapProposals = (backendData.workshop_scrap_proposals || []).map((p: any) => {
+    const matchedPiece = sourcePieces.find((sp) => sp.id === (p.piece_id || p.pieceId));
+    const dev = p.piece_dev ?? p.dev ?? matchedPiece?.dev ?? 0;
+    const length = p.piece_length ?? p.length ?? matchedPiece?.length ?? 0;
+    const label = p.piece_label ?? p.label ?? matchedPiece?.label ?? 'Pièce isolée';
+    const scrapDev = p.recommended_scrap_dev ?? p.rack_scrap_width ?? 250;
 
-  const appliedWorkshopScraps = (backendData.applied_workshop_scraps || []).map((desc) => ({
-    pieceLabel: desc,
-    pieceDev: 0,
-    pieceLength: 0,
-    scrapDev: 0,
-  }));
+    return {
+      id: p.id || p.proposal_id || `prop-${p.piece_id}`,
+      pieceId: p.piece_id || p.pieceId,
+      pieceLabel: label,
+      pieceDev: dev,
+      pieceLength: length,
+      recommendedScrapDev: scrapDev,
+      material: p.material || p.rack_scrap_ref || matchedPiece?.material || '',
+      reason: p.reason || '',
+      motherWidthSaved: p.mother_width_saved ?? p.rack_scrap_width ?? scrapDev,
+      motherLengthSaved: p.mother_length_saved ?? p.length ?? length,
+      areaSavedM2: p.area_saved_m2 ?? Math.round(((scrapDev / 1000) * length) * 100) / 100,
+      weightSavedKg: p.weight_saved_kg ?? 0,
+    };
+  });
+
+  const appliedWorkshopScraps = (backendData.applied_workshop_scraps || []).map((item: any) => {
+    if (typeof item === 'string') {
+      return {
+        pieceLabel: item,
+        pieceDev: 0,
+        pieceLength: 0,
+        scrapDev: 0,
+      };
+    }
+    return {
+      pieceId: item.piece_id || item.pieceId,
+      pieceLabel: item.piece_label || 'Pièce',
+      pieceDev: item.piece_dev || 0,
+      pieceLength: item.piece_length || 0,
+      scrapDev: item.scrap_dev || 0,
+      material: item.material,
+    };
+  });
 
   return {
     orderId: backendData.order_id,
@@ -120,5 +140,6 @@ export function mapShapedPieceToModel(p: ShapedPiece): ShapedPieceModel {
     workshop_split_reason: p.workshopSplitReason || null,
     notes: p.notes || null,
     original_total_length_requested: p.originalTotalLengthRequested || null,
+    source_type: p.sourceType || 'BOBINE',
   };
 }

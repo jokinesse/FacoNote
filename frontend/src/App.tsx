@@ -130,14 +130,14 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#f3f4f6] text-[#282828] flex flex-col font-sans">
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         isAdminUnlocked={Boolean(adminToken)}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
         {/* Persistent tab views: preserving state when switching between pages */}
         <div className={activeTab === 'calculator' ? 'block' : 'hidden'}>
           <FastEncoder onTransferToOptimizer={handleTransferToOptimizer} />
@@ -151,8 +151,8 @@ export default function App() {
           <div className={activeTab === 'stress' ? 'block' : 'hidden'}>
             <Suspense
               fallback={
-                <div className="p-8 text-center text-xs text-slate-400">
-                  Chargement sécurisé du Stress Lab...
+                <div className="p-8 text-center text-xs text-slate-500">
+                  Chargement du Stress Lab...
                 </div>
               }
             >
@@ -178,17 +178,11 @@ export default function App() {
         }}
       />
 
-      {/* Footer */}
-      <footer className="no-print border-t border-slate-900 bg-slate-950/90 py-4 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-400">FACOZINC</span>
-            <span>·</span>
-            <span>Assistant d'Encodage & Optimisation de Façonnage Atelier</span>
-          </div>
-          <div>
-            <span>Spécialiste Zinc 0.7mm & Aluminium 0.7mm · Optimisation de Refente de Bobines</span>
-          </div>
+      {/* Minimal Footer */}
+      <footer className="no-print border-t border-slate-200 bg-white py-3 mt-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between text-xs text-slate-500">
+          <span className="font-semibold text-[#00478a]">FACOZINC</span>
+          <span>Atelier Pliage & Façonnage</span>
         </div>
       </footer>
     </div>

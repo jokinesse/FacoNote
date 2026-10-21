@@ -4,12 +4,25 @@ Assistant d'Encodage, Calepinage & Optimisation de Refente.
 Spécification technique : Cahier des Charges Facozinc Python.
 """
 
+import os
 from collections.abc import Awaitable, Callable
+from pathlib import Path
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.api.v1.router import api_v1_router
 from app.core.admin_security import check_rate_limit
+
+# Chargement automatique des variables d'environnement depuis backend/.env ou .env
+env_candidates = [
+    Path(__file__).resolve().parent.parent / ".env",
+    Path(".env"),
+]
+for env_file in env_candidates:
+    if env_file.exists():
+        load_dotenv(env_file)
+        break
 
 app = FastAPI(
     title="Plateforme Facozinc API",

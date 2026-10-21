@@ -4,7 +4,9 @@ Spécification technique : Section 4.2 du Cahier des Charges.
 Intègre le SDK Gemini avec repli déterministe résilient.
 """
 
+import base64
 import json
+import logging
 import os
 import re
 from typing import Optional
@@ -12,6 +14,8 @@ from typing import Optional
 from app.core.constants import resolve_material_spec
 from app.models.ai import DocumentParseRequest, DocumentParseResponse
 from app.models.pieces import ShapedPieceModel
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """Tu es un métreur et chef d'atelier expert chez Facozinc (spécialiste du pliage et façonnage sur-mesure de zinc, aluminium, cuivre et plomb pour toitures et bardages).
 Ta mission est d'analyser l'image, le plan PDF, le croquis manuscrit ou le bon de commande fourni et d'en extraire avec une EXACTITUDE ABSOLUE la liste de TOUTES les pièces de pliage à réaliser.
@@ -96,6 +100,7 @@ def parse_document_multimodal(request: DocumentParseRequest) -> DocumentParseRes
     Sinon, applique le parseur textuel ou le jeu de données d'exemple certifié du cahier des charges.
     """
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    gemini_error: Optional[str] = None
 
     if api_key:
         try:
@@ -107,12 +112,16 @@ def parse_document_multimodal(request: DocumentParseRequest) -> DocumentParseRes
             parts: list[types.Part] = []
             if request.file_base64:
                 clean_b64 = re.sub(r"^data:[^;]+;base64,", "", request.file_base64.strip())
-                parts.append(
-                    types.Part.from_bytes(
-                        data=clean_b64.encode("ascii"),
-                        mime_type=request.mime_type,
+                try:
+                    raw_bytes = base64.b64decode(clean_b64)
+                    parts.append(
+                        types.Part.from_bytes(
+                            data=raw_bytes,
+                            mime_type=request.mime_type or "image/jpeg",
+                        )
                     )
-                )
+                except Exception as b64_err:
+                    logger.warning(f"Erreur décodage base64 : {b64_err}")
 
             user_instruction = (
                 f"Analyse ce document avec longueur standard = {request.standard_length}m.\n"
@@ -120,8 +129,10 @@ def parse_document_multimodal(request: DocumentParseRequest) -> DocumentParseRes
             )
             parts.append(types.Part.from_text(text=user_instruction))
 
+            model_name = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model=model_name,
                 contents=types.Content(parts=parts),
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_PROMPT,
@@ -156,8 +167,8 @@ def parse_document_multimodal(request: DocumentParseRequest) -> DocumentParseRes
                     notes=data.get("notes"),
                 )
         except Exception as exc:
-            # En cas d'échec API externe (quota ou réseau), repli contrôlé
-            pass
+            logger.error(f"Échec de l'appel Gemini Vision : {exc}", exc_info=True)
+            gemini_error = str(exc)
 
     # Repli déterministe conforme à la Section 4.2 du Cahier des Charges
     if request.manual_text and request.manual_text.strip():
@@ -172,7 +183,17 @@ def parse_document_multimodal(request: DocumentParseRequest) -> DocumentParseRes
                 notes="Mode extraction texte d'atelier",
             )
 
-    # Réponse type normalisée de Section 4.2
+    # Message informatif précis pour l'opérateur sur l'état de l'IA
+    if not api_key:
+        diag_msg = (
+            "⚠️ Clé GEMINI_API_KEY non configurée dans backend/.env. "
+            "Pour activer la reconnaissance de vos photos et croquis par IA, "
+            "renseignez votre clé API Google Gemini (GEMINI_API_KEY=...) dans backend/.env."
+        )
+    else:
+        diag_msg = f"⚠️ Échec de l'appel à l'API Gemini : {gemini_error}. Vérifiez votre clé API ou votre quota."
+
+    # Réponse type normalisée de Section 4.2 pour ne pas bloquer l'application
     standard_piece = ShapedPieceModel(
         id="p-1",
         label="Bavette d'égout",
@@ -189,6 +210,6 @@ def parse_document_multimodal(request: DocumentParseRequest) -> DocumentParseRes
         chantier="Chantier Les Pins",
         detected_finish="Zinc Quartz 0.7",
         pieces=[standard_piece],
-        raw_observations="Extraction déterministe standard d'atelier (croquis 190 mm × 2.0m)",
-        notes="Analyse locale opérationnelle",
+        raw_observations=diag_msg,
+        notes=diag_msg,
     )

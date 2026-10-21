@@ -87,7 +87,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
   // Multi-material & view mode states
   const [selectedMaterialFilter, setSelectedMaterialFilter] = useState<string>('ALL');
-  const [tableViewMode, setTableViewMode] = useState<'DEV' | 'BOUNDS'>('DEV');
+  const [tableViewMode, setTableViewMode] = useState<'DEV' | 'BOUNDS'>('BOUNDS');
   const [hideEmptyBounds, setHideEmptyBounds] = useState<boolean>(false);
 
   // Refs for smooth Tab/Enter navigation between the 3 boxes
@@ -1878,12 +1878,17 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                   const isHighlighted =
                     lastFeedback?.boundMatched === row.bound &&
                     row.accumulatedLength > 0;
+                  const hasSharedDev = row.entries.some(
+                    (e) => (sharedDevMap.get(e.dev)?.size || 0) > 1
+                  );
 
                   return (
                     <tr
                       key={row.id}
                       className={`transition-colors ${
-                        isHighlighted
+                        hasSharedDev
+                          ? 'border-l-4 border-l-amber-400 bg-amber-50/20 hover:bg-amber-50/40'
+                          : isHighlighted
                           ? 'bg-[#3ca7da]/10 font-semibold'
                           : row.accumulatedLength > 0
                           ? 'bg-white hover:bg-slate-50/80'
@@ -1891,8 +1896,17 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                       }`}
                     >
                       <td className="py-2 px-4 font-bold text-[#282828]">
-                        <div className="flex items-center gap-1.5">
-                          <span className="tabular-nums">{row.bound}</span> mm
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="tabular-nums font-mono text-sm">{row.bound}</span> mm
+                          {hasSharedDev && (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
+                              title="Contient un développement identique présent dans plusieurs matières"
+                            >
+                              <Layers className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                              <span>Même Dév</span>
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="py-2 px-4">
@@ -1910,19 +1924,36 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                           </span>
                         ) : (
                           <div className="flex flex-wrap items-center gap-1.5">
-                            {row.entries.map((entry) => (
-                              <span
-                                key={entry.id}
-                                className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200"
-                              >
-                                <span className="font-semibold text-[#00478a]">
-                                  {entry.dev}mm
+                            {row.entries.map((entry) => {
+                              const isEntryShared = (sharedDevMap.get(entry.dev)?.size || 0) > 1;
+                              return (
+                                <span
+                                  key={entry.id}
+                                  className={`inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border ${
+                                    isEntryShared
+                                      ? 'bg-amber-100/80 text-amber-900 border-amber-300 font-bold'
+                                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                                  }`}
+                                  title={
+                                    isEntryShared
+                                      ? `Dév ${entry.dev} mm également présent dans d'autres matières !`
+                                      : undefined
+                                  }
+                                >
+                                  <span className="font-bold text-[#00478a]">
+                                    {entry.dev}mm
+                                  </span>
+                                  {isEntryShared && (
+                                    <span className="text-[9px] px-1 py-0.2 bg-amber-200 rounded font-black text-amber-900">
+                                      Même Dév
+                                    </span>
+                                  )}
+                                  <span className="text-slate-500 font-normal">
+                                    ({entry.quantity}×{entry.unitLength}m)
+                                  </span>
                                 </span>
-                                <span className="text-slate-500">
-                                  ({entry.quantity}×{entry.unitLength}m)
-                                </span>
-                              </span>
-                            ))}
+                              );
+                            })}
                             {row.count === 0 && <span className="text-slate-300">-</span>}
                           </div>
                         )}

@@ -43,39 +43,8 @@ python -m venv .venv
 
 ---
 
-## 📐 Architecture & Modules
-
-```
-backend/
-├── app/
-│   ├── core/
-│   │   ├── config.py              # Configuration applicative
-│   │   └── constants.py           # Table des nuances métaux, densités et bornes de refente
-│   ├── models/                    # Schémas Pydantic v2 stricts
-│   │   ├── pieces.py              # ShapedPieceModel, FastEncoderRequest/Response
-│   │   ├── optimizer.py           # OptimizationRequest/Response, BreakdownResponse
-│   │   ├── mobile.py              # MobileSession, MobileUpload, MobileStatus
-│   │   └── ai.py                  # DocumentParseRequest/Response
-│   ├── services/                  # Moteur métier pur et calculs (découplé du Web)
-│   │   ├── math_parser.py         # Shunting-Yard RPN sans eval()
-│   │   ├── encoder_engine.py      # Saisie composite et affectation bornes standards
-│   │   ├── breakdown_engine.py    # Auto-calepinage du métrage linéaire sans quantité
-│   │   ├── nesting_engine.py      # Moteur de refente 1D/2D, ségrégation matières et chutes
-│   │   ├── session_store.py       # Store thread-safe en mémoire (TTL 45 min)
-│   │   ├── image_pipeline.py      # Pipeline Pillow (+15% contraste, rotations 90°)
-│   │   ├── ai_ocr_service.py      # Extraction multimodale Gemini & repli d'atelier
-│   │   └── sheet_generator.py     # Génération de fiche de débit A4 normalisée
-│   ├── api/v1/                    # Couche transport HTTP FastAPI
-│   │   ├── endpoints/
-│   │   │   ├── optimizer.py       # Endpoints auto-breakdown, calculate, quick-encode, print-sheet
-│   │   │   ├── mobile.py          # Endpoints session, upload, status, reset
-│   │   │   └── ai.py              # Endpoints parse-document et process-image
-│   │   └── router.py              # Agrégation des routeurs v1
-│   └── main.py                    # Point d'entrée de l'application FastAPI
-└── tests/                         # Suite de tests Pytest (100% de réussite)
-```
-
 ---
+
 
 ## 🎯 Synthèse des Nuances Métalliques Normalisées
 

@@ -13,6 +13,8 @@ import {
   CornerDownLeft,
   Layers,
   Camera,
+  Filter,
+  Sparkles,
 } from 'lucide-react';
 import {
   IntervalRow,
@@ -82,6 +84,11 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
   // API loading & auto-calepinage alternatives
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [breakdownAlternatives, setBreakdownAlternatives] = useState<BreakdownOption[]>([]);
+
+  // Multi-material & view mode states
+  const [selectedMaterialFilter, setSelectedMaterialFilter] = useState<string>('ALL');
+  const [tableViewMode, setTableViewMode] = useState<'DEV' | 'BOUNDS'>('DEV');
+  const [hideEmptyBounds, setHideEmptyBounds] = useState<boolean>(false);
 
   // Refs for smooth Tab/Enter navigation between the 3 boxes
   const devRef = useRef<HTMLInputElement>(null);
@@ -436,6 +443,19 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     setIsConfirmingClear(false);
   };
 
+  // Zero out a specific piece development & material row
+  const handleResetDevMaterialRow = (targetDev: number, targetMaterial: string) => {
+    setEntriesHistory((prev) =>
+      prev.filter(
+        (e) => !(e.dev === targetDev && (e.material || activeMaterial) === targetMaterial)
+      )
+    );
+    setLastFeedback({
+      success: true,
+      message: `Pièce Dév ${targetDev} mm (${targetMaterial}) supprimée du tableau.`,
+    });
+  };
+
   // Zero out a specific interval row (with optional material filter)
   const handleResetIntervalRow = (bound: number, targetMaterial?: string) => {
     if (targetMaterial) {
@@ -661,12 +681,123 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     });
   };
 
-  // Build the interval rows where each bound splits by material if pieces have different materials
+  // Map tracking which developments exist in multiple materials: Map<dev, Set<material>>
+  const sharedDevMap = useMemo(() => {
+    const map = new Map<number, Set<string>>();
+    entriesHistory.forEach((e) => {
+      if (!e.isChute) {
+        const mat = e.material || activeMaterial;
+        if (!map.has(e.dev)) {
+          map.set(e.dev, new Set());
+        }
+        map.get(e.dev)!.add(mat);
+      }
+    });
+    return map;
+  }, [entriesHistory, activeMaterial]);
+
+  // Unified breakdown of pieces grouped by real development (Dév) and material
+  const tableDevRows = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        dev: number;
+        bound: number;
+        material: string;
+        entries: EncodedEntry[];
+      }
+    >();
+
+    entriesHistory.forEach((entry) => {
+      if (entry.isChute) return;
+      const mat = entry.material || activeMaterial;
+      const key = `${entry.dev}__${mat}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          dev: entry.dev,
+          bound: entry.matchedBound,
+          material: mat,
+          entries: [],
+        });
+      }
+      groups.get(key)!.entries.push(entry);
+    });
+
+    const rows: {
+      id: string;
+      dev: number;
+      bound: number;
+      material: string;
+      metalFamily: 'ALU' | 'ZINC' | 'AUTRE';
+      count: number;
+      accumulatedLength: number;
+      surface: number;
+      weightEst: number;
+      percent: number;
+      isSharedDev: boolean;
+      sharedWithMaterials: string[];
+      entries: EncodedEntry[];
+    }[] = [];
+
+    groups.forEach((group) => {
+      const dev = group.dev;
+      const mat = group.material;
+      const count = group.entries.reduce((acc, e) => acc + (e.quantity || 1), 0);
+      const accumulatedLength =
+        Math.round(
+          group.entries.reduce((acc, e) => acc + e.evaluatedLength, 0) * 1000
+        ) / 1000;
+      const surface = Math.round((dev / 1000) * accumulatedLength * 1000) / 1000;
+      const density = getMaterialDensity(mat);
+      const weightEst = Math.round(surface * density * 10) / 10;
+      const percent =
+        totalLengthM > 0
+          ? Math.round((accumulatedLength / totalLengthM) * 1000) / 10
+          : 0;
+
+      const materialsForDev = Array.from(sharedDevMap.get(dev) || []);
+      const isSharedDev = materialsForDev.length > 1;
+      const sharedWithMaterials = materialsForDev.filter((m) => m !== mat);
+
+      const isAlu = /alu/i.test(mat);
+      const isZinc = /zinc/i.test(mat);
+      const metalFamily: 'ALU' | 'ZINC' | 'AUTRE' = isAlu
+        ? 'ALU'
+        : isZinc
+        ? 'ZINC'
+        : 'AUTRE';
+
+      rows.push({
+        id: `dev-${dev}-${mat}`,
+        dev,
+        bound: group.bound,
+        material: mat,
+        metalFamily,
+        count,
+        accumulatedLength,
+        surface,
+        weightEst,
+        percent,
+        isSharedDev,
+        sharedWithMaterials,
+        entries: group.entries,
+      });
+    });
+
+    // Sort by dev ascending so same dev pieces (e.g. 150 Alu and 150 Zinc) sit directly one under the other!
+    return rows.sort((a, b) => {
+      if (a.dev !== b.dev) return a.dev - b.dev;
+      return a.material.localeCompare(b.material);
+    });
+  }, [entriesHistory, activeMaterial, totalLengthM, sharedDevMap]);
+
+  // Classical intervals table (split by material per bound)
   const tableIntervalRows = useMemo(() => {
     const rows: {
       id: string;
       bound: number;
       material: string;
+      metalFamily: 'ALU' | 'ZINC' | 'AUTRE';
       count: number;
       accumulatedLength: number;
       surface: number;
@@ -683,11 +814,13 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
       );
 
       if (boundEntries.length === 0) {
-        // Empty interval row: shows default activeMaterial discretely
+        const isAlu = /alu/i.test(activeMaterial);
+        const isZinc = /zinc/i.test(activeMaterial);
         rows.push({
           id: `bound-${bound}-empty`,
           bound,
           material: activeMaterial,
+          metalFamily: isAlu ? 'ALU' : isZinc ? 'ZINC' : 'AUTRE',
           count: 0,
           accumulatedLength: 0,
           surface: 0,
@@ -697,7 +830,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
           entries: [],
         });
       } else {
-        // Group entries for this bound by material
         const materialMap = new Map<string, EncodedEntry[]>();
         for (const entry of boundEntries) {
           const mat = entry.material || activeMaterial;
@@ -725,10 +857,14 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
               ? Math.round((accumulatedLength / totalLengthM) * 1000) / 10
               : 0;
 
+          const isAlu = /alu/i.test(mat);
+          const isZinc = /zinc/i.test(mat);
+
           rows.push({
             id: `bound-${bound}-${mat}`,
             bound,
             material: mat,
+            metalFamily: isAlu ? 'ALU' : isZinc ? 'ZINC' : 'AUTRE',
             count,
             accumulatedLength,
             surface,
@@ -744,6 +880,110 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     return rows;
   }, [intervals, entriesHistory, activeMaterial, totalLengthM]);
 
+  // Multi-material dynamic synthesis across all entries
+  const materialsSummary = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        material: string;
+        metalFamily: 'ALU' | 'ZINC' | 'AUTRE';
+        count: number;
+        lengthM: number;
+        surfaceM2: number;
+        weightKg: number;
+      }
+    >();
+
+    entriesHistory.forEach((e) => {
+      if (e.isChute) return;
+      const mat = e.material || activeMaterial;
+      const isAlu = /alu/i.test(mat);
+      const isZinc = /zinc/i.test(mat);
+      const metalFamily: 'ALU' | 'ZINC' | 'AUTRE' = isAlu
+        ? 'ALU'
+        : isZinc
+        ? 'ZINC'
+        : 'AUTRE';
+
+      const existing = map.get(mat) || {
+        material: mat,
+        metalFamily,
+        count: 0,
+        lengthM: 0,
+        surfaceM2: 0,
+        weightKg: 0,
+      };
+
+      const surf = (e.dev / 1000) * e.evaluatedLength;
+      const density = getMaterialDensity(mat);
+      existing.count += e.quantity;
+      existing.lengthM += e.evaluatedLength;
+      existing.surfaceM2 += surf;
+      existing.weightKg += surf * density;
+
+      map.set(mat, existing);
+    });
+
+    return Array.from(map.values()).map((item) => ({
+      ...item,
+      lengthM: Math.round(item.lengthM * 100) / 100,
+      surfaceM2: Math.round(item.surfaceM2 * 100) / 100,
+      weightKg: Math.round(item.weightKg * 10) / 10,
+      percent:
+        totalLengthM > 0
+          ? Math.round((item.lengthM / totalLengthM) * 1000) / 10
+          : 0,
+    }));
+  }, [entriesHistory, activeMaterial, totalLengthM]);
+
+  // Family aggregated summaries (Alu vs Zinc)
+  const aluSummary = useMemo(() => {
+    const aluItems = materialsSummary.filter((m) => m.metalFamily === 'ALU');
+    return {
+      count: aluItems.reduce((acc, m) => acc + m.count, 0),
+      lengthM: Math.round(aluItems.reduce((acc, m) => acc + m.lengthM, 0) * 100) / 100,
+      surfaceM2: Math.round(aluItems.reduce((acc, m) => acc + m.surfaceM2, 0) * 100) / 100,
+      weightKg: Math.round(aluItems.reduce((acc, m) => acc + m.weightKg, 0) * 10) / 10,
+    };
+  }, [materialsSummary]);
+
+  const zincSummary = useMemo(() => {
+    const zincItems = materialsSummary.filter((m) => m.metalFamily === 'ZINC');
+    return {
+      count: zincItems.reduce((acc, m) => acc + m.count, 0),
+      lengthM: Math.round(zincItems.reduce((acc, m) => acc + m.lengthM, 0) * 100) / 100,
+      surfaceM2: Math.round(zincItems.reduce((acc, m) => acc + m.surfaceM2, 0) * 100) / 100,
+      weightKg: Math.round(zincItems.reduce((acc, m) => acc + m.weightKg, 0) * 10) / 10,
+    };
+  }, [materialsSummary]);
+
+  // Filtered views based on user selection
+  const filteredDevRows = useMemo(() => {
+    if (selectedMaterialFilter === 'ALL') return tableDevRows;
+    if (selectedMaterialFilter === 'ALU') {
+      return tableDevRows.filter((r) => r.metalFamily === 'ALU');
+    }
+    if (selectedMaterialFilter === 'ZINC') {
+      return tableDevRows.filter((r) => r.metalFamily === 'ZINC');
+    }
+    return tableDevRows.filter((r) => r.material === selectedMaterialFilter);
+  }, [tableDevRows, selectedMaterialFilter]);
+
+  const filteredIntervalRows = useMemo(() => {
+    let rows = tableIntervalRows;
+    if (hideEmptyBounds) {
+      rows = rows.filter((r) => r.accumulatedLength > 0);
+    }
+    if (selectedMaterialFilter === 'ALL') return rows;
+    if (selectedMaterialFilter === 'ALU') {
+      return rows.filter((r) => r.metalFamily === 'ALU');
+    }
+    if (selectedMaterialFilter === 'ZINC') {
+      return rows.filter((r) => r.metalFamily === 'ZINC');
+    }
+    return rows.filter((r) => r.material === selectedMaterialFilter);
+  }, [tableIntervalRows, selectedMaterialFilter, hideEmptyBounds]);
+
   // Distinct materials across all encoded entries
   const encodedMaterialsSummary = useMemo(() => {
     const mats = new Set<string>();
@@ -755,14 +995,21 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
   // Dynamic estimated weight calculation per material across all interval rows
   const totalWeightEstKg = useMemo(() => {
+    if (tableDevRows.length > 0) {
+      return (
+        Math.round(
+          tableDevRows.reduce((acc, row) => acc + row.weightEst, 0) * 10
+        ) / 10
+      );
+    }
     return (
       Math.round(
         tableIntervalRows.reduce((acc, row) => acc + row.weightEst, 0) * 10
       ) / 10
     );
-  }, [tableIntervalRows]);
+  }, [tableDevRows, tableIntervalRows]);
 
-  // Discrete material badge helper
+  // Discrete material badge helper with prominent ALU vs ZINC identification
   const renderMaterialBadge = (material: string, isRowEmpty = false) => {
     if (isRowEmpty) {
       return (
@@ -774,32 +1021,57 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     }
 
     const matLower = material.toLowerCase();
-    let badgeStyle = 'bg-slate-100 text-slate-700 border-slate-200';
-    let dotStyle = 'bg-[#3ca7da]';
+    const isAlu = matLower.includes('alu') || matLower.includes('aluminium');
+    const isZinc = matLower.includes('zinc');
 
-    if (matLower.includes('alu') || matLower.includes('aluminium')) {
-      badgeStyle = 'bg-[#00478a]/8 text-[#00478a] border-[#00478a]/20';
-      dotStyle = 'bg-[#00478a]';
-    } else if (matLower.includes('zinc')) {
-      if (matLower.includes('rouge')) {
-        badgeStyle = 'bg-rose-50 text-rose-800 border-rose-200';
-        dotStyle = 'bg-rose-500';
-      } else if (matLower.includes('quartz')) {
-        badgeStyle = 'bg-[#3ca7da]/10 text-[#00478a] border-[#3ca7da]/30';
-        dotStyle = 'bg-[#3ca7da]';
-      } else {
-        badgeStyle = 'bg-slate-100 text-slate-700 border-slate-300';
-        dotStyle = 'bg-slate-500';
-      }
+    if (isAlu) {
+      return (
+        <span
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border bg-[#00478a]/10 text-[#00478a] border-[#00478a]/25 shadow-2xs"
+          title={material}
+        >
+          <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-[#00478a] text-white tracking-wider">
+            ALU
+          </span>
+          <span className="truncate max-w-[150px] font-bold">
+            {material.replace(/^Alu\s*/i, '')}
+          </span>
+        </span>
+      );
+    }
+
+    if (isZinc) {
+      const isRouge = matLower.includes('rouge');
+      return (
+        <span
+          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border shadow-2xs ${
+            isRouge
+              ? 'bg-rose-50 text-rose-800 border-rose-200'
+              : 'bg-slate-100 text-slate-800 border-slate-300'
+          }`}
+          title={material}
+        >
+          <span
+            className={`px-1.5 py-0.2 rounded text-[9px] font-black text-white tracking-wider ${
+              isRouge ? 'bg-rose-600' : 'bg-slate-700'
+            }`}
+          >
+            ZINC
+          </span>
+          <span className="truncate max-w-[150px] font-bold">
+            {material.replace(/^Zinc\s*/i, '')}
+          </span>
+        </span>
+      );
     }
 
     return (
       <span
-        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border ${badgeStyle}`}
+        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border bg-slate-100 text-slate-700 border-slate-200"
         title={material}
       >
-        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotStyle}`}></span>
-        <span className="truncate max-w-[160px] font-semibold">{material}</span>
+        <span className="w-1.5 h-1.5 rounded-full bg-[#3ca7da] shrink-0"></span>
+        <span className="truncate max-w-[150px] font-semibold">{material}</span>
       </span>
     );
   };
@@ -816,6 +1088,42 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
               <span>Matière :</span>
             </span>
 
+            {/* Quick access pills for the most common workshop nuances */}
+            <div className="flex items-center gap-1 flex-wrap">
+              {[
+                { label: 'Alu 7016', value: 'Alu RAL 7016 0.7', family: 'ALU' },
+                { label: 'Alu 9005', value: 'Alu RAL 9005 0.7', family: 'ALU' },
+                { label: 'Zinc Quartz', value: 'Zinc Quartz 0.7', family: 'ZINC' },
+                { label: 'Zinc Naturel', value: 'Zinc Naturel 0.7', family: 'ZINC' },
+              ].map((pill) => {
+                const isSelected = activeMaterial === pill.value && !isCustomMaterial;
+                return (
+                  <button
+                    key={pill.value}
+                    type="button"
+                    onClick={() => {
+                      setIsCustomMaterial(false);
+                      setActiveMaterial(pill.value);
+                    }}
+                    className={`px-2 py-1 rounded-md text-xs font-bold border transition-all cursor-pointer flex items-center gap-1 ${
+                      isSelected
+                        ? pill.family === 'ALU'
+                          ? 'bg-[#00478a] text-white border-[#00478a] shadow-2xs'
+                          : 'bg-slate-700 text-white border-slate-700 shadow-2xs'
+                        : pill.family === 'ALU'
+                        ? 'bg-sky-50 text-[#00478a] border-sky-200 hover:bg-sky-100'
+                        : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                    }`}
+                  >
+                    <span className="text-[9px] px-1 py-0.2 rounded font-black opacity-80">
+                      {pill.family}
+                    </span>
+                    <span>{pill.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
             <select
               aria-label="Sélectionner la matière d'encodage"
               value={STANDARD_MATERIALS.includes(activeMaterial) ? activeMaterial : 'custom'}
@@ -827,7 +1135,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                   setActiveMaterial(e.target.value);
                 }
               }}
-              className="faco-input bg-[#f8fafc] border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-semibold text-[#282828] focus:outline-none focus:border-[#00478a] cursor-pointer"
+              className="faco-input bg-[#f8fafc] border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold text-[#282828] focus:outline-none focus:border-[#00478a] cursor-pointer"
             >
               {MATERIAL_GROUPS.map((grp) => (
                 <optgroup key={grp.group} label={grp.group}>
@@ -1148,14 +1456,45 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
         )}
       </div>
 
-      {/* Main Table: Accumulated Intervals */}
+      {/* Main Table: Accumulated Intervals & Multi-Material Management */}
       <div className="faco-card bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+        {/* Table Top Controls Bar */}
         <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-[#f8fafc]">
-          <div className="flex items-center gap-2">
-            <Calculator className="w-4 h-4 text-[#00478a]" />
-            <h2 className="text-xs font-bold text-[#00478a] uppercase tracking-wider">
-              Cumuls par Borne ({preset === 'DEV_BOBINE' ? 'Bobine' : 'Pièce'})
-            </h2>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Calculator className="w-4 h-4 text-[#00478a]" />
+              <h2 className="text-xs font-bold text-[#00478a] uppercase tracking-wider">
+                Tableau de Calcul & Débits
+              </h2>
+            </div>
+
+            {/* View Mode Toggle: Real Pieces (Dév) vs Theoretical Bounds Grid */}
+            <div className="flex items-center bg-slate-200/80 p-0.5 rounded-lg border border-slate-300 text-xs">
+              <button
+                type="button"
+                onClick={() => setTableViewMode('DEV')}
+                className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                  tableViewMode === 'DEV'
+                    ? 'bg-white text-[#00478a] shadow-2xs font-bold'
+                    : 'text-slate-600 hover:text-[#282828]'
+                }`}
+                title="Afficher par développement réel saisi (ex: 150 mm Alu, 150 mm Zinc...)"
+              >
+                Vue Dév & Pièces
+              </button>
+              <button
+                type="button"
+                onClick={() => setTableViewMode('BOUNDS')}
+                className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                  tableViewMode === 'BOUNDS'
+                    ? 'bg-white text-[#00478a] shadow-2xs font-bold'
+                    : 'text-slate-600 hover:text-[#282828]'
+                }`}
+                title="Afficher selon les bornes standards d'atelier (100, 125, 166...)"
+              >
+                Grille Bornes Atelier
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -1217,138 +1556,294 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
           </div>
         </div>
 
+        {/* Multi-Material Filter & Distribution Toolbar */}
+        {materialsSummary.length > 0 && (
+          <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                <Filter className="w-3 h-3 text-slate-400" />
+                <span>Filtrer :</span>
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setSelectedMaterialFilter('ALL')}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
+                  selectedMaterialFilter === 'ALL'
+                    ? 'bg-[#00478a] text-white border-[#00478a] shadow-2xs'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                Toutes ({totalLengthM.toFixed(1)}m · {totalCount} pcs)
+              </button>
+
+              {aluSummary.count > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedMaterialFilter('ALU')}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedMaterialFilter === 'ALU'
+                      ? 'bg-[#00478a] text-white border-[#00478a] shadow-2xs'
+                      : 'bg-sky-50 text-[#00478a] border-sky-200 hover:bg-sky-100'
+                  }`}
+                >
+                  <span className="px-1.5 py-0.2 bg-[#00478a] text-white rounded text-[9px] font-black">
+                    ALU
+                  </span>
+                  <span>
+                    {aluSummary.lengthM.toFixed(1)}m ({aluSummary.count} pcs · {aluSummary.weightKg.toFixed(1)} kg)
+                  </span>
+                </button>
+              )}
+
+              {zincSummary.count > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedMaterialFilter('ZINC')}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedMaterialFilter === 'ZINC'
+                      ? 'bg-slate-700 text-white border-slate-700 shadow-2xs'
+                      : 'bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  <span className="px-1.5 py-0.2 bg-slate-700 text-white rounded text-[9px] font-black">
+                    ZINC
+                  </span>
+                  <span>
+                    {zincSummary.lengthM.toFixed(1)}m ({zincSummary.count} pcs · {zincSummary.weightKg.toFixed(1)} kg)
+                  </span>
+                </button>
+              )}
+            </div>
+
+            {/* Proportional visual split-bar */}
+            {materialsSummary.length > 1 && (
+              <div className="flex items-center gap-2 text-xs font-mono text-slate-600">
+                <div
+                  className="w-32 h-2.5 rounded-full overflow-hidden bg-slate-200 flex border border-slate-300 shrink-0"
+                  title="Répartition par matière"
+                >
+                  {materialsSummary.map((m) => (
+                    <div
+                      key={m.material}
+                      style={{ width: `${m.percent}%` }}
+                      title={`${m.material}: ${m.lengthM}m (${m.percent}%)`}
+                      className={`h-full ${
+                        m.metalFamily === 'ALU'
+                          ? 'bg-[#00478a]'
+                          : m.material.includes('Rouge')
+                          ? 'bg-rose-500'
+                          : 'bg-slate-600'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className="text-[11px] font-bold text-slate-500">
+                  {materialsSummary.length} matières actives
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* BOUNDS Mode extra option: Hide empty rows */}
+        {tableViewMode === 'BOUNDS' && (
+          <div className="px-4 py-1.5 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <span className="text-[11px]">Grille standard des laizes et développements de refente</span>
+            <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-medium text-slate-600 hover:text-slate-900 select-none">
+              <input
+                type="checkbox"
+                checked={hideEmptyBounds}
+                onChange={(e) => setHideEmptyBounds(e.target.checked)}
+                className="rounded border-slate-300 text-[#00478a] focus:ring-0 cursor-pointer"
+              />
+              <span>Masquer les bornes vides (0m)</span>
+            </label>
+          </div>
+        )}
+
         <div
           tabIndex={0}
           role="region"
-          aria-label="Cumuls par borne de développement"
+          aria-label="Tableau de calcul multi-matière"
           className="table-wrapper"
         >
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
-              <tr>
-                <th className="py-2.5 px-4">Borne (mm)</th>
-                <th className="py-2.5 px-4">Matière</th>
-                <th className="py-2.5 px-4">Détail</th>
-                <th className="py-2.5 px-4 text-right">Qté</th>
-                <th className="py-2.5 px-4 text-right">Cumul (m)</th>
-                <th className="py-2.5 px-4 text-right">Part</th>
-                <th className="py-2.5 px-4 text-right">Poids</th>
-                <th className="py-2.5 px-4 text-right"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-mono">
-              {tableIntervalRows.map((row) => {
-                const isHighlighted =
-                  lastFeedback?.boundMatched === row.bound &&
-                  row.accumulatedLength > 0;
-
-                return (
-                  <tr
-                    key={row.id}
-                    className={`transition-colors ${
-                      isHighlighted
-                        ? 'bg-[#3ca7da]/10 font-semibold'
-                        : row.accumulatedLength > 0
-                        ? 'bg-white hover:bg-slate-50/80'
-                        : 'bg-[#f8fafc]/50 hover:bg-slate-50 text-slate-400'
-                    }`}
-                  >
-                    <td className="py-2 px-4 font-bold text-[#282828]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="tabular-nums">{row.bound}</span> mm
+          {tableViewMode === 'DEV' ? (
+            /* ========================================================
+               MODE 1 : VUE DÉVELOPPEMENTS & PIÈCES RÉELLES ENCODÉES
+               ======================================================== */
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
+                <tr>
+                  <th className="py-2.5 px-4">Développement</th>
+                  <th className="py-2.5 px-4">Matière</th>
+                  <th className="py-2.5 px-4">Borne Atelier</th>
+                  <th className="py-2.5 px-4">Longueurs & Détail</th>
+                  <th className="py-2.5 px-4 text-right">Qté</th>
+                  <th className="py-2.5 px-4 text-right">Cumul (m)</th>
+                  <th className="py-2.5 px-4 text-right">Surface</th>
+                  <th className="py-2.5 px-4 text-right">Poids Est.</th>
+                  <th className="py-2.5 px-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-mono">
+                {filteredDevRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-8 px-4 text-center text-slate-400 font-sans">
+                      <div className="max-w-md mx-auto space-y-2">
+                        <Calculator className="w-8 h-8 text-slate-300 mx-auto" />
+                        <p className="text-xs font-semibold text-slate-600">
+                          Aucune pièce encodée pour le moment.
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          Saisissez vos développements ci-dessus (ex: <span className="font-mono text-[#00478a] font-bold">150</span> en Alu, puis <span className="font-mono text-[#00478a] font-bold">150</span> en Zinc) pour les comparer et optimiser le débit.
+                        </p>
                       </div>
                     </td>
-                    <td className="py-2 px-4">
-                      {renderMaterialBadge(row.material, row.count === 0)}
-                    </td>
-                    <td className="py-2 px-4 text-[11px]">
-                      {preset === 'DEV_BOBINE' && row.count === 0 ? (
-                        <span className="font-sans text-slate-400">
-                          {row.bound === 600 && 'Zinc : Naturel · ATZ · Quartz'}
-                          {row.bound === 650 && 'Alu 0.7 : RAL 7016 · 9005 · 9010 · 7039'}
-                          {row.bound === 670 && 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge'}
-                          {row.bound === 750 && 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge'}
-                          {row.bound === 1000 && 'Zinc & Alu : toutes nuances'}
-                          {row.bound === 1100 && 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge'}
-                        </span>
-                      ) : (
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {row.entries.map((entry) => (
-                            <span
-                              key={entry.id}
-                              className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200"
-                            >
-                              <span className="font-semibold text-[#00478a]">
-                                {entry.dev}mm
-                              </span>
-                              <span className="text-slate-500">
-                                ({entry.quantity}×{entry.unitLength}m)
-                              </span>
-                            </span>
-                          ))}
-                          {row.count === 0 && <span className="text-slate-300">-</span>}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-2 px-4 text-right tabular-nums">
-                      {row.count > 0 ? (
-                        <span className="text-[#282828] font-semibold">{row.count}</span>
-                      ) : (
-                        <span className="text-slate-300">-</span>
-                      )}
-                    </td>
-                    <td className="py-2 px-4 text-right tabular-nums font-bold text-xs">
-                      {row.accumulatedLength > 0 ? (
-                        <span className="text-[#00478a]">
-                          {row.accumulatedLength.toFixed(2)} m
-                        </span>
-                      ) : (
-                        <span className="text-slate-300">0.00 m</span>
-                      )}
-                    </td>
-                    <td className="py-2 px-4 text-right tabular-nums text-slate-500">
-                      {row.accumulatedLength > 0 ? `${row.percent}%` : '-'}
-                    </td>
-                    <td className="py-2 px-4 text-right tabular-nums text-slate-600 font-medium">
-                      {row.accumulatedLength > 0 ? `${row.weightEst} kg` : '-'}
-                    </td>
-                    <td className="py-2 px-4 text-right">
-                      {row.accumulatedLength > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => handleResetIntervalRow(row.bound, row.material)}
-                          className="p-1 text-slate-400 hover:text-rose-600 transition-colors rounded cursor-pointer"
-                          title="Remettre à zéro"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </td>
                   </tr>
-                );
-              })}
+                ) : (
+                  filteredDevRows.map((row) => {
+                    const isAlu = row.metalFamily === 'ALU';
+                    const isZinc = row.metalFamily === 'ZINC';
 
-              {preset === 'DEV_BOBINE' && (
-                <tr className="bg-amber-50/50 text-amber-900 border-t border-amber-200">
-                  <td className="py-2.5 px-4 font-bold">0 (CHUTES)</td>
-                  <td className="py-2.5 px-4">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-sans text-amber-800 bg-amber-100 border border-amber-200">
-                      Chutes
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-4 font-sans text-slate-500 text-[11px]">
-                    Chutes répertoriées
-                  </td>
-                  <td className="py-2.5 px-4 text-right tabular-nums font-bold">
-                    {chuteCount}
-                  </td>
-                  <td className="py-2.5 px-4 text-right tabular-nums font-bold text-[#e7511f]">
-                    {chuteLength.toFixed(2)} m
-                  </td>
-                  <td className="py-2.5 px-4 text-right">-</td>
-                  <td className="py-2.5 px-4 text-right">-</td>
-                  <td className="py-2.5 px-4 text-right">
-                    {chuteLength > 0 && (
+                    return (
+                      <tr
+                        key={row.id}
+                        className={`transition-colors border-b border-slate-100 ${
+                          row.isSharedDev
+                            ? 'border-l-4 border-l-amber-400 bg-amber-50/20 hover:bg-amber-50/40'
+                            : 'bg-white hover:bg-slate-50/80'
+                        }`}
+                      >
+                        {/* 1. Dév Réel (Gros et lisible) + Badge Même Dév si partagé */}
+                        <td className="py-2.5 px-4">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-black font-mono text-[#282828] tabular-nums">
+                              {row.dev} <span className="text-xs font-normal text-slate-500">mm</span>
+                            </span>
+                            {row.isSharedDev && (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
+                                title={`Même développement (${row.dev} mm) également présent en : ${row.sharedWithMaterials.join(', ')}`}
+                              >
+                                <Layers className="w-3 h-3 text-amber-600 shrink-0" />
+                                <span>Même Dév</span>
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* 2. Badge Matière à fort contraste (ALU vs ZINC) */}
+                        <td className="py-2.5 px-4">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-black tracking-wider ${
+                                isAlu
+                                  ? 'bg-[#00478a] text-white shadow-2xs'
+                                  : isZinc
+                                  ? row.material.includes('Rouge')
+                                    ? 'bg-rose-600 text-white shadow-2xs'
+                                    : 'bg-slate-700 text-white shadow-2xs'
+                                  : 'bg-emerald-700 text-white'
+                              }`}
+                            >
+                              {isAlu ? 'ALU' : isZinc ? 'ZINC' : 'MÉTAL'}
+                            </span>
+                            <span className="font-semibold text-xs text-slate-800">
+                              {row.material.replace(/^(Alu|Zinc)\s*/i, '')}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* 3. Borne de Refente Atelier */}
+                        <td className="py-2.5 px-4 font-mono text-xs text-slate-500">
+                          <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                            Borne ≤ <strong className="text-[#00478a]">{row.bound}</strong> mm
+                          </span>
+                        </td>
+
+                        {/* 4. Détail des coupes */}
+                        <td className="py-2.5 px-4 text-xs font-mono">
+                          <div className="flex flex-wrap items-center gap-1">
+                            {row.entries.map((e) => (
+                              <span
+                                key={e.id}
+                                className="px-1.5 py-0.5 bg-[#f8fafc] text-slate-700 rounded border border-slate-200 text-[11px]"
+                              >
+                                {e.quantity} × {e.unitLength}m
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+
+                        {/* 5. Quantité */}
+                        <td className="py-2.5 px-4 text-right tabular-nums font-bold text-xs text-[#282828]">
+                          {row.count} pcs
+                        </td>
+
+                        {/* 6. Cumul en mètres */}
+                        <td className="py-2.5 px-4 text-right tabular-nums font-bold text-xs text-[#00478a]">
+                          {row.accumulatedLength.toFixed(2)} m
+                        </td>
+
+                        {/* 7. Surface nette m² */}
+                        <td className="py-2.5 px-4 text-right tabular-nums text-xs text-slate-600">
+                          {row.surface.toFixed(2)} m²
+                        </td>
+
+                        {/* 8. Poids calculé selon densité physique réelle */}
+                        <td className="py-2.5 px-4 text-right tabular-nums font-bold text-xs text-[#282828]">
+                          <span
+                            className={
+                              isAlu
+                                ? 'text-[#00478a]'
+                                : isZinc
+                                ? 'text-slate-800'
+                                : 'text-slate-700'
+                            }
+                          >
+                            {row.weightEst} kg
+                          </span>
+                        </td>
+
+                        {/* 9. Action Supprimer cette pièce */}
+                        <td className="py-2.5 px-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleResetDevMaterialRow(row.dev, row.material)}
+                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors rounded cursor-pointer"
+                            title={`Supprimer Dév ${row.dev}mm (${row.material})`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+
+                {/* Chutes */}
+                {preset === 'DEV_BOBINE' && chuteLength > 0 && (
+                  <tr className="bg-amber-50/50 text-amber-900 border-t border-amber-200">
+                    <td className="py-2.5 px-4 font-bold">0 (CHUTES)</td>
+                    <td className="py-2.5 px-4">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-sans text-amber-800 bg-amber-100 border border-amber-200">
+                        Chutes Atelier
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 font-sans text-slate-500 text-[11px]">-</td>
+                    <td className="py-2.5 px-4 font-sans text-slate-500 text-[11px]">
+                      Chutes de bobine répertoriées
+                    </td>
+                    <td className="py-2.5 px-4 text-right tabular-nums font-bold">
+                      {chuteCount}
+                    </td>
+                    <td className="py-2.5 px-4 text-right tabular-nums font-bold text-[#e7511f]">
+                      {chuteLength.toFixed(2)} m
+                    </td>
+                    <td className="py-2.5 px-4 text-right">-</td>
+                    <td className="py-2.5 px-4 text-right">-</td>
+                    <td className="py-2.5 px-4 text-right">
                       <button
                         type="button"
                         onClick={handleResetChutes}
@@ -1356,20 +1851,171 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                    )}
-                  </td>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          ) : (
+            /* ========================================================
+               MODE 2 : VUE GRILLE DES BORNES STANDARDS D'ATELIER
+               ======================================================== */
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
+                <tr>
+                  <th className="py-2.5 px-4">Borne (mm)</th>
+                  <th className="py-2.5 px-4">Matière</th>
+                  <th className="py-2.5 px-4">Détail des pièces</th>
+                  <th className="py-2.5 px-4 text-right">Qté</th>
+                  <th className="py-2.5 px-4 text-right">Cumul (m)</th>
+                  <th className="py-2.5 px-4 text-right">Part</th>
+                  <th className="py-2.5 px-4 text-right">Poids</th>
+                  <th className="py-2.5 px-4 text-right"></th>
                 </tr>
-              )}
-            </tbody>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-mono">
+                {filteredIntervalRows.map((row) => {
+                  const isHighlighted =
+                    lastFeedback?.boundMatched === row.bound &&
+                    row.accumulatedLength > 0;
+
+                  return (
+                    <tr
+                      key={row.id}
+                      className={`transition-colors ${
+                        isHighlighted
+                          ? 'bg-[#3ca7da]/10 font-semibold'
+                          : row.accumulatedLength > 0
+                          ? 'bg-white hover:bg-slate-50/80'
+                          : 'bg-[#f8fafc]/50 hover:bg-slate-50 text-slate-400'
+                      }`}
+                    >
+                      <td className="py-2 px-4 font-bold text-[#282828]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="tabular-nums">{row.bound}</span> mm
+                        </div>
+                      </td>
+                      <td className="py-2 px-4">
+                        {renderMaterialBadge(row.material, row.count === 0)}
+                      </td>
+                      <td className="py-2 px-4 text-[11px]">
+                        {preset === 'DEV_BOBINE' && row.count === 0 ? (
+                          <span className="font-sans text-slate-400">
+                            {row.bound === 600 && 'Zinc : Naturel · ATZ · Quartz'}
+                            {row.bound === 650 && 'Alu 0.7 : RAL 7016 · 9005 · 9010 · 7039'}
+                            {row.bound === 670 && 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge'}
+                            {row.bound === 750 && 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge'}
+                            {row.bound === 1000 && 'Zinc & Alu : toutes nuances'}
+                            {row.bound === 1100 && 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge'}
+                          </span>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {row.entries.map((entry) => (
+                              <span
+                                key={entry.id}
+                                className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200"
+                              >
+                                <span className="font-semibold text-[#00478a]">
+                                  {entry.dev}mm
+                                </span>
+                                <span className="text-slate-500">
+                                  ({entry.quantity}×{entry.unitLength}m)
+                                </span>
+                              </span>
+                            ))}
+                            {row.count === 0 && <span className="text-slate-300">-</span>}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2 px-4 text-right tabular-nums">
+                        {row.count > 0 ? (
+                          <span className="text-[#282828] font-semibold">{row.count}</span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-4 text-right tabular-nums font-bold text-xs">
+                        {row.accumulatedLength > 0 ? (
+                          <span className="text-[#00478a]">
+                            {row.accumulatedLength.toFixed(2)} m
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">0.00 m</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-4 text-right tabular-nums text-slate-500">
+                        {row.accumulatedLength > 0 ? `${row.percent}%` : '-'}
+                      </td>
+                      <td className="py-2 px-4 text-right tabular-nums text-slate-600 font-medium">
+                        {row.accumulatedLength > 0 ? `${row.weightEst} kg` : '-'}
+                      </td>
+                      <td className="py-2 px-4 text-right">
+                        {row.accumulatedLength > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleResetIntervalRow(row.bound, row.material)}
+                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors rounded cursor-pointer"
+                            title="Remettre à zéro"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {preset === 'DEV_BOBINE' && (
+                  <tr className="bg-amber-50/50 text-amber-900 border-t border-amber-200">
+                    <td className="py-2.5 px-4 font-bold">0 (CHUTES)</td>
+                    <td className="py-2.5 px-4">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-sans text-amber-800 bg-amber-100 border border-amber-200">
+                        Chutes
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 font-sans text-slate-500 text-[11px]">
+                      Chutes répertoriées
+                    </td>
+                    <td className="py-2.5 px-4 text-right tabular-nums font-bold">
+                      {chuteCount}
+                    </td>
+                    <td className="py-2.5 px-4 text-right tabular-nums font-bold text-[#e7511f]">
+                      {chuteLength.toFixed(2)} m
+                    </td>
+                    <td className="py-2.5 px-4 text-right">-</td>
+                    <td className="py-2.5 px-4 text-right">-</td>
+                    <td className="py-2.5 px-4 text-right">
+                      {chuteLength > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleResetChutes}
+                          className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+
+          {/* Unified Table Footer */}
+          <table className="w-full text-left text-xs">
             <tfoot className="bg-slate-100 text-[#282828] font-bold border-t border-slate-200">
               <tr>
-                <td className="py-2.5 px-4 uppercase text-[11px] tracking-wider text-[#00478a]">
-                  Total
-                </td>
-                <td className="py-2.5 px-4 text-slate-500 font-sans text-[11px]">
-                  {encodedMaterialsSummary.length > 1
-                    ? `${encodedMaterialsSummary.length} matières`
-                    : activeMatDetails.shortLabel}
+                <td className="py-2.5 px-4 uppercase text-[11px] tracking-wider text-[#00478a] w-1/4">
+                  <div>
+                    <span>Total Général</span>
+                    {materialsSummary.length > 1 && (
+                      <div className="text-[10px] font-normal text-slate-500 font-sans mt-0.5">
+                        {aluSummary.count > 0 && `Alu: ${aluSummary.lengthM}m (${aluSummary.weightKg}kg)`}
+                        {aluSummary.count > 0 && zincSummary.count > 0 && ' · '}
+                        {zincSummary.count > 0 && `Zinc: ${zincSummary.lengthM}m (${zincSummary.weightKg}kg)`}
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td className="py-2.5 px-4 text-slate-600 font-mono text-[11px]">
                   {totalSurfaceM2.toFixed(2)} m²
@@ -1384,7 +2030,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                 <td className="py-2.5 px-4 text-right font-mono tabular-nums text-[#00478a]">
                   {Math.round(totalWeightEstKg * 10) / 10} kg
                 </td>
-                <td className="py-2.5 px-4"></td>
+                <td className="py-2.5 px-4 w-12"></td>
               </tr>
             </tfoot>
           </table>

@@ -21,10 +21,9 @@ __pycache__/
 # Node / Frontend
 node_modules/
 frontend/node_modules/
-legacy/node_modules/
+legacy/
 dist/
 frontend/dist/
-legacy/dist/
 
 # Logs & temp
 *.log

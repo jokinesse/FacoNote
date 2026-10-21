@@ -1,6 +1,0 @@
-{
-  "name": "Facozinc - Aide à l'Encodage & Optimisation Façonnage",
-  "description": "Application professionnelle pour atelier de façonnage : calcul de développement, gestion des commandes, optimisation de débit zinc et alu, et gestion des stocks et chutes réutilisables en temps réel.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

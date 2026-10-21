@@ -1,20 +1,22 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# FacoNote Frontend
 
-# Run and deploy your AI Studio app
+Interface web pour l'encodage rapide, le calepinage et l'optimisation de débit d'atelier Facozinc.
 
-This contains everything you need to run your app locally.
+## Démarrage Local
 
-View your app in AI Studio: https://ai.studio/apps/0a516a6c-30cd-459a-bfb9-3f7fd0ba11b8
+**Prérequis :** Node.js
 
-## Run Locally
+1. Installer les dépendances :
+   ```bash
+   npm install
+   ```
 
-**Prerequisites:**  Node.js
+2. Lancer l'application en mode développement :
+   ```bash
+   npm run dev
+   ```
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+3. Construire pour la production :
+   ```bash
+   npm run build
+   ```

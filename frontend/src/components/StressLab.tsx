@@ -37,7 +37,19 @@ import {
 // ---------------------------------------------------------------------------
 
 const HISTORY_KEY = 'faconote.stresslab.history';
-const DIRECT_URL = 'http://127.0.0.1:8000';
+
+/**
+ * Calcule dynamiquement l'URL directe du backend FastAPI sur le port 8000
+ * en se basant sur le nom d'hôte ou l'adresse IP actuelle de la page distante.
+ */
+function getDirectBackendUrl(): string {
+  if (typeof window !== 'undefined' && window.location) {
+    const { protocol, hostname } = window.location;
+    const port = protocol === 'https:' ? '8443' : '8000';
+    return `${protocol}//${hostname}:${port}`;
+  }
+  return 'http://127.0.0.1:8000';
+}
 
 interface RunSummary {
   id: string;
@@ -244,8 +256,10 @@ interface StressLabProps {
 
 export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, onLock }) => {
   const [config, setConfig] = useState<StressConfig>(DEFAULT_CONFIG);
-  const [targetMode, setTargetMode] = useState<'proxy' | 'direct' | 'custom'>('direct');
-  const [customUrl, setCustomUrl] = useState<string>('http://192.168.1.10:8000');
+  // Par défaut 'proxy' (Même origine /api) : fonctionne automatiquement sur serveur distant,
+  // derrière un reverse-proxy, sur IP ou en HTTPS sans blocage CORS ni Private Network Access.
+  const [targetMode, setTargetMode] = useState<'proxy' | 'direct' | 'custom'>('proxy');
+  const [customUrl, setCustomUrl] = useState<string>(() => getDirectBackendUrl());
   const [isRunning, setIsRunning] = useState(false);
   const [stats, setStats] = useState<StatsSnapshot | null>(null);
   const [live, setLive] = useState<LiveState>({ inFlight: 0, issued: 0, activeWorkers: 0, startedAt: 0 });
@@ -267,7 +281,8 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
   const liveRef = useRef<LiveState>({ inFlight: 0, issued: 0, activeWorkers: 0, startedAt: 0 });
   const abortRef = useRef<AbortController | null>(null);
 
-  const baseUrl = targetMode === 'proxy' ? '' : targetMode === 'direct' ? DIRECT_URL : customUrl.trim();
+  const directUrl = useMemo(() => getDirectBackendUrl(), []);
+  const baseUrl = targetMode === 'proxy' ? '' : targetMode === 'direct' ? directUrl : customUrl.trim();
 
   const update = <K extends keyof StressConfig>(key: K, value: StressConfig[K]) =>
     setConfig((c) => ({ ...c, [key]: value }));
@@ -528,7 +543,7 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
           <div>
             <span className="text-[11px] font-semibold text-slate-700 block mb-1" id="sl-target-label">Cible backend</span>
             <div className="grid grid-cols-3 bg-slate-100 border border-slate-200 rounded-lg p-0.5 text-xs" role="radiogroup" aria-labelledby="sl-target-label">
-              {([['direct', ':8000 direct'], ['proxy', 'Proxy Vite'], ['custom', 'Autre']] as const).map(([m, l]) => (
+              {([['proxy', 'Même origine (/api)'], ['direct', 'Direct :8000'], ['custom', 'Autre']] as const).map(([m, l]) => (
                 <button
                   key={m}
                   type="button"
@@ -541,14 +556,33 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
                 </button>
               ))}
             </div>
+
+            <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+              <span className="truncate">Cible : <strong className="text-[#00478a]">{baseUrl || '(Même domaine /api)'}</strong></span>
+              {targetMode === 'direct' && (
+                <span className="text-slate-400 text-[10px] shrink-0 ml-1">Hôte auto</span>
+              )}
+            </div>
+
             {targetMode === 'custom' && (
-              <input
-                aria-label="URL personnalisée du backend"
-                type="url"
-                value={customUrl}
-                onChange={(e) => setCustomUrl(e.target.value)}
-                className="mt-1.5 w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-[#282828] focus:outline-none focus:border-[#00478a] focus:bg-white"
-              />
+              <div className="mt-1.5 flex gap-1.5">
+                <input
+                  aria-label="URL personnalisée du backend"
+                  type="url"
+                  value={customUrl}
+                  onChange={(e) => setCustomUrl(e.target.value)}
+                  placeholder="http://IP_OU_DOMAINE:8000"
+                  className="w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-[#282828] focus:outline-none focus:border-[#00478a] focus:bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => setCustomUrl(directUrl)}
+                  className="px-2 py-1 text-[11px] bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md font-semibold shrink-0 cursor-pointer"
+                  title="Réinitialiser avec l'hôte actuel"
+                >
+                  Réinit
+                </button>
+              </div>
             )}
           </div>
 

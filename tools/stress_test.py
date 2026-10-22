@@ -203,7 +203,7 @@ def report(results: list[Result], args: argparse.Namespace) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Test de charge de l'API FacoNote")
-    parser.add_argument("-u", "--url", default="http://127.0.0.1:8000")
+    parser.add_argument("-u", "--url", default=os.environ.get("FACO_API_URL", "http://127.0.0.1:8000"), help="URL de l'API FacoNote (défaut: $FACO_API_URL ou http://127.0.0.1:8000)")
     parser.add_argument("-s", "--scenario", default="mixed", choices=[*SCENARIOS.keys(), "mixed"])
     parser.add_argument("-n", "--requests", type=int, default=1000, help="Nombre total de requêtes")
     parser.add_argument("-d", "--duration", type=float, default=0, help="Durée en s (prioritaire sur -n)")

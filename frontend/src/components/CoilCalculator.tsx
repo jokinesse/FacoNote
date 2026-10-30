@@ -348,6 +348,17 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
       .map(([material, r]) => ({ material, family: metalFamily(material), ...r }));
   }, [entries]);
 
+  // Même largeur utilisée dans plusieurs matières (plusieurs bobines de cette largeur à sortir)
+  const materialsPerWidth = new Map<number, number>();
+  for (const r of tableRows) {
+    if (r.quantity > 0) materialsPerWidth.set(r.width, (materialsPerWidth.get(r.width) || 0) + 1);
+  }
+  // Nombre de lignes affichées par largeur, pour fusionner la case Largeur
+  const visibleRowsPerWidth = new Map<number, number>();
+  for (const r of filteredRows) {
+    visibleRowsPerWidth.set(r.width, (visibleRowsPerWidth.get(r.width) || 0) + 1);
+  }
+
   const filteredChutes = chuteGroups.filter((c) => materialFilter === 'ALL' || c.family === materialFilter);
 
   const totals = {
@@ -695,26 +706,50 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-mono">
-              {filteredRows.map((row) => {
+              {filteredRows.map((row, index) => {
                 const isEmpty = row.quantity === 0;
+                const sharedCount = materialsPerWidth.get(row.width) || 0;
+                const isShared = !isEmpty && sharedCount > 1;
+                const isFirstOfWidth = index === 0 || filteredRows[index - 1].width !== row.width;
+                const span = visibleRowsPerWidth.get(row.width) || 1;
                 return (
                   <tr
                     key={row.id}
                     className={`transition-colors ${
-                      isEmpty ? 'bg-[#f8fafc]/50 hover:bg-slate-50 text-slate-400' : 'bg-white hover:bg-slate-50/80'
+                      isEmpty
+                        ? 'bg-[#f8fafc]/50 hover:bg-slate-50 text-slate-400'
+                        : isShared
+                        ? 'bg-sky-50/40 hover:bg-sky-50/80'
+                        : 'bg-white hover:bg-slate-50/80'
                     }`}
                   >
-                    <td className="py-2 px-4 font-bold text-[#282828]">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`tabular-nums font-mono text-sm ${isEmpty ? 'text-slate-400' : ''}`}>{row.width}</span>
-                        <span className={isEmpty ? 'text-slate-400' : ''}>mm</span>
-                        {!row.isStandard && (
-                          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold font-sans bg-amber-100 text-amber-900 border border-amber-300">
-                            hors standard
+                    {isFirstOfWidth && (
+                      <td
+                        rowSpan={span}
+                        className={`py-2 px-4 font-bold text-[#282828] align-top ${
+                          isShared ? 'border-l-4 border-l-[#3ca7da] bg-sky-50/60' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`tabular-nums font-mono text-sm ${isEmpty ? 'text-slate-400' : ''}`}>{row.width}</span>
+                          <span className={isEmpty ? 'text-slate-400' : ''}>mm</span>
+                          {!row.isStandard && (
+                            <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold font-sans bg-amber-100 text-amber-900 border border-amber-300">
+                              hors standard
+                            </span>
+                          )}
+                        </div>
+                        {isShared && (
+                          <span
+                            className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold font-sans bg-[#3ca7da]/15 text-[#00478a] border border-[#3ca7da]/40"
+                            title={`Largeur ${row.width} mm utilisée dans ${sharedCount} matières : ${sharedCount} bobines différentes à sortir`}
+                          >
+                            <Layers className="w-2.5 h-2.5 shrink-0" />
+                            <span>{sharedCount} matières</span>
                           </span>
                         )}
-                      </div>
-                    </td>
+                      </td>
+                    )}
                     <td className="py-2 px-4">{isEmpty ? <span className="text-slate-300">-</span> : <MaterialBadge material={row.material} />}</td>
                     <td className="py-2 px-4 text-[11px]">
                       {isEmpty ? (

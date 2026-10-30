@@ -17,7 +17,6 @@ import {
   Sparkles,
 } from 'lucide-react';
 import {
-  IntervalRow,
   EncodedEntry,
   SheetPreset,
   ShapedPiece,
@@ -25,20 +24,12 @@ import {
   MATERIAL_GROUPS,
 } from '../types';
 import {
-  createInitialIntervals,
-  findMatchingBound,
-} from '../utils/sheetLogic';
-import { evaluateExpression } from '../utils/mathEvaluator';
-import {
-  getMaterialDensity,
-  getMaterialWeightDetails,
-  resolveAutoPieceBreakdown,
-} from '../utils/optimizer';
-import {
   optimizerApi,
   ApiError,
   BreakdownOption,
   FastEncoderEntryResponse,
+  PieceCutDetail,
+  PiecesSummaryResponse,
 } from '../api';
 import { WorkshopCalculator } from './WorkshopCalculator';
 import { VisualPreEncoderModal } from './VisualPreEncoderModal';
@@ -50,11 +41,6 @@ interface FastEncoderProps {
 
 export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer }) => {
   const [preset, setPreset] = useState<SheetPreset>('DEV_PIECE');
-  const [intervals, setIntervals] = useState<IntervalRow[]>(() =>
-    createInitialIntervals('DEV_PIECE')
-  );
-  const [chuteLength, setChuteLength] = useState<number>(0);
-  const [chuteCount, setChuteCount] = useState<number>(0);
   const [entriesHistory, setEntriesHistory] = useState<EncodedEntry[]>([]);
 
   // Active encoding material (retains last used material for all subsequent pieces)
@@ -144,7 +130,31 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
   };
   const isCoilMode = preset === 'DEV_BOBINE';
 
-  // Main Submit handler using the 3 cases connected to FastAPI
+  // Ajoute à l'historique des saisies déjà calculées par le backend
+  const addEncodedEntries = (encoded: FastEncoderEntryResponse[]) => {
+    const now = new Date().toLocaleTimeString();
+    const stamp = Date.now();
+    const newEntries: EncodedEntry[] = encoded.map((entry, i) => ({
+      id: `entry-${stamp}-${i}-${Math.random().toString(36).substring(2, 6)}`,
+      rawInput: entry.raw_input,
+      dev: entry.dev,
+      lengthExpression: `${entry.quantity} × ${entry.unit_length_m}m`,
+      unitLength: entry.unit_length_m,
+      quantity: entry.quantity,
+      evaluatedLength: entry.total_length_m,
+      matchedBound: entry.matched_bound,
+      isChute: false,
+      material: entry.material,
+      timestamp: now,
+    }));
+    // L'historique est affiché du plus récent au plus ancien
+    setEntriesHistory((prev) => [...newEntries.reverse(), ...prev]);
+  };
+
+  // Saisie : tous les calculs sont faits par le backend.
+  // - 3 cases : quick-encode lit chaque case séparément (développé, quantité, longueur)
+  // - format rapide "dév/longueur" dans la 1re case : quick-encode avec l'expression complète
+  // - quantité 0 : auto-métrage (quick-encode pour lire les cases, auto-breakdown, pieces-encode)
   const handleSubmitEntry = async (
     overrideDev?: string,
     overrideLen?: string,
@@ -157,12 +167,17 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     if (!devStr.trim()) {
       setLastFeedback({
         success: false,
-        message:
-          preset === 'DEV_BOBINE'
-            ? 'Veuillez saisir un développement en mm (ou 0 pour les chutes).'
-            : 'Veuillez saisir un développement de pièce en mm (ex: 175, 250...).',
+        message: 'Veuillez saisir un développement de pièce en mm (ex: 175, 250...).',
       });
       devRef.current?.focus();
+      return;
+    }
+
+    const isQuickFormat = devStr.includes('/');
+    const parsedQty = qtyStr.trim() === '' ? 1 : parseInt(qtyStr, 10);
+    if (!isQuickFormat && (isNaN(parsedQty) || parsedQty < 0)) {
+      setLastFeedback({ success: false, message: 'Quantité invalide (nombre entier, 0 = métrage auto).' });
+      qtyRef.current?.focus();
       return;
     }
 
@@ -170,45 +185,53 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     setBreakdownAlternatives([]);
 
     try {
-      // Cas 1: Quantité = 0 -> Auto-calepinage du métrage linéaire (Section 3.2 du CDC)
-      const parsedQty = parseInt(qtyStr, 10);
-      if (parsedQty === 0 && !devStr.includes('/')) {
-        const parsedDev = evaluateExpression(devStr);
-        if (isNaN(parsedDev) || parsedDev <= 0) {
-          throw new Error('Développement de pièce invalide (> 0 mm requis).');
-        }
+      // Cas 1 : quantité 0 -> auto-métrage du métrage linéaire (Section 3.2 du CDC)
+      if (!isQuickFormat && parsedQty === 0) {
+        const check = await optimizerApi.quickEncode({
+          dev_expr: devStr.trim(),
+          quantity: 0,
+          length_expr: lenStr.trim(),
+          material: activeMaterial,
+          length_unit: lengthUnit,
+        });
+        const dev = check.data.dev;
+        const totalMeters = check.data.unit_length_m;
 
-        const evaluatedLen = evaluateExpression(lenStr);
-        if (isNaN(evaluatedLen) || evaluatedLen <= 0) {
-          throw new Error('Métrage total invalide (> 0 m requis).');
-        }
-
-        const currentPiecesForEngine = intervals
-          .filter((row) => row.accumulatedLength > 0)
+        const currentPiecesForEngine = (summary?.bound_rows ?? [])
+          .filter((row) => !row.is_empty)
           .map((row, idx) => ({
             id: `p-${idx}`,
             label: `Pièce borne ${row.bound}mm`,
             dev: row.bound,
             length: 2.0,
-            quantity: row.count || 1,
-            material: activeMaterial,
+            quantity: Math.min(row.quantity || 1, 1000),
+            material: row.material,
           }));
 
         const breakdownResp = await optimizerApi.autoBreakdown({
-          total_meters: evaluatedLen,
+          total_meters: totalMeters,
           current_pieces: currentPiecesForEngine,
           target_material: activeMaterial,
         });
-
         const breakdown = breakdownResp.data;
         setBreakdownAlternatives(breakdown.alternatives || []);
 
-        const rawExpression = `Dév ${parsedDev} · ${breakdown.quantity} pcs × ${breakdown.length}m (Total ${evaluatedLen}m auto)`;
-        processDirectValues(parsedDev, breakdown.length, breakdown.quantity, rawExpression);
+        const encoded = await optimizerApi.piecesEncode({
+          items: [
+            {
+              dev,
+              quantity: breakdown.quantity,
+              unit_length_m: breakdown.length,
+              material: activeMaterial,
+              label: `Dév ${dev} · ${breakdown.quantity} pcs × ${breakdown.length}m (Total ${totalMeters}m auto)`,
+            },
+          ],
+        });
+        addEncodedEntries(encoded.data.entries);
 
         setLastFeedback({
           success: true,
-          message: `⚡ Métrage de ${evaluatedLen}m auto-calepiné (${breakdownResp.executionTimeMs}ms) : ${breakdown.quantity} pièces de ${breakdown.length}m (${breakdown.reason})`,
+          message: `⚡ Métrage de ${totalMeters}m auto-calepiné (${breakdownResp.executionTimeMs}ms) : ${breakdown.quantity} pièces de ${breakdown.length}m (${breakdown.reason})`,
           executionTimeMs: breakdownResp.executionTimeMs,
         });
 
@@ -219,89 +242,28 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
         return;
       }
 
-      // Cas 2: Expression unifiée pour l'endpoint FastAPI /quick-encode
-      let rawExpressionToEncode = devStr.trim();
-      if (!rawExpressionToEncode.includes('/')) {
-        const cleanLen = lenStr.trim() || '2.0';
-        const cleanQty = qtyStr.trim() || '1';
-        rawExpressionToEncode = `${devStr}/${cleanQty}*${cleanLen}`;
-      }
-
-      const apiResult = await optimizerApi.quickEncode({
-        raw_input: rawExpressionToEncode,
-        material: activeMaterial,
-        length_unit: lengthUnit,
-        preset: 'DEV_PIECE',
-      });
+      // Cas 2 : saisie normale
+      const apiResult = await optimizerApi.quickEncode(
+        isQuickFormat
+          ? { raw_input: devStr.trim(), material: activeMaterial, length_unit: lengthUnit, preset: 'DEV_PIECE' }
+          : {
+              dev_expr: devStr.trim(),
+              quantity: parsedQty,
+              length_expr: lenStr.trim() || '2.0',
+              material: activeMaterial,
+              length_unit: lengthUnit,
+            }
+      );
 
       const entry = apiResult.data;
-      const totalAddedM = entry.total_length_m;
-      const isChute = entry.is_chute;
-      const matToUse = entry.material;
+      addEncodedEntries([entry]);
 
-      if (isChute) {
-        setChuteLength((prev) => Math.round((prev + totalAddedM) * 1000) / 1000);
-        setChuteCount((prev) => prev + entry.quantity);
-
-        const newEntry: EncodedEntry = {
-          id: `entry-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          rawInput: entry.raw_input,
-          dev: 0,
-          lengthExpression: `${entry.quantity} × ${entry.unit_length_m}m`,
-          unitLength: entry.unit_length_m,
-          quantity: entry.quantity,
-          evaluatedLength: totalAddedM,
-          matchedBound: 0,
-          isChute: true,
-          material: matToUse,
-          timestamp: new Date().toLocaleTimeString(),
-        };
-        setEntriesHistory((prev) => [newEntry, ...prev]);
-
-        setLastFeedback({
-          success: true,
-          message: `Chute enregistrée (${apiResult.executionTimeMs}ms) : ${entry.quantity} pièce(s) de ${entry.unit_length_m}m = +${totalAddedM}m [${matToUse}] (Total chutes : ${(chuteLength + totalAddedM).toFixed(2)}m)`,
-          executionTimeMs: apiResult.executionTimeMs,
-        });
-      } else {
-        const matchedBound = entry.matched_bound;
-
-        setIntervals((prev) =>
-          prev.map((item) => {
-            if (item.bound === matchedBound) {
-              return {
-                ...item,
-                accumulatedLength:
-                  Math.round((item.accumulatedLength + totalAddedM) * 1000) / 1000,
-                count: item.count + entry.quantity,
-              };
-            }
-            return item;
-          })
-        );
-
-        const newEntry: EncodedEntry = {
-          id: `entry-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          rawInput: entry.raw_input,
-          dev: entry.dev,
-          lengthExpression: `${entry.quantity} × ${entry.unit_length_m}m`,
-          unitLength: entry.unit_length_m,
-          quantity: entry.quantity,
-          evaluatedLength: totalAddedM,
-          matchedBound,
-          isChute: false,
-          material: matToUse,
-          timestamp: new Date().toLocaleTimeString(),
-        };
-        setEntriesHistory((prev) => [newEntry, ...prev]);
-
-        setLastFeedback({
-          success: true,
-          message: `Saisie validée (${apiResult.executionTimeMs}ms) : Dév ${entry.dev}mm (${entry.quantity} pcs × ${entry.unit_length_m}m = ${totalAddedM}m) [${matToUse}] → Borne ≤ ${matchedBound}mm · ${entry.surface_net_m2} m² · ${entry.weight_net_kg} kg`,
-          boundMatched: matchedBound,
-          executionTimeMs: apiResult.executionTimeMs,
-        });
-      }
+      setLastFeedback({
+        success: true,
+        message: `Saisie validée (${apiResult.executionTimeMs}ms) : Dév ${entry.dev}mm (${entry.quantity} pcs × ${entry.unit_length_m}m = ${entry.total_length_m}m) [${entry.material}] → Borne ≤ ${entry.matched_bound}mm · ${entry.surface_net_m2} m² · ${entry.weight_net_kg} kg`,
+        boundMatched: entry.matched_bound,
+        executionTimeMs: apiResult.executionTimeMs,
+      });
 
       setInputDev('');
       devRef.current?.focus();
@@ -320,68 +282,33 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     }
   };
 
-  const processDirectValues = (
-    dev: number,
-    unitLengthM: number,
-    qty: number,
-    rawExpr: string,
-    customMat?: string
-  ) => {
-    const totalAddedM = Math.round(unitLengthM * qty * 1000) / 1000;
-    const isChute = dev === 0;
-    const matToUse = customMat || activeMaterial;
-
-    if (isChute) {
-      setChuteLength((prev) => Math.round((prev + totalAddedM) * 1000) / 1000);
-      setChuteCount((prev) => prev + qty);
-
-      const newEntry: EncodedEntry = {
-        id: `entry-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        rawInput: rawExpr,
-        dev: 0,
-        lengthExpression: `${qty} × ${unitLengthM}m`,
-        unitLength: unitLengthM,
-        quantity: qty,
-        evaluatedLength: totalAddedM,
-        matchedBound: 0,
-        isChute: true,
-        material: matToUse,
-        timestamp: new Date().toLocaleTimeString(),
-      };
-      setEntriesHistory((prev) => [newEntry, ...prev]);
-    } else {
-      const matchedBound = findMatchingBound(dev, intervals);
-
-      if (matchedBound !== null) {
-        setIntervals((prev) =>
-          prev.map((item) => {
-            if (item.bound === matchedBound) {
-              return {
-                ...item,
-                accumulatedLength:
-                  Math.round((item.accumulatedLength + totalAddedM) * 1000) / 1000,
-                count: item.count + qty,
-              };
-            }
-            return item;
-          })
-        );
-
-        const newEntry: EncodedEntry = {
-          id: `entry-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          rawInput: rawExpr,
-          dev,
-          lengthExpression: `${qty} × ${unitLengthM}m`,
-          unitLength: unitLengthM,
-          quantity: qty,
-          evaluatedLength: totalAddedM,
-          matchedBound,
-          isChute: false,
-          material: matToUse,
-          timestamp: new Date().toLocaleTimeString(),
-        };
-        setEntriesHistory((prev) => [newEntry, ...prev]);
-      }
+  // Variante d'auto-métrage : remplace la dernière saisie, recalculée par le backend
+  const handleApplyAlternative = async (alt: BreakdownOption) => {
+    const last = entriesHistory[0];
+    const devToUse = last?.dev || 175;
+    const material = last?.material || activeMaterial;
+    try {
+      const res = await optimizerApi.piecesEncode({
+        items: [
+          {
+            dev: devToUse,
+            quantity: alt.quantity,
+            unit_length_m: alt.length,
+            material,
+            label: `Dév ${devToUse} · ${alt.label}`,
+          },
+        ],
+      });
+      if (last) setEntriesHistory((prev) => prev.filter((e) => e.id !== last.id));
+      addEncodedEntries(res.data.entries);
+      setLastFeedback({
+        success: true,
+        message: `Variante appliquée : ${alt.quantity} pcs de ${alt.length}m (Total ${alt.total_produced}m)`,
+      });
+      setBreakdownAlternatives([]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'erreur inconnue';
+      setLastFeedback({ success: false, message: `Variante refusée par le calcul : ${message}` });
     }
   };
 
@@ -409,33 +336,10 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     });
   };
 
-  // Delete a specific history entry
+  // Delete a specific history entry (le tableau est recalculé par le backend)
   const handleDeleteHistoryEntry = (entryId: string) => {
     const entry = entriesHistory.find((e) => e.id === entryId);
     if (!entry) return;
-
-    if (entry.isChute) {
-      setChuteLength((prev) =>
-        Math.max(0, Math.round((prev - entry.evaluatedLength) * 1000) / 1000)
-      );
-      setChuteCount((prev) => Math.max(0, prev - (entry.quantity || 1)));
-    } else {
-      setIntervals((prev) =>
-        prev.map((item) => {
-          if (item.bound === entry.matchedBound) {
-            return {
-              ...item,
-              accumulatedLength: Math.max(
-                0,
-                Math.round((item.accumulatedLength - entry.evaluatedLength) * 1000) / 1000
-              ),
-              count: Math.max(0, item.count - (entry.quantity || 1)),
-            };
-          }
-          return item;
-        })
-      );
-    }
 
     setEntriesHistory((prev) => prev.filter((e) => e.id !== entryId));
     setLastFeedback({
@@ -463,9 +367,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
       // Confirmed!
       if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
       setIsConfirmingClear(false);
-      setIntervals(createInitialIntervals('DEV_PIECE'));
-      setChuteLength(0);
-      setChuteCount(0);
       setEntriesHistory([]);
       setLastFeedback({
         success: true,
@@ -495,65 +396,20 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
   // Zero out a specific interval row (with optional material filter)
   const handleResetIntervalRow = (bound: number, targetMaterial?: string) => {
-    if (targetMaterial) {
-      setEntriesHistory((prev) =>
-        prev.filter(
-          (e) =>
-            !(e.matchedBound === bound && (e.material || activeMaterial) === targetMaterial)
-        )
-      );
-
-      setIntervals((prev) =>
-        prev.map((item) => {
-          if (item.bound === bound) {
-            const remainingEntries = entriesHistory.filter(
-              (e) =>
-                !e.isChute &&
-                e.matchedBound === bound &&
-                (e.material || activeMaterial) !== targetMaterial
-            );
-            const remLength =
-              Math.round(
-                remainingEntries.reduce((acc, e) => acc + e.evaluatedLength, 0) * 1000
-              ) / 1000;
-            const remCount = remainingEntries.reduce(
-              (acc, e) => acc + (e.quantity || 1),
-              0
-            );
-            return { ...item, accumulatedLength: remLength, count: remCount };
-          }
-          return item;
-        })
-      );
-
-      setLastFeedback({
-        success: true,
-        message: `Borne ${bound} mm (${targetMaterial}) remise à zéro.`,
-      });
-    } else {
-      setEntriesHistory((prev) => prev.filter((e) => e.matchedBound !== bound));
-      setIntervals((prev) =>
-        prev.map((item) => {
-          if (item.bound === bound) {
-            return { ...item, accumulatedLength: 0, count: 0 };
-          }
-          return item;
-        })
-      );
-      setLastFeedback({
-        success: true,
-        message: `Borne ${bound} mm remise à zéro.`,
-      });
-    }
-  };
-
-  // Zero out chutes
-  const handleResetChutes = () => {
-    setChuteLength(0);
-    setChuteCount(0);
+    setEntriesHistory((prev) =>
+      prev.filter(
+        (e) =>
+          !(
+            e.matchedBound === bound &&
+            (!targetMaterial || (e.material || activeMaterial) === targetMaterial)
+          )
+      )
+    );
     setLastFeedback({
       success: true,
-      message: 'Compteur des chutes remis à zéro.',
+      message: targetMaterial
+        ? `Borne ${bound} mm (${targetMaterial}) remise à zéro.`
+        : `Borne ${bound} mm remise à zéro.`,
     });
   };
 
@@ -565,7 +421,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     handleSubmitEntry(dev.toString(), len, qty);
   };
 
-  // Export CSV with material breakdown
+  // Export CSV (valeurs calculées par le backend)
   const handleExportCSV = () => {
     const headers = [
       'Borne_Dev_mm',
@@ -575,16 +431,12 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
       'Surface_m2',
       'Poids_Est_kg',
     ];
-    const rows = tableIntervalRows
-      .filter((r) => r.accumulatedLength > 0)
+    const rows = (summary?.bound_rows ?? [])
+      .filter((r) => !r.is_empty)
       .map(
         (r) =>
-          `${r.bound};${r.material};${r.accumulatedLength};${r.count};${r.surface.toFixed(2)};${r.weightEst}`
+          `${r.bound};${r.material};${r.length_m};${r.quantity};${r.surface_m2.toFixed(2)};${r.weight_kg}`
       );
-
-    if (chuteLength > 0) {
-      rows.push(`0 (CHUTES);Chutes Atelier;${chuteLength};${chuteCount};-; -`);
-    }
 
     const csvContent =
       'data:text/csv;charset=utf-8,' + [headers.join(';'), ...rows].join('\n');
@@ -600,67 +452,45 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     document.body.removeChild(link);
   };
 
-  // Transfer to Optimizer
+  // Transfer to Optimizer : les pièces saisies, regroupées si identiques (même dév, longueur, matière)
   const handleTransfer = () => {
     const activePieces: ShapedPiece[] = [];
-
-    // 1. If user entered pieces in the history, transfer the exact pieces entered
     const nonChuteEntries = entriesHistory.filter((e) => !e.isChute && e.dev > 0);
 
-    if (nonChuteEntries.length > 0) {
-      const pieceMap = new Map<
-        string,
-        { dev: number; length: number; quantity: number; bound: number; material: string }
-      >();
-
-      for (const entry of nonChuteEntries) {
-        const entryMat = entry.material || activeMaterial;
-        const key = `${entry.dev}-${entry.unitLength}-${entryMat}`;
-        const existing = pieceMap.get(key);
-        if (existing) {
-          existing.quantity += entry.quantity || 1;
-        } else {
-          pieceMap.set(key, {
-            dev: entry.dev,
-            length: entry.unitLength,
-            quantity: entry.quantity || 1,
-            bound: entry.matchedBound,
-            material: entryMat,
-          });
-        }
-      }
-
-      let idx = 1;
-      pieceMap.forEach((val) => {
-        activePieces.push({
-          id: `transf-entry-${idx++}-${Date.now()}`,
-          label: `Façonnage Dév ${val.dev} mm`,
-          dev: val.dev,
-          length: Math.round(val.length * 100) / 100,
-          quantity: val.quantity,
-          bends: 2,
-          material: val.material,
-          workshopSplitReason: `Saisie Calculateur : ${val.quantity} pcs × ${val.length}m (Borne ≤ ${val.bound} mm)`,
+    const pieceMap = new Map<
+      string,
+      { dev: number; length: number; quantity: number; bound: number; material: string }
+    >();
+    for (const entry of nonChuteEntries) {
+      const entryMat = entry.material || activeMaterial;
+      const key = `${entry.dev}-${entry.unitLength}-${entryMat}`;
+      const existing = pieceMap.get(key);
+      if (existing) {
+        existing.quantity += entry.quantity || 1;
+      } else {
+        pieceMap.set(key, {
+          dev: entry.dev,
+          length: entry.unitLength,
+          quantity: entry.quantity || 1,
+          bound: entry.matchedBound,
+          material: entryMat,
         });
-      });
-    } else {
-      // 2. Otherwise fallback to accumulated intervals
-      intervals.forEach((row, idx) => {
-        if (row.accumulatedLength > 0) {
-          const avgLength = row.count > 0 ? row.accumulatedLength / row.count : 2.0;
-          activePieces.push({
-            id: `transf-row-${idx}-${Date.now()}`,
-            label: `Façonnage Dév ≤ ${row.bound} mm`,
-            dev: row.bound,
-            length: Math.round(avgLength * 100) / 100,
-            quantity: Math.max(1, row.count),
-            bends: 2,
-            material: activeMaterial,
-            workshopSplitReason: `Cumul Calculateur : ${row.accumulatedLength.toFixed(1)}m cumulés sur borne ≤ ${row.bound} mm`,
-          });
-        }
-      });
+      }
     }
+
+    let idx = 1;
+    pieceMap.forEach((val) => {
+      activePieces.push({
+        id: `transf-entry-${idx++}-${Date.now()}`,
+        label: `Façonnage Dév ${val.dev} mm`,
+        dev: val.dev,
+        length: val.length,
+        quantity: val.quantity,
+        bends: 2,
+        material: val.material,
+        workshopSplitReason: `Saisie Calculateur : ${val.quantity} pcs × ${val.length}m (Borne ≤ ${val.bound} mm)`,
+      });
+    });
 
     if (activePieces.length === 0) {
       setLastFeedback({
@@ -673,378 +503,160 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     onTransferToOptimizer(activePieces);
   };
 
-  // Totals calculated from all encoded entries (chutes included for global length/count if needed)
-  const totalLengthM =
-    Math.round(
-      intervals.reduce((acc, curr) => acc + curr.accumulatedLength, 0) * 1000
-    ) / 1000;
-  const totalCount = intervals.reduce((acc, curr) => acc + curr.count, 0);
-  const totalSurfaceM2 =
-    Math.round(
-      intervals.reduce(
-        (acc, curr) => acc + (curr.bound / 1000) * curr.accumulatedLength,
-        0
-      ) * 100
-    ) / 100;
+  // Tableau recalculé par le backend (pieces-summary) à chaque changement des saisies.
+  // On ignore les réponses d'une requête dépassée par une plus récente.
+  const [summary, setSummary] = useState<PiecesSummaryResponse | null>(null);
+  const summaryRequestRef = useRef(0);
+  useEffect(() => {
+    const requestId = ++summaryRequestRef.current;
+    const payload = {
+      entries: [...entriesHistory]
+        .reverse()
+        .filter((e) => !e.isChute && e.dev > 0)
+        .map((e) => ({
+          id: e.id,
+          dev: e.dev,
+          quantity: e.quantity || 1,
+          unit_length_m: e.unitLength,
+          material: e.material || activeMaterial,
+        })),
+    };
+    optimizerApi
+      .piecesSummary(payload)
+      .then((res) => {
+        if (requestId === summaryRequestRef.current) setSummary(res.data);
+      })
+      .catch((err) => {
+        if (requestId !== summaryRequestRef.current) return;
+        const message = err instanceof Error ? err.message : 'erreur inconnue';
+        setLastFeedback({ success: false, message: `Calcul du tableau impossible : ${message}` });
+      });
+  }, [entriesHistory, activeMaterial]);
 
-  // Active material weight characteristics (e.g. Zinc 0.7 = 5.04 kg/m², Alu 0.7 = 1.89 kg/m², etc.)
-  const activeMatDetails = useMemo(
-    () => getMaterialWeightDetails(activeMaterial),
-    [activeMaterial]
-  );
+  // Totaux (backend). Surface : aux bornes ; poids : au développement réel.
+  const totalLengthM = summary?.totals.length_m ?? 0;
+  const totalCount = summary?.totals.quantity ?? 0;
+  const totalSurfaceM2 = summary?.totals.surface_bound_m2 ?? 0;
+  const totalWeightEstKg = summary?.totals.weight_net_kg ?? 0;
 
-  // Import handler from Visual Pre-Encoder Modal
-  const handleImportPiecesFromVisual = (
+  // Import du scan IA : les pièces sont validées et calculées par le backend (pieces-encode)
+  const handleImportPiecesFromVisual = async (
     pieces: ShapedPiece[],
     metadata?: { client?: string; chantier?: string; detectedMaterial?: string }
   ) => {
-    pieces.forEach((p) => {
-      processDirectValues(
-        p.dev,
-        p.length,
-        p.quantity,
-        `[Vision IA] ${p.label} (Dév ${p.dev}mm) · ${p.quantity} pcs × ${p.length}m`,
-        p.material || activeMaterial
-      );
-    });
-
-    if (metadata?.detectedMaterial && STANDARD_MATERIALS.includes(metadata.detectedMaterial)) {
-      setActiveMaterial(metadata.detectedMaterial);
+    const usable = pieces.filter((p) => p.dev > 0 && p.quantity > 0 && p.length > 0);
+    const skipped = pieces.length - usable.length;
+    if (usable.length === 0) {
+      setLastFeedback({
+        success: false,
+        message: "Aucun profil exploitable dans l'import (développé, quantité ou longueur manquant).",
+      });
+      return;
     }
 
-    setLastFeedback({
-      success: true,
-      message: `${pieces.length} profil(s) importé(s) et injecté(s) avec succès dans le calculateur !`,
-    });
+    try {
+      const res = await optimizerApi.piecesEncode({
+        items: usable.map((p) => ({
+          dev: p.dev,
+          quantity: p.quantity,
+          unit_length_m: p.length,
+          material: p.material || activeMaterial,
+          label: `[Vision IA] ${p.label} (Dév ${p.dev}mm) · ${p.quantity} pcs × ${p.length}m`,
+        })),
+      });
+      addEncodedEntries(res.data.entries);
+
+      if (metadata?.detectedMaterial && STANDARD_MATERIALS.includes(metadata.detectedMaterial)) {
+        setActiveMaterial(metadata.detectedMaterial);
+      }
+
+      setLastFeedback({
+        success: true,
+        message:
+          `${usable.length} profil(s) importé(s) et injecté(s) avec succès dans le calculateur !` +
+          (skipped > 0 ? ` (${skipped} ignoré(s) : développé, quantité ou longueur manquant)` : ''),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'erreur inconnue';
+      setLastFeedback({ success: false, message: `Import IA refusé par le calcul : ${message}` });
+    }
   };
 
-  // Map tracking which developments exist in multiple materials: Map<dev, Set<material>>
-  const sharedDevMap = useMemo(() => {
-    const map = new Map<number, Set<string>>();
-    entriesHistory.forEach((e) => {
-      if (!e.isChute) {
-        const mat = e.material || activeMaterial;
-        if (!map.has(e.dev)) {
-          map.set(e.dev, new Set());
-        }
-        map.get(e.dev)!.add(mat);
-      }
-    });
-    return map;
-  }, [entriesHistory, activeMaterial]);
-
-  // Unified breakdown of pieces grouped by real development (Dév) and material
-  const tableDevRows = useMemo(() => {
-    const groups = new Map<
-      string,
-      {
-        dev: number;
-        bound: number;
-        material: string;
-        entries: EncodedEntry[];
-      }
-    >();
-
-    entriesHistory.forEach((entry) => {
-      if (entry.isChute) return;
-      const mat = entry.material || activeMaterial;
-      const key = `${entry.dev}__${mat}`;
-      if (!groups.has(key)) {
-        groups.set(key, {
-          dev: entry.dev,
-          bound: entry.matchedBound,
-          material: mat,
-          entries: [],
-        });
-      }
-      groups.get(key)!.entries.push(entry);
-    });
-
-    const rows: {
-      id: string;
-      dev: number;
-      bound: number;
-      material: string;
-      metalFamily: 'ALU' | 'ZINC' | 'AUTRE';
-      count: number;
-      accumulatedLength: number;
-      surface: number;
-      weightEst: number;
-      percent: number;
-      isSharedDev: boolean;
-      sharedWithMaterials: string[];
-      entries: EncodedEntry[];
-    }[] = [];
-
-    groups.forEach((group) => {
-      const dev = group.dev;
-      const mat = group.material;
-      const count = group.entries.reduce((acc, e) => acc + (e.quantity || 1), 0);
-      const accumulatedLength =
-        Math.round(
-          group.entries.reduce((acc, e) => acc + e.evaluatedLength, 0) * 1000
-        ) / 1000;
-      const surface = Math.round((dev / 1000) * accumulatedLength * 1000) / 1000;
-      const density = getMaterialDensity(mat);
-      const weightEst = Math.round(surface * density * 10) / 10;
-      const percent =
-        totalLengthM > 0
-          ? Math.round((accumulatedLength / totalLengthM) * 1000) / 10
-          : 0;
-
-      const materialsForDev = Array.from(sharedDevMap.get(dev) || []);
-      const isSharedDev = materialsForDev.length > 1;
-      const sharedWithMaterials = materialsForDev.filter((m) => m !== mat);
-
-      const isAlu = /alu/i.test(mat);
-      const isZinc = /zinc/i.test(mat);
-      const metalFamily: 'ALU' | 'ZINC' | 'AUTRE' = isAlu
-        ? 'ALU'
-        : isZinc
-        ? 'ZINC'
-        : 'AUTRE';
-
-      rows.push({
-        id: `dev-${dev}-${mat}`,
-        dev,
-        bound: group.bound,
-        material: mat,
-        metalFamily,
-        count,
-        accumulatedLength,
-        surface,
-        weightEst,
-        percent,
-        isSharedDev,
-        sharedWithMaterials,
-        entries: group.entries,
-      });
-    });
-
-    // Sort by dev ascending so same dev pieces (e.g. 150 Alu and 150 Zinc) sit directly one under the other!
-    return rows.sort((a, b) => {
-      if (a.dev !== b.dev) return a.dev - b.dev;
-      return a.material.localeCompare(b.material);
-    });
-  }, [entriesHistory, activeMaterial, totalLengthM, sharedDevMap]);
-
-  // Classical intervals table (split by material per bound)
-  const tableIntervalRows = useMemo(() => {
-    const rows: {
-      id: string;
-      bound: number;
-      material: string;
-      metalFamily: 'ALU' | 'ZINC' | 'AUTRE';
-      count: number;
-      accumulatedLength: number;
-      surface: number;
-      weightEst: number;
-      percent: number;
-      isMultiMaterialBound: boolean;
-      entries: EncodedEntry[];
-    }[] = [];
-
-    intervals.forEach((interval) => {
-      const bound = interval.bound;
-      const boundEntries = entriesHistory.filter(
-        (e) => !e.isChute && e.matchedBound === bound
-      );
-
-      if (boundEntries.length === 0) {
-        const isAlu = /alu/i.test(activeMaterial);
-        const isZinc = /zinc/i.test(activeMaterial);
-        rows.push({
-          id: `bound-${bound}-empty`,
-          bound,
-          material: activeMaterial,
-          metalFamily: isAlu ? 'ALU' : isZinc ? 'ZINC' : 'AUTRE',
-          count: 0,
-          accumulatedLength: 0,
-          surface: 0,
-          weightEst: 0,
-          percent: 0,
-          isMultiMaterialBound: false,
-          entries: [],
-        });
-      } else {
-        const materialMap = new Map<string, EncodedEntry[]>();
-        for (const entry of boundEntries) {
-          const mat = entry.material || activeMaterial;
-          if (!materialMap.has(mat)) {
-            materialMap.set(mat, []);
-          }
-          materialMap.get(mat)!.push(entry);
-        }
-
-        const distinctMaterials = Array.from(materialMap.keys());
-        const isMultiMaterialBound = distinctMaterials.length > 1;
-
-        distinctMaterials.forEach((mat) => {
-          const mEntries = materialMap.get(mat)!;
-          const count = mEntries.reduce((acc, e) => acc + (e.quantity || 1), 0);
-          const accumulatedLength =
-            Math.round(
-              mEntries.reduce((acc, e) => acc + e.evaluatedLength, 0) * 1000
-            ) / 1000;
-          const surface = (bound / 1000) * accumulatedLength;
-          const density = getMaterialDensity(mat);
-          const weightEst = Math.round(surface * density * 10) / 10;
-          const percent =
-            totalLengthM > 0
-              ? Math.round((accumulatedLength / totalLengthM) * 1000) / 10
-              : 0;
-
-          const isAlu = /alu/i.test(mat);
-          const isZinc = /zinc/i.test(mat);
-
-          rows.push({
-            id: `bound-${bound}-${mat}`,
-            bound,
-            material: mat,
-            metalFamily: isAlu ? 'ALU' : isZinc ? 'ZINC' : 'AUTRE',
-            count,
-            accumulatedLength,
-            surface,
-            weightEst,
-            percent,
-            isMultiMaterialBound,
-            entries: mEntries,
-          });
-        });
-      }
-    });
-
-    return rows;
-  }, [intervals, entriesHistory, activeMaterial, totalLengthM]);
-
-  // Multi-material dynamic synthesis across all entries
-  const materialsSummary = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        material: string;
-        metalFamily: 'ALU' | 'ZINC' | 'AUTRE';
-        count: number;
-        lengthM: number;
-        surfaceM2: number;
-        weightKg: number;
-      }
-    >();
-
-    entriesHistory.forEach((e) => {
-      if (e.isChute) return;
-      const mat = e.material || activeMaterial;
-      const isAlu = /alu/i.test(mat);
-      const isZinc = /zinc/i.test(mat);
-      const metalFamily: 'ALU' | 'ZINC' | 'AUTRE' = isAlu
-        ? 'ALU'
-        : isZinc
-        ? 'ZINC'
-        : 'AUTRE';
-
-      const existing = map.get(mat) || {
-        material: mat,
-        metalFamily,
-        count: 0,
-        lengthM: 0,
-        surfaceM2: 0,
-        weightKg: 0,
-      };
-
-      const surf = (e.dev / 1000) * e.evaluatedLength;
-      const density = getMaterialDensity(mat);
-      existing.count += e.quantity;
-      existing.lengthM += e.evaluatedLength;
-      existing.surfaceM2 += surf;
-      existing.weightKg += surf * density;
-
-      map.set(mat, existing);
-    });
-
-    return Array.from(map.values()).map((item) => ({
-      ...item,
-      lengthM: Math.round(item.lengthM * 100) / 100,
-      surfaceM2: Math.round(item.surfaceM2 * 100) / 100,
-      weightKg: Math.round(item.weightKg * 10) / 10,
-      percent:
-        totalLengthM > 0
-          ? Math.round((item.lengthM / totalLengthM) * 1000) / 10
-          : 0,
+  // Lignes du tableau (backend), au format attendu par l'affichage
+  const toCuts = (cuts: PieceCutDetail[]) =>
+    [...cuts].reverse().map((c) => ({
+      id: c.id,
+      dev: c.dev,
+      quantity: c.quantity,
+      unitLength: c.unit_length_m,
+      isShared: c.is_shared_dev,
     }));
-  }, [entriesHistory, activeMaterial, totalLengthM]);
 
-  // Family aggregated summaries (Alu vs Zinc)
-  const aluSummary = useMemo(() => {
-    const aluItems = materialsSummary.filter((m) => m.metalFamily === 'ALU');
-    return {
-      count: aluItems.reduce((acc, m) => acc + m.count, 0),
-      lengthM: Math.round(aluItems.reduce((acc, m) => acc + m.lengthM, 0) * 100) / 100,
-      surfaceM2: Math.round(aluItems.reduce((acc, m) => acc + m.surfaceM2, 0) * 100) / 100,
-      weightKg: Math.round(aluItems.reduce((acc, m) => acc + m.weightKg, 0) * 10) / 10,
-    };
-  }, [materialsSummary]);
+  const tableDevRows = (summary?.dev_rows ?? []).map((r) => ({
+    id: `dev-${r.dev}-${r.material}`,
+    dev: r.dev,
+    bound: r.bound,
+    material: r.material,
+    metalFamily: r.family,
+    count: r.quantity,
+    accumulatedLength: r.length_m,
+    surface: r.surface_m2,
+    weightEst: r.weight_kg,
+    percent: r.percent,
+    isSharedDev: r.is_shared_dev,
+    sharedWithMaterials: r.shared_with_materials,
+    entries: toCuts(r.cuts),
+  }));
 
-  const zincSummary = useMemo(() => {
-    const zincItems = materialsSummary.filter((m) => m.metalFamily === 'ZINC');
-    return {
-      count: zincItems.reduce((acc, m) => acc + m.count, 0),
-      lengthM: Math.round(zincItems.reduce((acc, m) => acc + m.lengthM, 0) * 100) / 100,
-      surfaceM2: Math.round(zincItems.reduce((acc, m) => acc + m.surfaceM2, 0) * 100) / 100,
-      weightKg: Math.round(zincItems.reduce((acc, m) => acc + m.weightKg, 0) * 10) / 10,
-    };
-  }, [materialsSummary]);
+  const tableIntervalRows = (summary?.bound_rows ?? []).map((r) => ({
+    id: `bound-${r.bound}-${r.material || 'vide'}`,
+    bound: r.bound,
+    // Ligne vide : affichée (grisée) avec la matière en cours
+    material: r.is_empty ? activeMaterial : r.material,
+    metalFamily: r.family,
+    count: r.quantity,
+    accumulatedLength: r.length_m,
+    surface: r.surface_m2,
+    weightEst: r.weight_kg,
+    percent: r.percent,
+    isMultiMaterialBound: r.is_multi_material_bound,
+    hasSharedDev: r.has_shared_dev,
+    entries: toCuts(r.cuts),
+  }));
 
-  // Filtered views based on user selection
-  const filteredDevRows = useMemo(() => {
-    if (selectedMaterialFilter === 'ALL') return tableDevRows;
-    if (selectedMaterialFilter === 'ALU') {
-      return tableDevRows.filter((r) => r.metalFamily === 'ALU');
-    }
-    if (selectedMaterialFilter === 'ZINC') {
-      return tableDevRows.filter((r) => r.metalFamily === 'ZINC');
-    }
-    return tableDevRows.filter((r) => r.material === selectedMaterialFilter);
-  }, [tableDevRows, selectedMaterialFilter]);
+  const materialsSummary = (summary?.materials ?? []).map((m) => ({
+    material: m.material,
+    metalFamily: m.family,
+    count: m.quantity,
+    lengthM: m.length_m,
+    surfaceM2: m.surface_m2,
+    weightKg: m.weight_kg,
+    percent: m.percent,
+  }));
 
-  const filteredIntervalRows = useMemo(() => {
-    let rows = tableIntervalRows;
-    if (hideEmptyBounds) {
-      rows = rows.filter((r) => r.accumulatedLength > 0);
-    }
-    if (selectedMaterialFilter === 'ALL') return rows;
-    if (selectedMaterialFilter === 'ALU') {
-      return rows.filter((r) => r.metalFamily === 'ALU');
-    }
-    if (selectedMaterialFilter === 'ZINC') {
-      return rows.filter((r) => r.metalFamily === 'ZINC');
-    }
-    return rows.filter((r) => r.material === selectedMaterialFilter);
-  }, [tableIntervalRows, selectedMaterialFilter, hideEmptyBounds]);
+  const toFamily = (f?: { quantity: number; length_m: number; surface_m2: number; weight_kg: number }) => ({
+    count: f?.quantity ?? 0,
+    lengthM: f?.length_m ?? 0,
+    surfaceM2: f?.surface_m2 ?? 0,
+    weightKg: f?.weight_kg ?? 0,
+  });
+  const aluSummary = toFamily(summary?.alu);
+  const zincSummary = toFamily(summary?.zinc);
 
-  // Distinct materials across all encoded entries
-  const encodedMaterialsSummary = useMemo(() => {
-    const mats = new Set<string>();
-    entriesHistory.forEach((e) => {
-      if (!e.isChute && e.material) mats.add(e.material);
-    });
-    return Array.from(mats);
-  }, [entriesHistory]);
+  // Filtres d'affichage (pas de calcul)
+  const matchesFilter = (family: string, material: string) =>
+    selectedMaterialFilter === 'ALL' ||
+    (selectedMaterialFilter === 'ALU' && family === 'ALU') ||
+    (selectedMaterialFilter === 'ZINC' && family === 'ZINC') ||
+    material === selectedMaterialFilter;
 
-  // Dynamic estimated weight calculation per material across all interval rows
-  const totalWeightEstKg = useMemo(() => {
-    if (tableDevRows.length > 0) {
-      return (
-        Math.round(
-          tableDevRows.reduce((acc, row) => acc + row.weightEst, 0) * 10
-        ) / 10
-      );
-    }
-    return (
-      Math.round(
-        tableIntervalRows.reduce((acc, row) => acc + row.weightEst, 0) * 10
-      ) / 10
-    );
-  }, [tableDevRows, tableIntervalRows]);
+  const filteredDevRows = tableDevRows.filter((r) => matchesFilter(r.metalFamily, r.material));
+
+  const filteredIntervalRows = tableIntervalRows.filter((r) => {
+    if (hideEmptyBounds && r.accumulatedLength <= 0) return false;
+    if (r.count === 0) return selectedMaterialFilter === 'ALL';
+    return matchesFilter(r.metalFamily, r.material);
+  });
 
   // Discrete material badge helper with prominent ALU vs ZINC identification
   const renderMaterialBadge = (material: string, isRowEmpty = false) => {
@@ -1414,16 +1026,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
               <button
                 key={idx}
                 type="button"
-                onClick={() => {
-                  handleUndoLast();
-                  const devToUse = entriesHistory[0]?.dev || 175;
-                  processDirectValues(devToUse, alt.length, alt.quantity, `Dév ${devToUse} · ${alt.label}`);
-                  setLastFeedback({
-                    success: true,
-                    message: `Variante appliquée : ${alt.quantity} pcs de ${alt.length}m (Total ${alt.total_produced}m)`,
-                  });
-                  setBreakdownAlternatives([]);
-                }}
+                onClick={() => handleApplyAlternative(alt)}
                 className={`px-2.5 py-1 rounded-md text-xs font-mono transition-all border cursor-pointer ${
                   alt.is_exact
                     ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
@@ -1481,21 +1084,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
           </div>
         </div>
 
-        {preset === 'DEV_BOBINE' && (
-          <div className="faco-card bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-              Chutes (Dév 0)
-            </span>
-            <div className="mt-0.5 flex items-baseline gap-1">
-              <span className="text-xl font-bold font-mono text-[#e7511f] tabular-nums">
-                {chuteLength.toFixed(2)}
-              </span>
-              <span className="text-xs text-slate-500">
-                m ({chuteCount} pcs)
-              </span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Main Table: Accumulated Intervals & Multi-Material Management */}
@@ -1864,38 +1452,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                   })
                 )}
 
-                {/* Chutes */}
-                {preset === 'DEV_BOBINE' && chuteLength > 0 && (
-                  <tr className="bg-amber-50/50 text-amber-900 border-t border-amber-200">
-                    <td className="py-2.5 px-4 font-bold">0 (CHUTES)</td>
-                    <td className="py-2.5 px-4">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-sans text-amber-800 bg-amber-100 border border-amber-200">
-                        Chutes Atelier
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-4 font-sans text-slate-500 text-[11px]">-</td>
-                    <td className="py-2.5 px-4 font-sans text-slate-500 text-[11px]">
-                      Chutes de bobine répertoriées
-                    </td>
-                    <td className="py-2.5 px-4 text-right tabular-nums font-bold">
-                      {chuteCount}
-                    </td>
-                    <td className="py-2.5 px-4 text-right tabular-nums font-bold text-[#e7511f]">
-                      {chuteLength.toFixed(2)} m
-                    </td>
-                    <td className="py-2.5 px-4 text-right">-</td>
-                    <td className="py-2.5 px-4 text-right">-</td>
-                    <td className="py-2.5 px-4 text-right">
-                      <button
-                        type="button"
-                        onClick={handleResetChutes}
-                        className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           ) : (
@@ -1920,9 +1476,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                   const isHighlighted =
                     lastFeedback?.boundMatched === row.bound &&
                     row.accumulatedLength > 0;
-                  const hasSharedDev = row.entries.some(
-                    (e) => (sharedDevMap.get(e.dev)?.size || 0) > 1
-                  );
+                  const hasSharedDev = row.hasSharedDev;
 
                   return (
                     <tr
@@ -1967,7 +1521,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                         ) : (
                           <div className="flex flex-wrap items-center gap-1.5">
                             {row.entries.map((entry) => {
-                              const isEntryShared = (sharedDevMap.get(entry.dev)?.size || 0) > 1;
+                              const isEntryShared = entry.isShared;
                               return (
                                 <span
                                   key={entry.id}
@@ -2038,38 +1592,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                   );
                 })}
 
-                {preset === 'DEV_BOBINE' && (
-                  <tr className="bg-amber-50/50 text-amber-900 border-t border-amber-200">
-                    <td className="py-2.5 px-4 font-bold">0 (CHUTES)</td>
-                    <td className="py-2.5 px-4">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-sans text-amber-800 bg-amber-100 border border-amber-200">
-                        Chutes
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-4 font-sans text-slate-500 text-[11px]">
-                      Chutes répertoriées
-                    </td>
-                    <td className="py-2.5 px-4 text-right tabular-nums font-bold">
-                      {chuteCount}
-                    </td>
-                    <td className="py-2.5 px-4 text-right tabular-nums font-bold text-[#e7511f]">
-                      {chuteLength.toFixed(2)} m
-                    </td>
-                    <td className="py-2.5 px-4 text-right">-</td>
-                    <td className="py-2.5 px-4 text-right">-</td>
-                    <td className="py-2.5 px-4 text-right">
-                      {chuteLength > 0 && (
-                        <button
-                          type="button"
-                          onClick={handleResetChutes}
-                          className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           )}

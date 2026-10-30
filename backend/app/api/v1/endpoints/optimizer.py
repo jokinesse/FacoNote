@@ -18,11 +18,18 @@ from app.models.optimizer import (
     OptimizationResponse,
 )
 from app.models.pieces import FastEncoderEntryResponse, FastEncoderInputRequest
+from app.models.pieces_summary import (
+    PiecesEncodeRequest,
+    PiecesEncodeResponse,
+    PiecesSummaryRequest,
+    PiecesSummaryResponse,
+)
 from app.models.reference import ReferenceResponse
 from app.services.breakdown_engine import resolve_auto_piece_breakdown
 from app.services.coil_engine import encode_coil_entry, summarize_coils
-from app.services.encoder_engine import parse_composite_input
+from app.services.encoder_engine import encode_three_fields, parse_composite_input
 from app.services.nesting_engine import run_nesting_optimization
+from app.services.pieces_engine import encode_pieces, summarize_pieces
 from app.services.reference_service import build_reference
 from app.services.sheet_generator import generate_workshop_sheet_html
 
@@ -119,12 +126,21 @@ def quick_encode_endpoint(request: FastEncoderInputRequest) -> FastEncoderEntryR
     sur la première borne standard B >= dev.
     """
     try:
-        item = parse_composite_input(
-            input_str=request.raw_input,
-            material_name=request.material,
-            length_unit=request.length_unit,
-            preset=request.preset,
-        )
+        if request.dev_expr is not None and request.dev_expr.strip():
+            item = encode_three_fields(
+                dev_expr=request.dev_expr,
+                quantity=1 if request.quantity is None else request.quantity,
+                length_expr=request.length_expr or "",
+                material_name=request.material,
+                length_unit=request.length_unit,
+            )
+        else:
+            item = parse_composite_input(
+                input_str=request.raw_input,
+                material_name=request.material,
+                length_unit=request.length_unit,
+                preset=request.preset,
+            )
         return FastEncoderEntryResponse(
             raw_input=item.raw_input,
             dev=item.dev,
@@ -148,6 +164,40 @@ def quick_encode_endpoint(request: FastEncoderInputRequest) -> FastEncoderEntryR
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Division par zéro dans l'expression arithmétique",
         ) from exc
+
+
+@router.post(
+    "/pieces-encode",
+    response_model=PiecesEncodeResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Validation et calcul d'un lot de pièces déjà décomposées (import IA, auto-métrage)",
+)
+def pieces_encode_endpoint(request: PiecesEncodeRequest) -> PiecesEncodeResponse:
+    """
+    Valide chaque pièce (développé, quantité, longueur unitaire, matière) et calcule
+    borne, métrage, surface et poids, comme une saisie rapide.
+    """
+    try:
+        return PiecesEncodeResponse(entries=encode_pieces(request.items))
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/pieces-summary",
+    response_model=PiecesSummaryResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Tableau du calculateur Pièce (vue par développement, grille des bornes, totaux)",
+)
+def pieces_summary_endpoint(request: PiecesSummaryRequest) -> PiecesSummaryResponse:
+    """
+    Regroupe les saisies par développement et par borne, calcule surfaces, poids,
+    parts en %, totaux par matière et par famille, et les repères « même développement ».
+    """
+    return summarize_pieces(request.entries)
 
 
 @router.post(

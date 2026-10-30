@@ -6,6 +6,10 @@ import {
   CoilEncodeResponse,
   CoilSummaryRequest,
   CoilSummaryResponse,
+  PieceEncodeItem,
+  PiecesEncodeResponse,
+  PieceSummaryEntry,
+  PiecesSummaryResponse,
   ReferenceResponse,
   FastEncoderInputRequest,
   FastEncoderEntryResponse,
@@ -39,6 +43,27 @@ export const optimizerApi = {
    */
   async autoBreakdown(request: AutoBreakdownRequest): Promise<ApiResponse<AutoPieceBreakdownResponse>> {
     return apiRequest<AutoPieceBreakdownResponse>('/api/v1/optimizer/auto-breakdown', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  },
+
+  /**
+   * Calculateur Pièce : validation et calcul d'un lot de pièces déjà décomposées
+   * (import du scan IA, résultat d'auto-métrage, variante choisie).
+   */
+  async piecesEncode(request: { items: PieceEncodeItem[] }): Promise<ApiResponse<PiecesEncodeResponse>> {
+    return apiRequest<PiecesEncodeResponse>('/api/v1/optimizer/pieces-encode', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  },
+
+  /**
+   * Calculateur Pièce : vue par développement, grille des bornes, totaux, parts en %.
+   */
+  async piecesSummary(request: { entries: PieceSummaryEntry[] }): Promise<ApiResponse<PiecesSummaryResponse>> {
+    return apiRequest<PiecesSummaryResponse>('/api/v1/optimizer/pieces-summary', {
       method: 'POST',
       body: JSON.stringify(request),
     });

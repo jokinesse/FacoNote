@@ -18,7 +18,12 @@ export interface ShapedPieceModel {
 }
 
 export interface FastEncoderInputRequest {
-  raw_input: string;
+  /** Format rapide 'dév/longueur' (ex: '175/8*3') */
+  raw_input?: string;
+  /** Saisie en 3 cases : chaque case est lue séparément par le backend */
+  dev_expr?: string;
+  quantity?: number;
+  length_expr?: string;
   material?: string;
   length_unit?: 'm' | 'mm';
   preset?: 'DEV_PIECE' | 'DEV_BOBINE';
@@ -123,6 +128,98 @@ export interface CoilSummaryResponse {
   alu: CoilFamilyTotals;
   zinc: CoilFamilyTotals;
   standard_widths: number[];
+}
+
+// --- Calculateur Pièce (/optimizer/pieces-encode et /optimizer/pieces-summary) ---
+
+export interface PieceEncodeItem {
+  dev: number;
+  quantity: number;
+  unit_length_m: number;
+  material?: string;
+  label?: string;
+}
+
+export interface PiecesEncodeResponse {
+  entries: FastEncoderEntryResponse[];
+}
+
+export interface PieceSummaryEntry {
+  id: string;
+  dev: number;
+  quantity: number;
+  unit_length_m: number;
+  material: string;
+}
+
+export interface PieceCutDetail {
+  id: string;
+  dev: number;
+  quantity: number;
+  unit_length_m: number;
+  is_shared_dev: boolean;
+}
+
+export interface PieceDevRow {
+  dev: number;
+  bound: number;
+  material: string;
+  family: MetalFamily;
+  quantity: number;
+  length_m: number;
+  surface_m2: number;
+  weight_kg: number;
+  percent: number;
+  is_shared_dev: boolean;
+  shared_with_materials: string[];
+  cuts: PieceCutDetail[];
+}
+
+export interface PieceBoundRow {
+  bound: number;
+  material: string;
+  family: MetalFamily;
+  is_empty: boolean;
+  quantity: number;
+  length_m: number;
+  surface_m2: number;
+  weight_kg: number;
+  percent: number;
+  is_multi_material_bound: boolean;
+  has_shared_dev: boolean;
+  cuts: PieceCutDetail[];
+}
+
+export interface PieceMaterialSummary {
+  material: string;
+  family: MetalFamily;
+  quantity: number;
+  length_m: number;
+  surface_m2: number;
+  weight_kg: number;
+  percent: number;
+}
+
+export interface PieceFamilyTotals {
+  quantity: number;
+  length_m: number;
+  surface_m2: number;
+  weight_kg: number;
+}
+
+export interface PiecesSummaryResponse {
+  dev_rows: PieceDevRow[];
+  bound_rows: PieceBoundRow[];
+  materials: PieceMaterialSummary[];
+  alu: PieceFamilyTotals;
+  zinc: PieceFamilyTotals;
+  totals: {
+    quantity: number;
+    length_m: number;
+    surface_bound_m2: number;
+    surface_net_m2: number;
+    weight_net_kg: number;
+  };
 }
 
 // --- Données de référence (/optimizer/reference) ---

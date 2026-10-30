@@ -32,7 +32,13 @@ class FastEncoderInputRequest(BaseModel):
     """
     model_config = ConfigDict(extra="forbid")
 
-    raw_input: str = Field(..., description="Expression ou saisie avec barre oblique (ex: '175/8*3' ou '250/3*2+1.5')")
+    raw_input: str = Field(
+        "", description="Expression ou saisie avec barre oblique (ex: '175/8*3' ou '250/3*2+1.5')"
+    )
+    # Saisie en 3 cases (prioritaire sur raw_input si dev_expr est renseigné)
+    dev_expr: Optional[str] = Field(None, max_length=64, description="Case Développement (expression autorisée)")
+    quantity: Optional[int] = Field(None, ge=0, le=10000, description="Case Quantité (0 = métrage total pour l'auto-métrage)")
+    length_expr: Optional[str] = Field(None, max_length=128, description="Case Longueur (expression autorisée)")
     material: str = Field("Zinc Naturel 0.7", description="Nuance de matière sélectionnée")
     length_unit: Literal["m", "mm"] = Field("m", description="Unité de longueur saisie")
     preset: Literal["DEV_PIECE", "DEV_BOBINE"] = Field("DEV_PIECE", description="Preset des bornes actives")

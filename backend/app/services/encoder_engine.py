@@ -44,6 +44,56 @@ def find_matched_bound(dev_mm: float, bounds: tuple[int, ...] = DEV_PIECE_BOUNDS
     return bounds[-1]
 
 
+def encode_three_fields(
+    dev_expr: str,
+    quantity: int,
+    length_expr: str,
+    material_name: str = "Zinc Naturel 0.7",
+    length_unit: Literal["m", "mm"] = "m",
+) -> FastEncodingItem:
+    """
+    Saisie en 3 cases (Développement / Quantité / Longueur), chaque case lue séparément :
+    une formule de longueur s'applique à une pièce (qté 4, longueur '2+1' -> 4 × 3 m).
+    Quantité 0 = auto-métrage : la longueur est alors le métrage total demandé.
+    Mode pièce uniquement (développé > 0).
+    """
+    try:
+        evaluated_dev = evaluate_expression(dev_expr)
+    except ValueError as exc:
+        raise ValueError(f"Développement invalide : {exc}") from exc
+    dev_int = round(evaluated_dev)
+    if dev_int <= 0:
+        raise ValueError("Développement de pièce invalide (> 0 mm requis)")
+    if quantity < 0:
+        raise ValueError("Quantité invalide")
+
+    try:
+        unit_length_m = evaluate_expression(length_expr)
+    except ValueError as exc:
+        raise ValueError(f"Longueur invalide : {exc}") from exc
+    if length_unit == "mm":
+        unit_length_m = unit_length_m / 1000.0
+    if unit_length_m <= 0:
+        raise ValueError("La longueur doit être strictement supérieure à 0")
+
+    is_auto_breakdown = quantity == 0
+    total_length_m = round_meters(unit_length_m if is_auto_breakdown else unit_length_m * quantity)
+    mat_spec = resolve_material_spec(material_name)
+    return FastEncodingItem(
+        raw_input=f"{dev_expr}/{quantity}*{length_expr}",
+        dev=dev_int,
+        unit_length_m=round_meters(unit_length_m),
+        quantity=quantity,
+        total_length_m=total_length_m,
+        matched_bound=find_matched_bound(float(dev_int), DEV_PIECE_BOUNDS),
+        is_chute=False,
+        is_auto_breakdown=is_auto_breakdown,
+        surface_net_m2=calculate_surface_m2(float(dev_int), total_length_m),
+        weight_net_kg=calculate_weight_kg(float(dev_int), total_length_m, mat_spec.surface_density_kg_m2),
+        material=mat_spec.name,
+    )
+
+
 def parse_composite_input(
     input_str: str,
     material_name: str = "Zinc 0.70",

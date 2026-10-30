@@ -143,8 +143,9 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
   };
 
   // Navigation clavier entre les 3 cases :
-  // Entrée = case suivante (après Longueur : bouton Ajouter), Maj+Entrée = case précédente,
-  // flèches gauche/droite = case voisine quand le curseur est au bord du texte.
+  // Entrée = case suivante, et sur Longueur : ajout direct. Maj+Entrée = case précédente.
+  // Flèches gauche/droite = case voisine quand le curseur est au bord du texte.
+  // Le bouton Ajouter ne s'atteint qu'avec Tab ou la souris.
   const handleFieldKeys = (index: number) => (e: React.KeyboardEvent<HTMLInputElement>) => {
     const input = e.currentTarget;
     const len = input.value.length;
@@ -158,12 +159,11 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
       } else if (index < fields.length - 1) {
         focus(fields[index + 1]);
       } else {
-        addRef.current?.focus();
+        handleAdd();
       }
-    } else if (e.key === 'ArrowRight' && atEnd) {
+    } else if (e.key === 'ArrowRight' && atEnd && index < fields.length - 1) {
       e.preventDefault();
-      if (index < fields.length - 1) focus(fields[index + 1]);
-      else addRef.current?.focus();
+      focus(fields[index + 1]);
     } else if (e.key === 'ArrowLeft' && atStart && index > 0) {
       e.preventDefault();
       focus(fields[index - 1]);
@@ -518,7 +518,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
         </div>
 
         <p className="text-[10px] text-slate-400">
-          Entrée : case suivante, puis Ajouter · Maj+Entrée ou ← : revenir en arrière · → : avancer
+          Entrée : case suivante · Entrée sur Longueur : ajouter · Maj+Entrée ou ← : revenir en arrière · → : avancer
         </p>
 
         {feedback && (

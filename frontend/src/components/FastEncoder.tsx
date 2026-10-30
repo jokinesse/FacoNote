@@ -97,8 +97,9 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
   const qtyRef = useRef<HTMLInputElement>(null);
   const addBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Navigation clavier entre les 3 cases (Dév → Quantité → Longueur → bouton Ajouter) :
-  // Entrée = suivant, Maj+Entrée = précédent, flèches gauche/droite au bord du texte = case voisine.
+  // Navigation clavier entre les 3 cases (Dév → Quantité → Longueur) :
+  // Entrée = case suivante, et sur Longueur : ajout direct. Maj+Entrée = case précédente.
+  // Flèches gauche/droite au bord du texte = case voisine. Le bouton Ajouter : Tab ou souris.
   const pieceFields = [devRef, qtyRef, lengthRef];
   const focusField = (ref: React.RefObject<HTMLInputElement | null>) => {
     ref.current?.focus();
@@ -120,12 +121,11 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
       } else if (index < pieceFields.length - 1) {
         focusField(pieceFields[index + 1]);
       } else {
-        addBtnRef.current?.focus();
+        handleSubmitEntry();
       }
-    } else if (e.key === 'ArrowRight' && atEnd) {
+    } else if (e.key === 'ArrowRight' && atEnd && index < pieceFields.length - 1) {
       e.preventDefault();
-      if (index < pieceFields.length - 1) focusField(pieceFields[index + 1]);
-      else addBtnRef.current?.focus();
+      focusField(pieceFields[index + 1]);
     } else if (e.key === 'ArrowLeft' && atStart && index > 0) {
       e.preventDefault();
       focusField(pieceFields[index - 1]);

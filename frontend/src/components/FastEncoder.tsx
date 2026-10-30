@@ -1252,38 +1252,13 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                   if (inputDev.includes('/')) {
                     handleSubmitEntry();
                   } else {
-                    lengthRef.current?.focus();
-                    lengthRef.current?.select();
+                    qtyRef.current?.focus();
+                    qtyRef.current?.select();
                   }
                 }
               }}
               placeholder={preset === 'DEV_BOBINE' ? 'ex: 650 (0 = chute)' : 'ex: 175'}
               className="faco-input w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-[#00478a] placeholder:text-slate-400 focus:outline-none focus:border-[#00478a] focus:bg-white"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="caseLength"
-              className="text-[11px] font-semibold text-slate-600 block mb-1"
-            >
-              Longueur ({lengthUnit})
-            </label>
-            <input
-              id="caseLength"
-              ref={lengthRef}
-              type="text"
-              value={inputLength}
-              onChange={(e) => setInputLength(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  qtyRef.current?.focus();
-                  qtyRef.current?.select();
-                }
-              }}
-              placeholder="ex: 2.0"
-              className="faco-input w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-[#282828] placeholder:text-slate-400 focus:outline-none focus:border-[#00478a] focus:bg-white"
             />
           </div>
 
@@ -1304,10 +1279,35 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
-                  handleSubmitEntry();
+                  lengthRef.current?.focus();
+                  lengthRef.current?.select();
                 }
               }}
               placeholder="ex: 4"
+              className="faco-input w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-[#282828] placeholder:text-slate-400 focus:outline-none focus:border-[#00478a] focus:bg-white"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="caseLength"
+              className="text-[11px] font-semibold text-slate-600 block mb-1"
+            >
+              Longueur ({lengthUnit})
+            </label>
+            <input
+              id="caseLength"
+              ref={lengthRef}
+              type="text"
+              value={inputLength}
+              onChange={(e) => setInputLength(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSubmitEntry();
+                }
+              }}
+              placeholder="ex: 2.0"
               className="faco-input w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-[#282828] placeholder:text-slate-400 focus:outline-none focus:border-[#00478a] focus:bg-white"
             />
           </div>

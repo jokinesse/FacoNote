@@ -1336,9 +1336,15 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
               disabled={isSubmitting}
               onClick={() => handleSubmitEntry()}
               onKeyDown={(e) => {
-                // Entrée et Espace cliquent nativement ; retour arrière vers Longueur
-                if ((e.key === 'Enter' && e.shiftKey) || e.key === 'ArrowLeft') {
+                // Entrée = Ajouter. On bloque la propagation, sinon la calculette d'atelier
+                // (raccourcis clavier globaux) intercepte Entrée et annule le clic.
+                if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
+                  e.stopPropagation();
+                  if (!isSubmitting) handleSubmitEntry();
+                } else if ((e.key === 'Enter' && e.shiftKey) || e.key === 'ArrowLeft') {
+                  e.preventDefault();
+                  e.stopPropagation();
                   focusField(lengthRef);
                 }
               }}

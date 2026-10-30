@@ -372,9 +372,15 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
               type="button"
               onClick={handleAdd}
               onKeyDown={(e) => {
-                // Entrée et Espace cliquent nativement ; retour arrière vers Longueur
-                if ((e.key === 'Enter' && e.shiftKey) || e.key === 'ArrowLeft') {
+                // Entrée = Ajouter. On bloque la propagation, sinon la calculette d'atelier
+                // (raccourcis clavier globaux) intercepte Entrée et annule le clic.
+                if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
+                  e.stopPropagation();
+                  handleAdd();
+                } else if ((e.key === 'Enter' && e.shiftKey) || e.key === 'ArrowLeft') {
+                  e.preventDefault();
+                  e.stopPropagation();
                   focus(lengthRef);
                 }
               }}

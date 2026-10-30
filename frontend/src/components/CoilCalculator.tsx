@@ -137,8 +137,8 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
           (DEFAULT_BOBINE_BOUNDS.includes(roundedWidth) ? '' : ' — largeur hors standard'),
     });
 
-    // Retour sur la case Largeur. Elle reste remplie et sélectionnée :
-    // Entrée la garde pour enchaîner sur la même bobine, taper un chiffre la remplace.
+    // Retour sur la case Largeur, vidée comme dans le calculateur des pièces
+    setInputWidth('');
     setInputQuantity('1');
     setInputLength('');
     focus(widthRef);

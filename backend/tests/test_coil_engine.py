@@ -68,6 +68,13 @@ def test_encode_invalid_inputs(width: str, qty: int, length: str) -> None:
         encode_coil_entry(width, qty, length, "m", "Zinc Naturel 0.7")
 
 
+def test_encode_error_names_the_field() -> None:
+    with pytest.raises(ValueError, match="Largeur"):
+        encode_coil_entry("abc", 1, "2", "m", "Zinc Naturel 0.7")
+    with pytest.raises(ValueError, match="Longueur"):
+        encode_coil_entry("1000", 1, "abc", "m", "Zinc Naturel 0.7")
+
+
 # --- summarize_coils -----------------------------------------------------------------
 
 def test_summary_empty_has_standard_grid() -> None:

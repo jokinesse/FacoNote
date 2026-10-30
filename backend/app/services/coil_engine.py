@@ -51,7 +51,10 @@ def encode_coil_entry(
     Lève ValueError si la largeur, la quantité ou la longueur est invalide,
     ZeroDivisionError en cas de division par zéro dans une expression.
     """
-    width_value = evaluate_expression(width_expr)
+    try:
+        width_value = evaluate_expression(width_expr)
+    except ValueError as exc:
+        raise ValueError(f"Largeur de bobine invalide : {exc}") from exc
     if width_value < 0:
         raise ValueError("Largeur de bobine invalide (en mm, ou 0 pour une chute)")
     width = round(width_value)
@@ -59,7 +62,10 @@ def encode_coil_entry(
     if quantity < 1:
         raise ValueError("Quantité invalide (1 minimum)")
 
-    length_value = evaluate_expression(length_expr)
+    try:
+        length_value = evaluate_expression(length_expr)
+    except ValueError as exc:
+        raise ValueError(f"Longueur invalide : {exc}") from exc
     unit_length_m = length_value / 1000.0 if length_unit == "mm" else length_value
     unit_length_m = round_meters(unit_length_m)
     if unit_length_m <= 0:

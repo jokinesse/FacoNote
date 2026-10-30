@@ -23,6 +23,7 @@ from app.models.optimizer import (
     SlitStripModel,
     WorkshopScrapProposalModel,
 )
+from app.services.sheets_recap import build_sheets_recap
 
 
 @dataclass(frozen=True)
@@ -584,6 +585,21 @@ def run_nesting_optimization(request: OptimizationRequest) -> OptimizationRespon
         f"Poids total de débit : {round(gross_weight_acc, 2)} kg.{reused_note}"
     )
 
+    # Rendement et surface de chaque tôle, pour le plan de découpe
+    final_slits = [
+        s.model_copy(update={
+            "yield_percent": round(s.used_width / s.mother_width * 100, 1) if s.mother_width > 0 else 0.0,
+            "mother_surface_m2": calculate_surface_m2(float(s.mother_width), s.mother_length),
+        })
+        for s in final_slits
+    ]
+    sheets_recap, sheets_recap_totals = build_sheets_recap(final_slits)
+
+    # Totaux des pièces demandées (liste de l'Optimiseur, fiche d'atelier)
+    input_total_pieces = sum(p.quantity for p in request.pieces)
+    input_total_length_m = round_meters(sum(p.length * p.quantity for p in request.pieces))
+    input_total_surface_m2 = round(sum(p.dev / 1000 * p.length * p.quantity for p in request.pieces), 2)
+
     return OptimizationResponse(
         order_id=order_id,
         timestamp=timestamp,
@@ -598,4 +614,9 @@ def run_nesting_optimization(request: OptimizationRequest) -> OptimizationRespon
         workshop_scrap_proposals=returned_proposals,
         applied_workshop_scraps=applied_scraps,
         summary_message=summary_msg,
+        sheets_recap=sheets_recap,
+        input_total_pieces=input_total_pieces,
+        input_total_length_m=input_total_length_m,
+        input_total_surface_m2=input_total_surface_m2,
+        sheets_recap_totals=sheets_recap_totals,
     )

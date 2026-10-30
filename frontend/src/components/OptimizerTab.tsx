@@ -25,15 +25,7 @@ import {
   MATERIAL_GROUPS,
   WorkshopScrapProposal,
 } from '../types';
-import {
-  runOptimization,
-  getMaterialDensity,
-  getMaterialWeightDetails,
-  resolveAutoPieceBreakdown,
-  AutoPieceBreakdown,
-  STANDARD_WORKSHOP_SCRAP_WIDTHS,
-} from '../utils/optimizer';
-import { useReference } from '../api';
+import type { AutoPieceBreakdown } from '../utils/optimizer';
 import { WorkshopPrintModal, WorkshopJobData } from './WorkshopPrintModal';
 import { cleanWorkshopText } from '../utils/textCleaner';
 import { VisualPreEncoderModal } from './VisualPreEncoderModal';
@@ -43,6 +35,10 @@ import {
   ApiError,
   mapBackendOptimizationToResult,
   mapShapedPieceToModel,
+  mapAutoBreakdown,
+  useReference,
+  SheetsRecapMaterial,
+  SheetsRecapTotals,
 } from '../api';
 import { CuttingPlan2D } from './CuttingPlan2D';
 
@@ -291,13 +287,35 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
     return reference.coil_widths_mm.filter((w) => !disabledWidths.includes(w));
   }, [reference, disabledWidths]);
 
-  // Mode Auto-Métrage (activé quand Quantité = 0)
+  // Mode Auto-Métrage (activé quand Quantité = 0) : aperçu calculé par le backend (auto-breakdown)
   const isAutoMeterMode = newQty.trim() === '0';
-  const autoBreakdown = useMemo(() => {
-    if (!isAutoMeterMode) return null;
+  const [autoBreakdown, setAutoBreakdown] = useState<AutoPieceBreakdown | null>(null);
+  useEffect(() => {
     const meters = parseFloat(newLength);
-    if (isNaN(meters) || meters <= 0) return null;
-    return resolveAutoPieceBreakdown(meters, pieces, newMat || selectedMaterial, selectedForcedLength);
+    if (!isAutoMeterMode || isNaN(meters) || meters <= 0 || meters > 500) {
+      setAutoBreakdown(null);
+      return;
+    }
+    let active = true;
+    const timer = setTimeout(() => {
+      optimizerApi
+        .autoBreakdown({
+          total_meters: meters,
+          current_pieces: pieces.map(mapShapedPieceToModel),
+          target_material: newMat || selectedMaterial,
+          forced_length: selectedForcedLength ?? null,
+        })
+        .then((res) => {
+          if (active) setAutoBreakdown(mapAutoBreakdown(res.data));
+        })
+        .catch(() => {
+          if (active) setAutoBreakdown(null);
+        });
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, [isAutoMeterMode, newLength, pieces, newMat, selectedMaterial, selectedForcedLength]);
 
   // Core calculation function connectée à l'API FastAPI (/api/v1/optimizer/calculate)
@@ -331,6 +349,12 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
       setCalculationTimeMs(response.executionTimeMs);
       const res = mapBackendOptimizationToResult(response.data, currentPieces);
       setOptimizationResult(res);
+      setSheetsRecap({
+        materials: response.data.sheets_recap ?? [],
+        totals: response.data.sheets_recap_totals ?? {
+          total_sheets: 0, total_length_m: 0, total_surface_m2: 0, total_weight_kg: 0,
+        },
+      });
     } catch (err: any) {
       console.error('Erreur optimisation API:', err);
       const msg = err instanceof ApiError ? err.message : err.message || "Erreur lors du calcul d'imbrication";
@@ -384,147 +408,38 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
     );
   };
 
-  // Aggregated summary of mother sheets to pull from stock, grouped by material and dimensions
-  const sheetsRecapByMaterial = useMemo(() => {
-    if (
-      !optimizationResult ||
-      !optimizationResult.motherItemsNeeded ||
-      optimizationResult.motherItemsNeeded.length === 0
-    ) {
-      return [];
-    }
+  // Feuilles / bobines mères à sortir : calculé par le moteur d'imbrication (sheets_recap)
+  const [sheetsRecap, setSheetsRecap] = useState<{
+    materials: SheetsRecapMaterial[];
+    totals: SheetsRecapTotals;
+  } | null>(null);
 
-    const matMap = new Map<
-      string,
-      {
-        material: string;
-        density: number;
-        formats: Map<
-          string,
-          {
-            motherWidth: number;
-            motherLength: number;
-            count: number;
-            totalLengthM: number;
-            totalSurfaceM2: number;
-            totalWeightKg: number;
-            piecesProduced: { label: string; dev: number; count: number }[];
-          }
-        >;
-        totalSheets: number;
-        totalLengthM: number;
-        totalSurfaceM2: number;
-        totalWeightKg: number;
-      }
-    >();
+  const sheetsRecapByMaterial = (optimizationResult ? sheetsRecap?.materials ?? [] : []).map((m) => ({
+    material: m.material,
+    density: m.surface_density_kg_m2,
+    totalSheets: m.total_sheets,
+    totalLengthM: m.total_length_m,
+    totalSurfaceM2: m.total_surface_m2,
+    totalWeightKg: m.total_weight_kg,
+    formatList: m.formats.map((f) => ({
+      motherWidth: f.mother_width,
+      motherLength: f.mother_length,
+      count: f.count,
+      totalLengthM: f.total_length_m,
+      totalSurfaceM2: f.total_surface_m2,
+      totalWeightKg: f.total_weight_kg,
+      piecesProduced: f.pieces,
+    })),
+  }));
 
-    for (const mItem of optimizationResult.motherItemsNeeded) {
-      // Les reprises sur chutes déjà sorties (REUSED_OFFCUT) ne nécessitent pas de sortir une nouvelle feuille au magasin
-      if (mItem.slits[0]?.sourceType === 'REUSED_OFFCUT') {
-        continue;
-      }
-
-      const mat = mItem.material || selectedMaterial || 'Zinc Quartz 0.7';
-      const density = getMaterialDensity(mat);
-
-      if (!matMap.has(mat)) {
-        matMap.set(mat, {
-          material: mat,
-          density,
-          formats: new Map(),
-          totalSheets: 0,
-          totalLengthM: 0,
-          totalSurfaceM2: 0,
-          totalWeightKg: 0,
-        });
-      }
-
-      const matEntry = matMap.get(mat)!;
-      matEntry.totalSheets += 1;
-      matEntry.totalLengthM += mItem.motherLength;
-      const sheetSurf = (mItem.motherWidth / 1000) * mItem.motherLength;
-      matEntry.totalSurfaceM2 += sheetSurf;
-      matEntry.totalWeightKg += sheetSurf * density;
-
-      const formatKey = `${mItem.motherWidth}__${mItem.motherLength}`;
-      if (!matEntry.formats.has(formatKey)) {
-        matEntry.formats.set(formatKey, {
-          motherWidth: mItem.motherWidth,
-          motherLength: mItem.motherLength,
-          count: 0,
-          totalLengthM: 0,
-          totalSurfaceM2: 0,
-          totalWeightKg: 0,
-          piecesProduced: [],
-        });
-      }
-
-      const formatEntry = matEntry.formats.get(formatKey)!;
-      formatEntry.count += 1;
-      formatEntry.totalLengthM += mItem.motherLength;
-      formatEntry.totalSurfaceM2 += sheetSurf;
-      formatEntry.totalWeightKg += sheetSurf * density;
-
-      for (const slit of mItem.slits) {
-        for (const strip of slit.strips) {
-          const existing = formatEntry.piecesProduced.find(
-            (p) => p.label === strip.label && p.dev === strip.dev
-          );
-          if (existing) {
-            existing.count += strip.qty || 1;
-          } else {
-            formatEntry.piecesProduced.push({
-              label: strip.label,
-              dev: strip.dev,
-              count: strip.qty || 1,
-            });
-          }
-        }
-      }
-    }
-
-    return Array.from(matMap.values()).map((matGroup) => ({
-      ...matGroup,
-      totalSurfaceM2: Math.round(matGroup.totalSurfaceM2 * 100) / 100,
-      totalLengthM: Math.round(matGroup.totalLengthM * 100) / 100,
-      totalWeightKg: Math.round(matGroup.totalWeightKg * 10) / 10,
-      formatList: Array.from(matGroup.formats.values()).map((f) => ({
-        ...f,
-        totalSurfaceM2: Math.round(f.totalSurfaceM2 * 100) / 100,
-        totalLengthM: Math.round(f.totalLengthM * 100) / 100,
-        totalWeightKg: Math.round(f.totalWeightKg * 10) / 10,
-      })),
-    }));
-  }, [optimizationResult, selectedMaterial]);
-
-  const grandTotalSheets = useMemo(
-    () => sheetsRecapByMaterial.reduce((acc, m) => acc + m.totalSheets, 0),
-    [sheetsRecapByMaterial]
-  );
-  const grandTotalMeters = useMemo(
-    () =>
-      Math.round(
-        sheetsRecapByMaterial.reduce((acc, m) => acc + m.totalLengthM, 0) * 100
-      ) / 100,
-    [sheetsRecapByMaterial]
-  );
-  const grandTotalSurface = useMemo(
-    () =>
-      Math.round(
-        sheetsRecapByMaterial.reduce((acc, m) => acc + m.totalSurfaceM2, 0) * 100
-      ) / 100,
-    [sheetsRecapByMaterial]
-  );
-  const grandTotalWeight = useMemo(
-    () =>
-      Math.round(
-        sheetsRecapByMaterial.reduce((acc, m) => acc + m.totalWeightKg, 0) * 10
-      ) / 10,
-    [sheetsRecapByMaterial]
-  );
+  const recapTotals = optimizationResult ? sheetsRecap?.totals : undefined;
+  const grandTotalSheets = recapTotals?.total_sheets ?? 0;
+  const grandTotalMeters = recapTotals?.total_length_m ?? 0;
+  const grandTotalSurface = recapTotals?.total_surface_m2 ?? 0;
+  const grandTotalWeight = recapTotals?.total_weight_kg ?? 0;
 
   // Add piece manually (supports Quantité = 0 for auto meterage sizing)
-  const handleAddPiece = (e: React.FormEvent) => {
+  const handleAddPiece = async (e: React.FormEvent) => {
     e.preventDefault();
     const devNum = parseFloat(newDev);
     const lenNum = parseFloat(newLength);
@@ -542,17 +457,22 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
     let splitReason = `Saisie manuelle : ${qtyNum} pcs × ${lenNum}m`;
 
     if (qtyNum === 0) {
-      // Auto meterage breakdown mode
-      const breakdown = resolveAutoPieceBreakdown(
-        lenNum,
-        pieces,
-        newMat || selectedMaterial,
-        selectedForcedLength
-      );
-      finalLength = breakdown.length;
-      finalQty = breakdown.quantity;
-      originalRequested = lenNum;
-      splitReason = breakdown.reason;
+      // Auto-métrage calculé par le backend
+      try {
+        const res = await optimizerApi.autoBreakdown({
+          total_meters: lenNum,
+          current_pieces: pieces.map(mapShapedPieceToModel),
+          target_material: newMat || selectedMaterial,
+          forced_length: selectedForcedLength ?? null,
+        });
+        finalLength = res.data.length;
+        finalQty = res.data.quantity;
+        originalRequested = lenNum;
+        splitReason = res.data.reason;
+      } catch (err: any) {
+        setActionNotice(`Auto-métrage impossible : ${err?.message || 'erreur du calcul'}`);
+        return;
+      }
     }
 
     const newPiece: ShapedPiece = {
@@ -788,13 +708,9 @@ Sois direct, pro et concis en français.`;
     }
   };
 
-  const totalPiecesCount = useMemo(() => {
-    return pieces.reduce((sum, p) => sum + p.quantity, 0);
-  }, [pieces]);
-
-  const totalLinearMeters = useMemo(() => {
-    return pieces.reduce((sum, p) => sum + p.length * p.quantity, 0);
-  }, [pieces]);
+  // Totaux de la liste : calculés par le moteur avec l'optimisation
+  const totalPiecesCount = optimizationResult?.inputTotals?.pieces ?? 0;
+  const totalLinearMeters = optimizationResult?.inputTotals?.lengthM ?? 0;
 
   const printableJob: WorkshopJobData = {
     code: `FZ-DEBIT-${new Date().getFullYear()}`,

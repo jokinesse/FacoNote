@@ -102,6 +102,8 @@ class SlitNestResultModel(BaseModel):
     scrap_width: int
     is_scrap_reusable: bool
     suggested_scrap_ref: Optional[str] = None
+    yield_percent: float = Field(0.0, description="Largeur utilisée / largeur de la tôle, en %")
+    mother_surface_m2: float = Field(0.0, description="Surface de la tôle (largeur × longueur) en m²")
 
     # Champs pour le réemploi intelligent de chutes inter-longueurs (ex: pièce de 3.5m dans chute de 4m)
     source_type: Literal["MOTHER_COIL", "REUSED_OFFCUT"] = Field(
@@ -154,6 +156,51 @@ class AppliedWorkshopScrapModel(BaseModel):
     material: str
 
 
+class SheetPieceCountModel(BaseModel):
+    """Pièces produites dans un format de feuille mère."""
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    dev: int
+    count: int
+
+
+class SheetFormatRecapModel(BaseModel):
+    """Feuilles mères d'un même format (largeur × longueur) à sortir."""
+    model_config = ConfigDict(extra="forbid")
+
+    mother_width: int
+    mother_length: float
+    count: int
+    total_length_m: float
+    total_surface_m2: float
+    total_weight_kg: float
+    pieces: list[SheetPieceCountModel]
+
+
+class SheetsRecapMaterialModel(BaseModel):
+    """Feuilles mères à sortir pour une matière."""
+    model_config = ConfigDict(extra="forbid")
+
+    material: str
+    surface_density_kg_m2: float
+    total_sheets: int
+    total_length_m: float
+    total_surface_m2: float
+    total_weight_kg: float
+    formats: list[SheetFormatRecapModel]
+
+
+class SheetsRecapTotalsModel(BaseModel):
+    """Totaux des feuilles mères à sortir, toutes matières."""
+    model_config = ConfigDict(extra="forbid")
+
+    total_sheets: int = 0
+    total_length_m: float = 0.0
+    total_surface_m2: float = 0.0
+    total_weight_kg: float = 0.0
+
+
 class OptimizationResponse(BaseModel):
     """
     Synthèse globale de découpe et de nesting.
@@ -173,3 +220,12 @@ class OptimizationResponse(BaseModel):
     workshop_scrap_proposals: list[WorkshopScrapProposalModel] = Field(default_factory=list)
     applied_workshop_scraps: list[AppliedWorkshopScrapModel] = Field(default_factory=list)
     summary_message: str = Field("", description="Synthèse d'atelier pour l'opérateur")
+    sheets_recap: list[SheetsRecapMaterialModel] = Field(
+        default_factory=list, description="Feuilles / bobines mères neuves à sortir, par matière et par format"
+    )
+    input_total_pieces: int = Field(0, description="Nombre total de pièces demandées")
+    input_total_length_m: float = Field(0.0, description="Métrage linéaire total des pièces demandées")
+    input_total_surface_m2: float = Field(0.0, description="Surface nette totale des pièces demandées")
+    sheets_recap_totals: SheetsRecapTotalsModel = Field(
+        default_factory=SheetsRecapTotalsModel, description="Totaux des feuilles mères à sortir"
+    )

@@ -184,6 +184,10 @@ export interface SlitNestResult {
   scrapWidth: number;
   isScrapReusable: boolean;
   suggestedScrapRef?: string;
+  /** Calculé par le moteur : largeur utilisée / largeur de la tôle, en % */
+  yieldPercent?: number;
+  /** Calculé par le moteur : surface de la tôle en m² */
+  motherSurfaceM2?: number;
   sourceType?: 'MOTHER_COIL' | 'REUSED_OFFCUT';
   sourceLabel?: string;
   sourceOpIndex?: number;
@@ -249,6 +253,8 @@ export interface OptimizationResult {
   materialEfficiencyRate: number; // e.g. 94.5%
   netWeightKg: number;
   grossWeightKg: number;
+  /** Totaux des pièces demandées, calculés par le moteur */
+  inputTotals?: { pieces: number; lengthM: number; surfaceM2: number };
   aiInsights?: {
     summary?: string;
     workshopTips?: string[];

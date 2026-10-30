@@ -31,14 +31,10 @@ export const WorkshopPrintModal: React.FC<WorkshopPrintModalProps> = ({
     window.print();
   };
 
-  const totalMeters = job.pieces.reduce(
-    (acc, p) => acc + p.length * p.quantity,
-    0
-  );
-  const totalSurfaceM2 = job.pieces.reduce(
-    (acc, p) => acc + (p.dev / 1000) * p.length * p.quantity,
-    0
-  );
+  // Totaux calculés par le moteur (réponse d'optimisation)
+  const totalPieces = optimizationResult?.inputTotals?.pieces ?? 0;
+  const totalMeters = optimizationResult?.inputTotals?.lengthM ?? 0;
+  const totalSurfaceM2 = optimizationResult?.inputTotals?.surfaceM2 ?? 0;
 
   const displayCode = job.code || `FZ-DEBIT-${new Date().getFullYear()}`;
   const displayDate = job.date || new Date().toISOString().split('T')[0];
@@ -180,7 +176,7 @@ export const WorkshopPrintModal: React.FC<WorkshopPrintModalProps> = ({
                     Total Pièces Façonnées
                   </td>
                   <td className="py-2 px-3 text-right font-mono">
-                    {job.pieces.reduce((acc, p) => acc + p.quantity, 0)}
+                    {totalPieces}
                   </td>
                   <td className="py-2 px-3 text-right font-mono">
                     {totalMeters.toFixed(2)} m

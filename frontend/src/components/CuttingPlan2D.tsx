@@ -110,7 +110,7 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
           const isExpanded = expandedOps[opIdx] !== false;
           const motherWidth = mItem.motherWidth;
           const motherLength = mItem.motherLength;
-          const yieldPercent = Math.round((slit.usedWidth / motherWidth) * 1000) / 10;
+          const yieldPercent = slit.yieldPercent ?? 0;
           const scrapWidth = slit.scrapWidth;
           const isReusedOffcut = slit.sourceType === 'REUSED_OFFCUT';
           const isParentReused = slit.suggestedScrapRef?.includes('Réemployée');
@@ -186,7 +186,7 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
                   </strong>
 
                   <span className="text-xs text-slate-500 font-mono">
-                    ({((motherWidth / 1000) * motherLength).toFixed(2)} m²)
+                    ({(slit.motherSurfaceM2 ?? 0).toFixed(2)} m²)
                   </span>
                 </div>
 

@@ -1,7 +1,9 @@
 import {
+  AutoPieceBreakdownResponse,
   OptimizationResponse,
   ShapedPieceModel,
 } from './types';
+import type { AutoPieceBreakdown } from '../utils/optimizer';
 import {
   OptimizationResult,
   ShapedPiece,
@@ -38,6 +40,8 @@ export function mapBackendOptimizationToResult(
         scrapWidth: s.scrap_width,
         isScrapReusable: s.is_scrap_reusable,
         suggestedScrapRef: s.suggested_scrap_ref || undefined,
+        yieldPercent: s.yield_percent ?? 0,
+        motherSurfaceM2: s.mother_surface_m2 ?? 0,
         sourceType: s.source_type || 'MOTHER_COIL',
         sourceLabel: s.source_label || undefined,
         sourceOpIndex: s.source_op_index || undefined,
@@ -122,6 +126,11 @@ export function mapBackendOptimizationToResult(
     materialEfficiencyRate: backendData.material_efficiency_rate,
     netWeightKg: backendData.net_weight_kg,
     grossWeightKg: backendData.gross_weight_kg,
+    inputTotals: {
+      pieces: backendData.input_total_pieces ?? 0,
+      lengthM: backendData.input_total_length_m ?? 0,
+      surfaceM2: backendData.input_total_surface_m2 ?? 0,
+    },
   };
 }
 
@@ -141,5 +150,30 @@ export function mapShapedPieceToModel(p: ShapedPiece): ShapedPieceModel {
     notes: p.notes || null,
     original_total_length_requested: p.originalTotalLengthRequested || null,
     source_type: p.sourceType || 'BOBINE',
+  };
+}
+
+/**
+ * Convertit la réponse d'auto-métrage du backend au format d'affichage de l'Optimiseur.
+ */
+export function mapAutoBreakdown(data: AutoPieceBreakdownResponse): AutoPieceBreakdown {
+  return {
+    length: data.length,
+    quantity: data.quantity,
+    totalProduced: data.total_produced,
+    requestedMeters: data.requested_meters,
+    reason: data.reason,
+    source: data.source as AutoPieceBreakdown['source'],
+    alternatives: data.alternatives.map((alt) => ({
+      length: alt.length,
+      quantity: alt.quantity,
+      totalProduced: alt.total_produced,
+      excess: alt.excess,
+      isExact: alt.is_exact,
+      isExisting: alt.is_existing,
+      isClosest: alt.is_closest,
+      score: alt.score,
+      label: alt.label,
+    })),
   };
 }

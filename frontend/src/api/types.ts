@@ -288,6 +288,8 @@ export interface SlitModel {
   scrap_width: number;
   is_scrap_reusable: boolean;
   suggested_scrap_ref: string | null;
+  yield_percent?: number;
+  mother_surface_m2?: number;
   source_type?: 'MOTHER_COIL' | 'REUSED_OFFCUT';
   source_label?: string | null;
   source_op_index?: number | null;
@@ -352,6 +354,37 @@ export interface OptimizationResponse {
   workshop_scrap_proposals: ScrapProposalModel[];
   applied_workshop_scraps: (AppliedScrapModel | string)[];
   summary_message: string;
+  sheets_recap?: SheetsRecapMaterial[];
+  input_total_pieces?: number;
+  input_total_length_m?: number;
+  input_total_surface_m2?: number;
+  sheets_recap_totals?: SheetsRecapTotals;
+}
+
+// Feuilles / bobines mères neuves à sortir (calculé par le moteur d'imbrication)
+export interface SheetsRecapMaterial {
+  material: string;
+  surface_density_kg_m2: number;
+  total_sheets: number;
+  total_length_m: number;
+  total_surface_m2: number;
+  total_weight_kg: number;
+  formats: {
+    mother_width: number;
+    mother_length: number;
+    count: number;
+    total_length_m: number;
+    total_surface_m2: number;
+    total_weight_kg: number;
+    pieces: { label: string; dev: number; count: number }[];
+  }[];
+}
+
+export interface SheetsRecapTotals {
+  total_sheets: number;
+  total_length_m: number;
+  total_surface_m2: number;
+  total_weight_kg: number;
 }
 
 export interface MobileSessionResponse {

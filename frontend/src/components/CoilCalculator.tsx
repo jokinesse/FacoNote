@@ -1,13 +1,17 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  Calculator,
   CheckCircle2,
   Download,
+  Filter,
+  Layers,
   Plus,
   RotateCcw,
   Trash2,
   X,
 } from 'lucide-react';
+import { MATERIAL_GROUPS, STANDARD_MATERIALS } from '../types';
 import { evaluateExpression } from '../utils/mathEvaluator';
 import { getMaterialDensity } from '../utils/optimizer';
 import { DEFAULT_BOBINE_BOUNDS } from '../utils/sheetLogic';
@@ -31,7 +35,81 @@ interface CoilEntry {
 interface CoilCalculatorProps {
   activeMaterial: string;
   lengthUnit: 'm' | 'mm';
+  onMaterialChange: (material: string) => void;
 }
+
+type MetalFamily = 'ALU' | 'ZINC' | 'AUTRE';
+
+interface CoilRow {
+  id: string;
+  width: number;
+  material: string;
+  family: MetalFamily;
+  entries: CoilEntry[];
+  quantity: number;
+  length: number;
+  surface: number;
+  weight: number;
+  isStandard: boolean;
+}
+
+const metalFamily = (material: string): MetalFamily =>
+  /alu/i.test(material) ? 'ALU' : /zinc/i.test(material) ? 'ZINC' : 'AUTRE';
+
+// Nuances disponibles par largeur standard (affiché sur les lignes vides)
+const WIDTH_HINTS: Record<number, string> = {
+  600: 'Zinc : Naturel · ATZ · Quartz',
+  650: 'Alu 0.7 : RAL 7016 · 9005 · 9010 · 7039',
+  670: 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge',
+  750: 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge',
+  1000: 'Zinc & Alu : toutes nuances',
+  1100: 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge',
+};
+
+// Badge matière, même rendu que dans le calculateur des pièces
+const MaterialBadge: React.FC<{ material: string }> = ({ material }) => {
+  const family = metalFamily(material);
+  if (family === 'ALU') {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border bg-[#00478a]/10 text-[#00478a] border-[#00478a]/25 shadow-2xs"
+        title={material}
+      >
+        <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-[#00478a] text-white tracking-wider">ALU</span>
+        <span className="truncate max-w-[150px] font-bold">{material.replace(/^Alu\s*/i, '')}</span>
+      </span>
+    );
+  }
+  if (family === 'ZINC') {
+    const isRouge = /rouge/i.test(material);
+    return (
+      <span
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border shadow-2xs ${
+          isRouge ? 'bg-rose-50 text-rose-800 border-rose-200' : 'bg-slate-100 text-slate-800 border-slate-300'
+        }`}
+        title={material}
+      >
+        <span
+          className={`px-1.5 py-0.2 rounded text-[9px] font-black text-white tracking-wider ${
+            isRouge ? 'bg-rose-600' : 'bg-slate-700'
+          }`}
+        >
+          ZINC
+        </span>
+        <span className="truncate max-w-[150px] font-bold">{material.replace(/^Zinc\s*/i, '')}</span>
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border bg-slate-100 text-slate-700 border-slate-200"
+      title={material}
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-[#3ca7da] shrink-0"></span>
+      <span className="truncate max-w-[150px] font-semibold">{material}</span>
+    </span>
+  );
+};
 
 const round = (value: number, decimals: number) => {
   const f = 10 ** decimals;
@@ -41,13 +119,15 @@ const round = (value: number, decimals: number) => {
 const fmt = (value: number, decimals = 2) =>
   value.toLocaleString('fr-BE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 
-export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, lengthUnit }) => {
+export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, lengthUnit, onMaterialChange }) => {
   const [entries, setEntries] = useState<CoilEntry[]>([]);
   const [inputWidth, setInputWidth] = useState<string>('');
   const [inputQuantity, setInputQuantity] = useState<string>('1');
   const [inputLength, setInputLength] = useState<string>('');
   const [feedback, setFeedback] = useState<{ success: boolean; message: string } | null>(null);
   const [isConfirmingClear, setIsConfirmingClear] = useState(false);
+  const [materialFilter, setMaterialFilter] = useState<'ALL' | 'ALU' | 'ZINC'>('ALL');
+  const [hideEmpty, setHideEmpty] = useState(false);
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const widthRef = useRef<HTMLInputElement>(null);
@@ -176,81 +256,115 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
     focus(widthRef);
   };
 
-  // Regroupement matière → largeur
-  const materialGroups = useMemo(() => {
-    const byMaterial = new Map<string, Map<number, { quantity: number; length: number }>>();
+  // Matière d'une ligne d'historique (correction en cas d'erreur).
+  // Comme pour les pièces, la matière choisie devient la matière en cours.
+  const handleUpdateEntryMaterial = (id: string, material: string) => {
+    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, material } : e)));
+    onMaterialChange(material);
+  };
+
+  const handleApplyActiveMaterialToAll = () => {
+    setEntries((prev) => prev.map((e) => ({ ...e, material: activeMaterial })));
+    setFeedback({ success: true, message: `Toutes les saisies bobines passent en : ${activeMaterial}` });
+  };
+
+  // Lignes du tableau : une par largeur × matière, largeurs standard affichées même vides
+  const tableRows = useMemo(() => {
+    const groups = new Map<string, { width: number; material: string; entries: CoilEntry[] }>();
     for (const e of entries) {
       if (e.isChute) continue;
-      if (!byMaterial.has(e.material)) byMaterial.set(e.material, new Map());
-      const widths = byMaterial.get(e.material)!;
-      const row = widths.get(e.width) || { quantity: 0, length: 0 };
-      row.quantity += e.quantity;
-      row.length = round(row.length + e.totalLength, 3);
-      widths.set(e.width, row);
+      const key = `${e.width}__${e.material}`;
+      if (!groups.has(key)) groups.set(key, { width: e.width, material: e.material, entries: [] });
+      groups.get(key)!.entries.push(e);
     }
 
-    return Array.from(byMaterial.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([material, widths]) => {
-        const density = getMaterialDensity(material);
-        const rows = Array.from(widths.entries())
-          .sort(([a], [b]) => a - b)
-          .map(([width, r]) => {
-            const surface = round((width / 1000) * r.length, 2);
-            return {
-              width,
-              quantity: r.quantity,
-              length: r.length,
-              surface,
-              weight: round(surface * density, 1),
-              isStandard: DEFAULT_BOBINE_BOUNDS.includes(width),
-            };
-          });
-        return {
-          material,
-          density,
-          rows,
-          length: round(rows.reduce((s, r) => s + r.length, 0), 3),
-          surface: round(rows.reduce((s, r) => s + r.surface, 0), 2),
-          weight: round(rows.reduce((s, r) => s + r.weight, 0), 1),
-        };
-      });
+    const rows: CoilRow[] = Array.from(groups.values()).map((g) => {
+      const quantity = g.entries.reduce((s, e) => s + e.quantity, 0);
+      const length = round(g.entries.reduce((s, e) => s + e.totalLength, 0), 3);
+      const surface = round((g.width / 1000) * length, 2);
+      return {
+        id: `${g.width}-${g.material}`,
+        width: g.width,
+        material: g.material,
+        family: metalFamily(g.material),
+        entries: [...g.entries].reverse(),
+        quantity,
+        length,
+        surface,
+        weight: round(surface * getMaterialDensity(g.material), 1),
+        isStandard: DEFAULT_BOBINE_BOUNDS.includes(g.width),
+      };
+    });
+
+    for (const width of DEFAULT_BOBINE_BOUNDS) {
+      if (!rows.some((r) => r.width === width)) {
+        rows.push({
+          id: `${width}-empty`,
+          width,
+          material: '',
+          family: 'AUTRE',
+          entries: [],
+          quantity: 0,
+          length: 0,
+          surface: 0,
+          weight: 0,
+          isStandard: true,
+        });
+      }
+    }
+
+    return rows.sort((a, b) => a.width - b.width || a.material.localeCompare(b.material));
   }, [entries]);
+
+  const familySummary = (family: 'ALU' | 'ZINC') => {
+    const rows = tableRows.filter((r) => r.family === family);
+    return {
+      quantity: rows.reduce((s, r) => s + r.quantity, 0),
+      length: round(rows.reduce((s, r) => s + r.length, 0), 2),
+      weight: round(rows.reduce((s, r) => s + r.weight, 0), 1),
+    };
+  };
+  const aluSummary = familySummary('ALU');
+  const zincSummary = familySummary('ZINC');
+
+  const filteredRows = tableRows.filter((r) => {
+    if (r.quantity === 0) return !hideEmpty && materialFilter === 'ALL';
+    return materialFilter === 'ALL' || r.family === materialFilter;
+  });
 
   // Chutes par matière (notées à part, hors totaux)
   const chuteGroups = useMemo(() => {
-    const map = new Map<string, { quantity: number; length: number }>();
+    const map = new Map<string, { quantity: number; length: number; entries: CoilEntry[] }>();
     for (const e of entries) {
       if (!e.isChute) continue;
-      const row = map.get(e.material) || { quantity: 0, length: 0 };
+      const row = map.get(e.material) || { quantity: 0, length: 0, entries: [] };
       row.quantity += e.quantity;
       row.length = round(row.length + e.totalLength, 3);
+      row.entries.unshift(e);
       map.set(e.material, row);
     }
     return Array.from(map.entries())
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([material, r]) => ({ material, ...r }));
+      .map(([material, r]) => ({ material, family: metalFamily(material), ...r }));
   }, [entries]);
 
-  const totals = useMemo(
-    () => ({
-      length: round(materialGroups.reduce((s, g) => s + g.length, 0), 3),
-      surface: round(materialGroups.reduce((s, g) => s + g.surface, 0), 2),
-      weight: round(materialGroups.reduce((s, g) => s + g.weight, 0), 1),
-      chutes: round(chuteGroups.reduce((s, g) => s + g.length, 0), 3),
-    }),
-    [materialGroups, chuteGroups]
-  );
+  const filteredChutes = chuteGroups.filter((c) => materialFilter === 'ALL' || c.family === materialFilter);
+
+  const totals = {
+    quantity: tableRows.reduce((s, r) => s + r.quantity, 0),
+    length: round(tableRows.reduce((s, r) => s + r.length, 0), 3),
+    surface: round(tableRows.reduce((s, r) => s + r.surface, 0), 2),
+    weight: round(tableRows.reduce((s, r) => s + r.weight, 0), 1),
+    chutes: round(chuteGroups.reduce((s, g) => s + g.length, 0), 3),
+  };
 
   const handleExportCSV = () => {
-    const lines = ['Matiere;Largeur_bobine_mm;Nombre;Metrage_m;Surface_m2;Poids_kg'];
-    for (const g of materialGroups) {
-      for (const r of g.rows) {
-        lines.push(`${g.material};${r.width};${r.quantity};${r.length};${r.surface};${r.weight}`);
-      }
+    const lines = ['Largeur_bobine_mm;Matiere;Nombre;Metrage_m;Surface_m2;Poids_kg'];
+    for (const r of tableRows) {
+      if (r.quantity > 0) lines.push(`${r.width};${r.material};${r.quantity};${r.length};${r.surface};${r.weight}`);
     }
     for (const c of chuteGroups) {
-      lines.push(`${c.material};CHUTE;${c.quantity};${c.length};;`);
+      lines.push(`CHUTE;${c.material};${c.quantity};${c.length};;`);
     }
     const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -427,39 +541,44 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
       {/* Totaux */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="faco-card bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Métrage bobines</span>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Métrage Total</span>
           <div className="mt-0.5 flex items-baseline gap-1">
-            <span className="text-xl font-bold font-mono text-[#00478a] tabular-nums">{fmt(totals.length)}</span>
+            <span className="text-xl font-bold font-mono text-[#00478a] tabular-nums">{totals.length.toFixed(2)}</span>
             <span className="text-xs text-slate-500">m</span>
           </div>
         </div>
         <div className="faco-card bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Surface</span>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Feuilles</span>
           <div className="mt-0.5 flex items-baseline gap-1">
-            <span className="text-xl font-bold font-mono text-[#282828] tabular-nums">{fmt(totals.surface)}</span>
-            <span className="text-xs text-slate-500">m²</span>
+            <span className="text-xl font-bold font-mono text-[#282828] tabular-nums">{totals.quantity}</span>
+            <span className="text-xs text-slate-500">pcs</span>
           </div>
         </div>
         <div className="faco-card bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Poids estimé</span>
-          <div className="mt-0.5 flex items-baseline gap-1">
-            <span className="text-xl font-bold font-mono text-[#282828] tabular-nums">{fmt(totals.weight, 1)}</span>
-            <span className="text-xs text-slate-500">kg</span>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Surface & Poids</span>
+          <div className="mt-0.5 flex items-baseline gap-2">
+            <span className="text-xl font-bold font-mono text-[#282828] tabular-nums">
+              {totals.surface.toFixed(2)} <span className="text-xs font-normal text-slate-500">m²</span>
+            </span>
+            <span className="text-xs font-mono font-semibold text-[#3ca7da]">· {totals.weight} kg</span>
           </div>
         </div>
         <div className="faco-card bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Chutes notées</span>
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Chutes (hors totaux)</span>
           <div className="mt-0.5 flex items-baseline gap-1">
-            <span className="text-xl font-bold font-mono text-[#e7511f] tabular-nums">{fmt(totals.chutes)}</span>
-            <span className="text-xs text-slate-500">m (hors totaux)</span>
+            <span className="text-xl font-bold font-mono text-[#e7511f] tabular-nums">{totals.chutes.toFixed(2)}</span>
+            <span className="text-xs text-slate-500">m</span>
           </div>
         </div>
       </div>
 
-      {/* Tableau par matière × largeur */}
+      {/* Tableau des bobines */}
       <div className="faco-card bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
         <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-[#f8fafc]">
-          <h2 className="text-xs font-bold text-[#00478a] uppercase tracking-wider">Bobines à sortir par matière</h2>
+          <div className="flex items-center gap-2">
+            <Calculator className="w-4 h-4 text-[#00478a]" />
+            <h2 className="text-xs font-bold text-[#00478a] uppercase tracking-wider">Tableau des Bobines & Feuilles Sorties</h2>
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
@@ -495,129 +614,257 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
           </div>
         </div>
 
-        {materialGroups.length === 0 && chuteGroups.length === 0 ? (
-          <p className="px-4 py-8 text-center text-xs text-slate-500">
-            Aucune bobine saisie. Choisis la matière, tape la largeur, la quantité et la longueur, puis Entrée.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
-                <tr>
-                  <th className="py-2.5 px-4">Largeur bobine</th>
-                  <th className="py-2.5 px-4 text-right">Qté</th>
-                  <th className="py-2.5 px-4 text-right">Métrage (m)</th>
-                  <th className="py-2.5 px-4 text-right">Surface (m²)</th>
-                  <th className="py-2.5 px-4 text-right">Poids (kg)</th>
-                  <th className="py-2.5 px-4 w-10"></th>
-                </tr>
-              </thead>
-              <tbody className="font-mono">
-                {materialGroups.map((g) => (
-                  <React.Fragment key={g.material}>
-                    <tr className="bg-[#00478a]/5 border-t border-slate-200">
-                      <td className="py-2 px-4 font-sans font-bold text-[#00478a]" colSpan={2}>
-                        {g.material}
-                        <span className="ml-2 font-normal text-[10px] text-slate-500">{g.density} kg/m²</span>
-                      </td>
-                      <td className="py-2 px-4 text-right font-bold text-[#00478a] tabular-nums">{fmt(g.length, 3)}</td>
-                      <td className="py-2 px-4 text-right font-bold tabular-nums">{fmt(g.surface)}</td>
-                      <td className="py-2 px-4 text-right font-bold tabular-nums">{fmt(g.weight, 1)}</td>
-                      <td></td>
-                    </tr>
-                    {g.rows.map((r) => (
-                      <tr key={`${g.material}-${r.width}`} className="border-t border-slate-100 hover:bg-slate-50">
-                        <td className="py-2 px-4 pl-8">
-                          <span className="font-bold">{r.width} mm</span>
-                          {!r.isStandard && (
-                            <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-sans text-amber-800 bg-amber-100 border border-amber-200">
-                              hors standard
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-2 px-4 text-right tabular-nums">{r.quantity}</td>
-                        <td className="py-2 px-4 text-right tabular-nums font-bold">{fmt(r.length, 3)}</td>
-                        <td className="py-2 px-4 text-right tabular-nums">{fmt(r.surface)}</td>
-                        <td className="py-2 px-4 text-right tabular-nums">{fmt(r.weight, 1)}</td>
-                        <td className="py-2 px-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteGroup(g.material, r.width)}
-                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                            title={`Supprimer toutes les saisies ${r.width} mm en ${g.material}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </React.Fragment>
-                ))}
-
-                {chuteGroups.length > 0 && (
-                  <>
-                    <tr className="bg-amber-50 border-t-2 border-amber-200">
-                      <td className="py-2 px-4 font-sans font-bold text-amber-900" colSpan={6}>
-                        Chutes notées (hors totaux)
-                      </td>
-                    </tr>
-                    {chuteGroups.map((c) => (
-                      <tr key={`chute-${c.material}`} className="bg-amber-50/40 text-amber-900 border-t border-amber-100">
-                        <td className="py-2 px-4 pl-8 font-sans font-semibold">{c.material}</td>
-                        <td className="py-2 px-4 text-right tabular-nums">{c.quantity}</td>
-                        <td className="py-2 px-4 text-right tabular-nums font-bold text-[#e7511f]">{fmt(c.length, 3)}</td>
-                        <td className="py-2 px-4 text-right">-</td>
-                        <td className="py-2 px-4 text-right">-</td>
-                        <td className="py-2 px-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteGroup(c.material, null)}
-                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                            title={`Supprimer les chutes ${c.material}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </>
-                )}
-              </tbody>
-            </table>
+        {/* Filtre matière */}
+        {totals.quantity + chuteGroups.length > 0 && (
+          <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+              <Filter className="w-3 h-3 text-slate-400" />
+              <span>Filtrer :</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setMaterialFilter('ALL')}
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
+                materialFilter === 'ALL'
+                  ? 'bg-[#00478a] text-white border-[#00478a] shadow-2xs'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              Toutes ({totals.length.toFixed(1)}m · {totals.quantity} pcs)
+            </button>
+            {aluSummary.quantity > 0 && (
+              <button
+                type="button"
+                onClick={() => setMaterialFilter('ALU')}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                  materialFilter === 'ALU'
+                    ? 'bg-[#00478a] text-white border-[#00478a] shadow-2xs'
+                    : 'bg-sky-50 text-[#00478a] border-sky-200 hover:bg-sky-100'
+                }`}
+              >
+                <span className="px-1.5 py-0.2 bg-[#00478a] text-white rounded text-[9px] font-black">ALU</span>
+                <span>
+                  {aluSummary.length.toFixed(1)}m ({aluSummary.quantity} pcs · {aluSummary.weight.toFixed(1)} kg)
+                </span>
+              </button>
+            )}
+            {zincSummary.quantity > 0 && (
+              <button
+                type="button"
+                onClick={() => setMaterialFilter('ZINC')}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                  materialFilter === 'ZINC'
+                    ? 'bg-slate-700 text-white border-slate-700 shadow-2xs'
+                    : 'bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200'
+                }`}
+              >
+                <span className="px-1.5 py-0.2 bg-slate-700 text-white rounded text-[9px] font-black">ZINC</span>
+                <span>
+                  {zincSummary.length.toFixed(1)}m ({zincSummary.quantity} pcs · {zincSummary.weight.toFixed(1)} kg)
+                </span>
+              </button>
+            )}
           </div>
         )}
+
+        <div className="px-4 py-1.5 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <span className="text-[11px]">Grille des largeurs de bobines standard</span>
+          <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-medium text-slate-600 hover:text-slate-900 select-none">
+            <input
+              type="checkbox"
+              checked={hideEmpty}
+              onChange={(e) => setHideEmpty(e.target.checked)}
+              className="rounded border-slate-300 text-[#00478a] focus:ring-0 cursor-pointer"
+            />
+            <span>Masquer les largeurs vides (0m)</span>
+          </label>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
+              <tr>
+                <th className="py-2.5 px-4">Largeur (mm)</th>
+                <th className="py-2.5 px-4">Matière</th>
+                <th className="py-2.5 px-4">Détail des feuilles sorties</th>
+                <th className="py-2.5 px-4 text-right">Qté</th>
+                <th className="py-2.5 px-4 text-right">Cumul (m)</th>
+                <th className="py-2.5 px-4 text-right">Surface</th>
+                <th className="py-2.5 px-4 text-right">Poids</th>
+                <th className="py-2.5 px-4 text-right"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-mono">
+              {filteredRows.map((row) => {
+                const isEmpty = row.quantity === 0;
+                return (
+                  <tr
+                    key={row.id}
+                    className={`transition-colors ${
+                      isEmpty ? 'bg-[#f8fafc]/50 hover:bg-slate-50 text-slate-400' : 'bg-white hover:bg-slate-50/80'
+                    }`}
+                  >
+                    <td className="py-2 px-4 font-bold text-[#282828]">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`tabular-nums font-mono text-sm ${isEmpty ? 'text-slate-400' : ''}`}>{row.width}</span>
+                        <span className={isEmpty ? 'text-slate-400' : ''}>mm</span>
+                        {!row.isStandard && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold font-sans bg-amber-100 text-amber-900 border border-amber-300">
+                            hors standard
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-2 px-4">{isEmpty ? <span className="text-slate-300">-</span> : <MaterialBadge material={row.material} />}</td>
+                    <td className="py-2 px-4 text-[11px]">
+                      {isEmpty ? (
+                        <span className="font-sans text-slate-400">{WIDTH_HINTS[row.width] || '-'}</span>
+                      ) : (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {row.entries.map((e) => (
+                            <span
+                              key={e.id}
+                              className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded border bg-slate-100 text-slate-700 border-slate-200"
+                            >
+                              {e.quantity}×{e.unitLength}m
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-2 px-4 text-right tabular-nums">
+                      {isEmpty ? <span className="text-slate-300">-</span> : <span className="text-[#282828] font-semibold">{row.quantity}</span>}
+                    </td>
+                    <td className="py-2 px-4 text-right tabular-nums font-bold text-xs">
+                      {isEmpty ? <span className="text-slate-300">0.00 m</span> : <span className="text-[#00478a]">{row.length.toFixed(2)} m</span>}
+                    </td>
+                    <td className="py-2 px-4 text-right tabular-nums">
+                      {isEmpty ? <span className="text-slate-300">-</span> : `${row.surface.toFixed(2)} m²`}
+                    </td>
+                    <td className="py-2 px-4 text-right tabular-nums">
+                      {isEmpty ? <span className="text-slate-300">-</span> : `${row.weight.toFixed(1)} kg`}
+                    </td>
+                    <td className="py-2 px-4 text-right">
+                      {!isEmpty && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteGroup(row.material, row.width)}
+                          className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                          title={`Supprimer toutes les feuilles ${row.width} mm en ${row.material}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {filteredChutes.map((c) => (
+                <tr key={`chute-${c.material}`} className="bg-amber-50/50 text-amber-900 border-t border-amber-200">
+                  <td className="py-2 px-4 font-bold">0 (CHUTES)</td>
+                  <td className="py-2 px-4"><MaterialBadge material={c.material} /></td>
+                  <td className="py-2 px-4 text-[11px]">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {c.entries.map((e) => (
+                        <span
+                          key={e.id}
+                          className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded border bg-amber-100/80 text-amber-900 border-amber-200"
+                        >
+                          {e.quantity}×{e.unitLength}m
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="py-2 px-4 text-right tabular-nums font-bold">{c.quantity}</td>
+                  <td className="py-2 px-4 text-right tabular-nums font-bold text-[#e7511f]">{c.length.toFixed(2)} m</td>
+                  <td className="py-2 px-4 text-right">-</td>
+                  <td className="py-2 px-4 text-right">-</td>
+                  <td className="py-2 px-4 text-right">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteGroup(c.material, null)}
+                      className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                      title={`Supprimer les chutes ${c.material}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Historique des saisies */}
       {hasData && (
-        <div className="faco-card bg-white border border-slate-200 rounded-xl p-4 space-y-2 shadow-2xs">
-          <h3 className="text-xs font-bold text-[#00478a] uppercase tracking-wider">
-            Historique des saisies bobines ({entries.length})
-          </h3>
-          <ul className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
-            {entries.map((e) => (
-              <li key={e.id} className="py-1.5 flex items-center justify-between gap-2 text-xs">
-                <span className="font-mono">
-                  <span className="text-slate-400 mr-2">{e.time}</span>
-                  {e.isChute ? (
-                    <span className="font-bold text-amber-700">Chute</span>
-                  ) : (
-                    <span className="font-bold text-[#00478a]">{e.width} mm</span>
-                  )}{' '}
-                  · {e.quantity} × {fmt(e.unitLength, 3)} m = <span className="font-bold">{fmt(e.totalLength, 3)} m</span>
-                  <span className="ml-2 font-sans text-slate-500">[{e.material}]</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(e.id)}
-                  className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer shrink-0"
-                  title="Supprimer cette saisie"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </li>
+        <div className="faco-card bg-white border border-slate-200 rounded-xl p-4 space-y-2.5 shadow-2xs">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#00478a] flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-[#3ca7da]" />
+              <span>Historique des Saisies ({entries.length})</span>
+            </h3>
+            <button
+              type="button"
+              onClick={handleApplyActiveMaterialToAll}
+              className="px-2.5 py-1 text-[11px] font-medium text-[#00478a] bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer"
+            >
+              Tout passer en "{activeMaterial}"
+            </button>
+          </div>
+
+          <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto">
+            {entries.map((item) => (
+              <div
+                key={item.id}
+                className="py-1.5 flex items-center justify-between gap-2 text-xs hover:bg-slate-50 px-2 rounded transition-colors"
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] text-slate-400 font-mono">{item.time}</span>
+                  <span
+                    className={`font-mono px-2 py-0.5 rounded border font-semibold ${
+                      item.isChute
+                        ? 'bg-amber-50 border-amber-200 text-amber-800'
+                        : 'bg-[#f8fafc] border-slate-200 text-[#00478a]'
+                    }`}
+                  >
+                    {item.isChute ? 'Chute' : `${item.width} mm`} · {item.quantity} × {item.unitLength}m
+                  </span>
+                  <select
+                    aria-label="Modifier la matière de cette ligne"
+                    value={STANDARD_MATERIALS.includes(item.material) ? item.material : 'custom'}
+                    onChange={(e) => {
+                      if (e.target.value !== 'custom') handleUpdateEntryMaterial(item.id, e.target.value);
+                    }}
+                    className="bg-white border border-slate-200 text-[11px] font-medium text-slate-700 rounded px-2 py-0.5 focus:outline-none focus:border-[#00478a]"
+                  >
+                    {MATERIAL_GROUPS.map((grp) => (
+                      <optgroup key={grp.group} label={grp.group}>
+                        {grp.items.map((m) => (
+                          <option key={m.value} value={m.value}>
+                            {m.value}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                    {!STANDARD_MATERIALS.includes(item.material) && <option value="custom">{item.material}</option>}
+                  </select>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-[#282828] tabular-nums font-bold">+{item.totalLength.toFixed(2)} m</span>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(item.id)}
+                    className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                    title="Supprimer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       )}
     </div>

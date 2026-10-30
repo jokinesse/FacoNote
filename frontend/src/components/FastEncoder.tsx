@@ -1396,7 +1396,11 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
       {/* Calculateur Bobine (séparé du tableau des pièces) */}
       <div className={isCoilMode ? '' : 'hidden'}>
-        <CoilCalculator activeMaterial={activeMaterial} lengthUnit={lengthUnit} />
+        <CoilCalculator
+          activeMaterial={activeMaterial}
+          lengthUnit={lengthUnit}
+          onMaterialChange={setActiveMaterial}
+        />
       </div>
 
       <div className={isCoilMode ? 'hidden' : 'space-y-4'}>

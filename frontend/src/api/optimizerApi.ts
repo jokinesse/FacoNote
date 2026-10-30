@@ -6,6 +6,7 @@ import {
   CoilEncodeResponse,
   CoilSummaryRequest,
   CoilSummaryResponse,
+  ReferenceResponse,
   FastEncoderInputRequest,
   FastEncoderEntryResponse,
   OptimizationRequest,
@@ -13,6 +14,14 @@ import {
 } from './types';
 
 export const optimizerApi = {
+  /**
+   * Données de référence atelier : matières (famille, épaisseur, densité, largeurs de bobines),
+   * bornes du calculateur Pièce, grille Bobine, largeurs de chutes de rack.
+   */
+  async getReference(): Promise<ApiResponse<ReferenceResponse>> {
+    return apiRequest<ReferenceResponse>('/api/v1/optimizer/reference', { method: 'GET' });
+  },
+
   /**
    * Analyse et validation d'une saisie rapide atelier (FastEncoder)
    * Décode l'expression arithmétique et affecte la borne standard.

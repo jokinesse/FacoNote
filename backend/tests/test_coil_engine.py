@@ -49,7 +49,7 @@ def test_encode_chute_and_non_standard_width() -> None:
     assert chute.is_chute is True
     assert chute.is_standard is False
 
-    odd = encode_coil_entry("820", 1, "2", "m", "Zinc Naturel 0.7")
+    odd = encode_coil_entry("1100", 1, "2", "m", "Zinc Naturel 0.7")
     assert odd.is_chute is False
     assert odd.is_standard is False
 
@@ -115,7 +115,7 @@ def test_summary_groups_by_width_and_material() -> None:
     assert alu_650.family == "ALU"
 
     # La largeur 650 est occupée : pas de ligne vide en plus ; 1000 non plus
-    assert [r.width for r in summary.rows if r.is_empty] == [600, 670, 750, 1100]
+    assert [r.width for r in summary.rows if r.is_empty] == [600, 670, 750]
 
 
 def test_summary_totals_and_family_split() -> None:
@@ -154,6 +154,15 @@ def test_summary_non_standard_width() -> None:
     row = next(r for r in summary.rows if r.width == 820)
     assert row.is_standard is False
     assert row.is_empty is False
+
+
+def test_summary_lists_available_materials_per_width() -> None:
+    summary = summarize_coils([])
+    by_width = {r.width: r.available_materials for r in summary.rows}
+    assert by_width[650] == ["Alu RAL 9005 0.7", "Alu RAL 7039 0.7"]
+    assert "Zinc Quartz 0.7" in by_width[600]
+    assert not any(m.startswith("Alu") for m in by_width[600])
+    assert len(by_width[1000]) == 13  # toutes les matières officielles
 
 
 def test_metal_family() -> None:

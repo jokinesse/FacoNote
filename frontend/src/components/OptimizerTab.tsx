@@ -32,9 +32,8 @@ import {
   resolveAutoPieceBreakdown,
   AutoPieceBreakdown,
   STANDARD_WORKSHOP_SCRAP_WIDTHS,
-  STANDARD_ZINC_MOTHER_WIDTHS,
-  STANDARD_ALU_MOTHER_WIDTHS,
 } from '../utils/optimizer';
+import { useReference } from '../api';
 import { WorkshopPrintModal, WorkshopJobData } from './WorkshopPrintModal';
 import { cleanWorkshopText } from '../utils/textCleaner';
 import { VisualPreEncoderModal } from './VisualPreEncoderModal';
@@ -65,9 +64,9 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
   // Selected default material for optimization
   const [selectedMaterial, setSelectedMaterial] = useState<string>('Zinc Naturel 0.7');
 
-  // Candidate mother widths for optimization
-  const [selectedZincWidths, setSelectedZincWidths] = useState<number[]>([600, 650, 670, 750, 1000]);
-  const [selectedAluWidths, setSelectedAluWidths] = useState<number[]>([600, 650, 670, 750, 1000]);
+  // Largeurs de bobines : données de référence du backend. L'opérateur peut en désactiver.
+  const reference = useReference();
+  const [disabledWidths, setDisabledWidths] = useState<number[]>([]);
 
   // Mode: baseline is pure calculation without scraps (100% mother sheets)
   const [useWorkshopScraps, setUseWorkshopScraps] = useState<boolean>(false);
@@ -277,10 +276,20 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
 
   const isAlu = useMemo(() => /alu/i.test(selectedMaterial), [selectedMaterial]);
 
-  // Active mother widths
+  // Largeurs disponibles pour la matière choisie (toute la grille si matière hors liste)
+  const materialWidths = useMemo(() => {
+    if (!reference) return [];
+    const mat = reference.materials.find((m) => m.name === selectedMaterial);
+    return mat ? mat.coil_widths_mm : reference.coil_widths_mm;
+  }, [reference, selectedMaterial]);
+
+  // Largeurs envoyées au moteur : toute la grille sauf celles désactivées.
+  // Le moteur ne garde ensuite, pour chaque matière, que ses largeurs disponibles.
+  // Tant que la référence n'est pas chargée : aucune liste, le moteur prend ses largeurs par défaut.
   const activeMotherWidths = useMemo(() => {
-    return isAlu ? selectedAluWidths : selectedZincWidths;
-  }, [isAlu, selectedAluWidths, selectedZincWidths]);
+    if (!reference) return undefined;
+    return reference.coil_widths_mm.filter((w) => !disabledWidths.includes(w));
+  }, [reference, disabledWidths]);
 
   // Mode Auto-Métrage (activé quand Quantité = 0)
   const isAutoMeterMode = newQty.trim() === '0';
@@ -370,15 +379,9 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
 
   // Toggle Mother Width
   const handleToggleMotherWidth = (width: number) => {
-    if (isAlu) {
-      setSelectedAluWidths((prev) =>
-        prev.includes(width) ? prev.filter((w) => w !== width) : [...prev, width].sort((a, b) => a - b)
-      );
-    } else {
-      setSelectedZincWidths((prev) =>
-        prev.includes(width) ? prev.filter((w) => w !== width) : [...prev, width].sort((a, b) => a - b)
-      );
-    }
+    setDisabledWidths((prev) =>
+      prev.includes(width) ? prev.filter((w) => w !== width) : [...prev, width]
+    );
   };
 
   // Aggregated summary of mother sheets to pull from stock, grouped by material and dimensions
@@ -899,8 +902,8 @@ Sois direct, pro et concis en français.`;
               Largeurs Bobines Atelier
             </label>
             <div className="flex flex-wrap gap-1">
-              {(isAlu ? STANDARD_ALU_MOTHER_WIDTHS : STANDARD_ZINC_MOTHER_WIDTHS).map((w) => {
-                const isActive = activeMotherWidths.includes(w);
+              {materialWidths.map((w) => {
+                const isActive = !disabledWidths.includes(w);
                 return (
                   <button
                     key={w}

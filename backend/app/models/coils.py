@@ -81,6 +81,9 @@ class CoilRowModel(BaseModel):
     surface_m2: float
     weight_kg: float
     materials_in_width: int = Field(..., description="Nombre de matières utilisant cette largeur")
+    available_materials: list[str] = Field(
+        default_factory=list, description="Matières officielles disponibles dans cette largeur"
+    )
     sheets: list[CoilSheetDetail]
 
 

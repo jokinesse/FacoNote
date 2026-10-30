@@ -89,6 +89,7 @@ export interface CoilRow {
   surface_m2: number;
   weight_kg: number;
   materials_in_width: number;
+  available_materials: string[];
   sheets: CoilSheetDetail[];
 }
 
@@ -122,6 +123,25 @@ export interface CoilSummaryResponse {
   alu: CoilFamilyTotals;
   zinc: CoilFamilyTotals;
   standard_widths: number[];
+}
+
+// --- Données de référence (/optimizer/reference) ---
+
+export interface MaterialReference {
+  name: string;
+  group: string;
+  finish: string;
+  family: MetalFamily;
+  thickness_mm: number;
+  surface_density_kg_m2: number;
+  coil_widths_mm: number[];
+}
+
+export interface ReferenceResponse {
+  materials: MaterialReference[];
+  piece_bounds_mm: number[];
+  coil_widths_mm: number[];
+  scrap_widths_mm: number[];
 }
 
 export interface AutoBreakdownRequest {

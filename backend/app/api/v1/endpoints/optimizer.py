@@ -18,10 +18,12 @@ from app.models.optimizer import (
     OptimizationResponse,
 )
 from app.models.pieces import FastEncoderEntryResponse, FastEncoderInputRequest
+from app.models.reference import ReferenceResponse
 from app.services.breakdown_engine import resolve_auto_piece_breakdown
 from app.services.coil_engine import encode_coil_entry, summarize_coils
 from app.services.encoder_engine import parse_composite_input
 from app.services.nesting_engine import run_nesting_optimization
+from app.services.reference_service import build_reference
 from app.services.sheet_generator import generate_workshop_sheet_html
 
 router = APIRouter(prefix="/optimizer", tags=["Optimiseur & Calepinage"])
@@ -38,6 +40,20 @@ def get_materials_endpoint() -> list[str]:
     Retourne la liste stricte des matières et finitions officielles d'atelier.
     """
     return list(OFFICIAL_MATERIALS)
+
+
+@router.get(
+    "/reference",
+    response_model=ReferenceResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Données de référence atelier (matières, largeurs de bobines, bornes)",
+)
+def get_reference_endpoint() -> ReferenceResponse:
+    """
+    Matières officielles avec famille, épaisseur, densité et largeurs de bobines,
+    bornes du calculateur Pièce, grille Bobine et largeurs de chutes de rack.
+    """
+    return build_reference()
 
 
 @router.post(

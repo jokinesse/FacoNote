@@ -231,7 +231,7 @@ def test_cross_length_generated_chute_reuse() -> None:
     Test du cas réel utilisateur :
     Pièce 1 : dev 280 mm, longueur 4.0 m
     Pièce 2 : dev 280 mm, longueur 3.5 m
-    Sur laize 600 mm (Alu 7016) :
+    Sur laize 600 mm (Zinc Naturel 0.7 ; l'Alu 7016 n'existe qu'en 1000) :
     - Sans réemploi de chute générée : 2 tôles mères de 600 mm (4.0m et 3.5m) -> brute = 4.50 m², rendement = 46.7%
     - Avec réemploi de chute générée : Pièce 2 débitée dans la chute 320 mm x 4.0 m de l'OP #1 !
       -> 1 seule tôle mère de 600 mm x 4.0m débitée (brute = 2.40 m² au lieu de 4.50 m²)
@@ -244,7 +244,7 @@ def test_cross_length_generated_chute_reuse() -> None:
             dev=280,
             length=4.0,
             quantity=1,
-            material="Alu 7016 gris bleu 0.7",
+            material="Zinc Naturel 0.7",
         ),
         ShapedPieceModel(
             id="p-3m50",
@@ -252,13 +252,13 @@ def test_cross_length_generated_chute_reuse() -> None:
             dev=280,
             length=3.5,
             quantity=1,
-            material="Alu 7016 gris bleu 0.7",
+            material="Zinc Naturel 0.7",
         ),
     ]
 
     # 1. Avec réemploi actif (par défaut)
     req_optimized = OptimizationRequest(
-        material="Alu 7016 gris bleu 0.7",
+        material="Zinc Naturel 0.7",
         pieces=pieces,
         available_mother_widths=[600],
         use_generated_scraps=True,
@@ -293,7 +293,7 @@ def test_cross_length_generated_chute_reuse() -> None:
 
     # 2. Sans réemploi (calcul traditionnel en cohortes étanches)
     req_disabled = OptimizationRequest(
-        material="Alu 7016 gris bleu 0.7",
+        material="Zinc Naturel 0.7",
         pieces=pieces,
         available_mother_widths=[600],
         use_generated_scraps=False,

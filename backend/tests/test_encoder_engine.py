@@ -28,12 +28,12 @@ def test_find_matched_bound_piece() -> None:
 
 
 def test_find_matched_bound_bobine() -> None:
-    """Bornes bobines : 600, 650, 670, 750, 1000, 1100."""
+    """Bornes bobines : 600, 650, 670, 750, 1000."""
     assert find_matched_bound(500, DEV_BOBINE_BOUNDS) == 600
     assert find_matched_bound(650, DEV_BOBINE_BOUNDS) == 650
     assert find_matched_bound(660, DEV_BOBINE_BOUNDS) == 670
     assert find_matched_bound(700, DEV_BOBINE_BOUNDS) == 750
-    assert find_matched_bound(1200, DEV_BOBINE_BOUNDS) == 1100
+    assert find_matched_bound(1200, DEV_BOBINE_BOUNDS) == 1000
 
 
 def test_parse_composite_input_standard() -> None:

@@ -27,16 +27,12 @@ from app.models.coils import (
     MetalFamily,
 )
 from app.services.math_parser import evaluate_expression
+from app.services.reference_service import official_materials_for_width, spec_family
 
 
 def metal_family(material: str) -> MetalFamily:
     """Famille de métal d'une matière, selon la table officielle des nuances."""
-    metal_type = resolve_material_spec(material).metal_type
-    if metal_type == "ALUMINIUM":
-        return "ALU"
-    if metal_type == "ZINC":
-        return "ZINC"
-    return "AUTRE"
+    return spec_family(resolve_material_spec(material))
 
 
 def encode_coil_entry(
@@ -117,6 +113,7 @@ def summarize_coils(entries: list[CoilSummaryEntry]) -> CoilSummaryResponse:
                 surface_m2=calculate_surface_m2(float(width), length_m),
                 weight_kg=calculate_weight_kg(float(width), length_m, density),
                 materials_in_width=materials_per_width[width],
+                available_materials=official_materials_for_width(width),
                 sheets=[
                     CoilSheetDetail(id=e.id, quantity=e.quantity, unit_length_m=e.unit_length_m)
                     for e in group
@@ -139,6 +136,7 @@ def summarize_coils(entries: list[CoilSummaryEntry]) -> CoilSummaryResponse:
                     surface_m2=0.0,
                     weight_kg=0.0,
                     materials_in_width=0,
+                    available_materials=official_materials_for_width(width),
                     sheets=[],
                 )
             )

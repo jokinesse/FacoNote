@@ -12,7 +12,6 @@ import {
   X,
 } from 'lucide-react';
 import { MATERIAL_GROUPS, STANDARD_MATERIALS } from '../types';
-import { DEFAULT_BOBINE_BOUNDS } from '../utils/sheetLogic';
 import { ApiError, CoilSummaryResponse, MetalFamily, optimizerApi } from '../api';
 
 // Calculateur Bobine : saisies propres à l'onglet Bobine, séparées du tableau des pièces.
@@ -38,16 +37,6 @@ interface CoilCalculatorProps {
   lengthUnit: 'm' | 'mm';
   onMaterialChange: (material: string) => void;
 }
-
-// Nuances disponibles par largeur standard (affiché sur les lignes vides)
-const WIDTH_HINTS: Record<number, string> = {
-  600: 'Zinc : Naturel · ATZ · Quartz',
-  650: 'Alu 0.7 : RAL 7016 · 9005 · 9010 · 7039',
-  670: 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge',
-  750: 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge',
-  1000: 'Zinc & Alu : toutes nuances',
-  1100: 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge',
-};
 
 // Badge matière, même rendu que dans le calculateur des pièces
 const MaterialBadge: React.FC<{ material: string; family: MetalFamily }> = ({ material, family }) => {
@@ -333,7 +322,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
             Matière en cours : <span className="font-semibold text-[#282828]">{activeMaterial}</span>
           </span>
           <div className="flex items-center gap-1 flex-wrap ml-auto">
-            {DEFAULT_BOBINE_BOUNDS.map((w) => (
+            {(summary?.standard_widths ?? []).map((w) => (
               <button
                 key={w}
                 type="button"
@@ -684,7 +673,13 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
                     <td className="py-2 px-4">{isEmpty ? <span className="text-slate-300">-</span> : <MaterialBadge material={row.material} family={row.family} />}</td>
                     <td className="py-2 px-4 text-[11px]">
                       {isEmpty ? (
-                        <span className="font-sans text-slate-400">{WIDTH_HINTS[row.width] || '-'}</span>
+                        <span className="font-sans text-slate-400" title={row.available_materials.join('\n')}>
+                          {row.available_materials.length === 0
+                            ? '-'
+                            : row.available_materials.length > 4
+                            ? `${row.available_materials.length} matières disponibles`
+                            : row.available_materials.join(' · ')}
+                        </span>
                       ) : (
                         <div className="flex flex-wrap items-center gap-1.5">
                           {[...row.sheets].reverse().map((e) => (

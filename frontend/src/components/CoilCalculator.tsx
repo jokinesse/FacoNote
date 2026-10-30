@@ -54,9 +54,40 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
   const qtyRef = useRef<HTMLInputElement>(null);
   const lengthRef = useRef<HTMLInputElement>(null);
 
+  const addRef = useRef<HTMLButtonElement>(null);
+  const fields = [widthRef, qtyRef, lengthRef];
+
   const focus = (ref: React.RefObject<HTMLInputElement | null>) => {
     ref.current?.focus();
     ref.current?.select();
+  };
+
+  // Navigation clavier entre les 3 cases :
+  // Entrée = case suivante (après Longueur : bouton Ajouter), Maj+Entrée = case précédente,
+  // flèches gauche/droite = case voisine quand le curseur est au bord du texte.
+  const handleFieldKeys = (index: number) => (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
+    const len = input.value.length;
+    const atStart = input.selectionStart === 0 && input.selectionEnd === 0;
+    const atEnd = input.selectionStart === len && input.selectionEnd === len;
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (index > 0) focus(fields[index - 1]);
+      } else if (index < fields.length - 1) {
+        focus(fields[index + 1]);
+      } else {
+        addRef.current?.focus();
+      }
+    } else if (e.key === 'ArrowRight' && atEnd) {
+      e.preventDefault();
+      if (index < fields.length - 1) focus(fields[index + 1]);
+      else addRef.current?.focus();
+    } else if (e.key === 'ArrowLeft' && atStart && index > 0) {
+      e.preventDefault();
+      focus(fields[index - 1]);
+    }
   };
 
   const handleAdd = () => {
@@ -106,10 +137,11 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
           (DEFAULT_BOBINE_BOUNDS.includes(roundedWidth) ? '' : ' — largeur hors standard'),
     });
 
-    // On garde la largeur pour enchaîner plusieurs longueurs sur la même bobine
+    // Retour sur la case Largeur. Elle reste remplie et sélectionnée :
+    // Entrée la garde pour enchaîner sur la même bobine, taper un chiffre la remplace.
     setInputQuantity('1');
     setInputLength('');
-    focus(qtyRef);
+    focus(widthRef);
   };
 
   const handleDelete = (id: string) => {
@@ -294,12 +326,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
               inputMode="decimal"
               value={inputWidth}
               onChange={(e) => setInputWidth(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  focus(qtyRef);
-                }
-              }}
+              onKeyDown={handleFieldKeys(0)}
               placeholder="ex: 1000 (0 = chute)"
               className={`${inputClass} text-[#00478a]`}
             />
@@ -312,16 +339,11 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
             <input
               id="coilQty"
               ref={qtyRef}
-              type="number"
-              min="1"
+              type="text"
+              inputMode="numeric"
               value={inputQuantity}
               onChange={(e) => setInputQuantity(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  focus(lengthRef);
-                }
-              }}
+              onKeyDown={handleFieldKeys(1)}
               placeholder="ex: 4"
               className={`${inputClass} text-[#282828]`}
             />
@@ -338,12 +360,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
               inputMode="decimal"
               value={inputLength}
               onChange={(e) => setInputLength(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleAdd();
-                }
-              }}
+              onKeyDown={handleFieldKeys(2)}
               placeholder={lengthUnit === 'mm' ? 'ex: 3500' : 'ex: 3.5'}
               className={`${inputClass} text-[#282828]`}
             />
@@ -351,15 +368,27 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
 
           <div>
             <button
+              ref={addRef}
               type="button"
               onClick={handleAdd}
-              className="faco-btn w-full py-2 bg-[#e7511f] hover:bg-[#cf4315] text-white font-semibold rounded-lg text-sm flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+              onKeyDown={(e) => {
+                // Entrée et Espace cliquent nativement ; retour arrière vers Longueur
+                if ((e.key === 'Enter' && e.shiftKey) || e.key === 'ArrowLeft') {
+                  e.preventDefault();
+                  focus(lengthRef);
+                }
+              }}
+              className="faco-btn w-full py-2 bg-[#e7511f] hover:bg-[#cf4315] focus:bg-[#cf4315] text-white font-semibold rounded-lg text-sm flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#00478a] focus:ring-offset-2"
             >
               <Plus className="w-4 h-4" />
               <span>Ajouter</span>
             </button>
           </div>
         </div>
+
+        <p className="text-[10px] text-slate-400">
+          Entrée : case suivante, puis Ajouter · Maj+Entrée ou ← : revenir en arrière · → : avancer
+        </p>
 
         {feedback && (
           <div

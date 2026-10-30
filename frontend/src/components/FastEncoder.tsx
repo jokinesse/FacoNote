@@ -95,6 +95,42 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
   const devRef = useRef<HTMLInputElement>(null);
   const lengthRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
+  const addBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Navigation clavier entre les 3 cases (Dév → Quantité → Longueur → bouton Ajouter) :
+  // Entrée = suivant, Maj+Entrée = précédent, flèches gauche/droite au bord du texte = case voisine.
+  const pieceFields = [devRef, qtyRef, lengthRef];
+  const focusField = (ref: React.RefObject<HTMLInputElement | null>) => {
+    ref.current?.focus();
+    ref.current?.select();
+  };
+  const handlePieceFieldKeys = (index: number) => (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
+    const len = input.value.length;
+    const atStart = input.selectionStart === 0 && input.selectionEnd === 0;
+    const atEnd = input.selectionStart === len && input.selectionEnd === len;
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (index > 0) focusField(pieceFields[index - 1]);
+      } else if (index === 0 && inputDev.includes('/')) {
+        // Saisie rapide "dév/longueur" : validation directe
+        handleSubmitEntry();
+      } else if (index < pieceFields.length - 1) {
+        focusField(pieceFields[index + 1]);
+      } else {
+        addBtnRef.current?.focus();
+      }
+    } else if (e.key === 'ArrowRight' && atEnd) {
+      e.preventDefault();
+      if (index < pieceFields.length - 1) focusField(pieceFields[index + 1]);
+      else addBtnRef.current?.focus();
+    } else if (e.key === 'ArrowLeft' && atStart && index > 0) {
+      e.preventDefault();
+      focusField(pieceFields[index - 1]);
+    }
+  };
 
   // Focus Dev input on load
   useEffect(() => {
@@ -1248,17 +1284,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
               type="text"
               value={inputDev}
               onChange={(e) => setInputDev(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  if (inputDev.includes('/')) {
-                    handleSubmitEntry();
-                  } else {
-                    qtyRef.current?.focus();
-                    qtyRef.current?.select();
-                  }
-                }
-              }}
+              onKeyDown={handlePieceFieldKeys(0)}
               placeholder={preset === 'DEV_BOBINE' ? 'ex: 650 (0 = chute)' : 'ex: 175'}
               className="faco-input w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-[#00478a] placeholder:text-slate-400 focus:outline-none focus:border-[#00478a] focus:bg-white"
             />
@@ -1274,17 +1300,11 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
             <input
               id="caseQty"
               ref={qtyRef}
-              type="number"
-              min="0"
+              type="text"
+              inputMode="numeric"
               value={inputQuantity}
               onChange={(e) => setInputQuantity(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  lengthRef.current?.focus();
-                  lengthRef.current?.select();
-                }
-              }}
+              onKeyDown={handlePieceFieldKeys(1)}
               placeholder="ex: 4"
               className="faco-input w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-[#282828] placeholder:text-slate-400 focus:outline-none focus:border-[#00478a] focus:bg-white"
             />
@@ -1303,12 +1323,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
               type="text"
               value={inputLength}
               onChange={(e) => setInputLength(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleSubmitEntry();
-                }
-              }}
+              onKeyDown={handlePieceFieldKeys(2)}
               placeholder="ex: 2.0"
               className="faco-input w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-[#282828] placeholder:text-slate-400 focus:outline-none focus:border-[#00478a] focus:bg-white"
             />
@@ -1316,10 +1331,18 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
           <div>
             <button
+              ref={addBtnRef}
               type="button"
               disabled={isSubmitting}
               onClick={() => handleSubmitEntry()}
-              className="faco-btn w-full py-2 bg-[#e7511f] hover:bg-[#cf4315] disabled:opacity-50 text-white font-semibold rounded-lg text-sm flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+              onKeyDown={(e) => {
+                // Entrée et Espace cliquent nativement ; retour arrière vers Longueur
+                if ((e.key === 'Enter' && e.shiftKey) || e.key === 'ArrowLeft') {
+                  e.preventDefault();
+                  focusField(lengthRef);
+                }
+              }}
+              className="faco-btn w-full py-2 bg-[#e7511f] hover:bg-[#cf4315] focus:bg-[#cf4315] disabled:opacity-50 text-white font-semibold rounded-lg text-sm flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#00478a] focus:ring-offset-2"
             >
               {isSubmitting ? (
                 <>

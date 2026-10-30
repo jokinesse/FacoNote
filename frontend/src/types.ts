@@ -262,3 +262,26 @@ export interface OptimizationResult {
     safetyNotice?: string;
   };
 }
+
+// Résultat d'auto-métrage (calculé par le backend, /optimizer/auto-breakdown), format d'affichage
+export interface AutoPieceBreakdownAlternative {
+  length: number;
+  quantity: number;
+  totalProduced: number;
+  excess: number;
+  isExact: boolean;
+  isExisting: boolean;
+  isClosest?: boolean;
+  score: number;
+  label: string;
+}
+
+export interface AutoPieceBreakdown {
+  length: number;
+  quantity: number;
+  totalProduced: number;
+  requestedMeters: number;
+  reason: string;
+  source: 'existing_pieces' | 'standard_exact' | 'standard_rounded';
+  alternatives: AutoPieceBreakdownAlternative[];
+}

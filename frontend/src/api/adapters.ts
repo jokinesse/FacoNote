@@ -3,7 +3,7 @@ import {
   OptimizationResponse,
   ShapedPieceModel,
 } from './types';
-import type { AutoPieceBreakdown } from '../utils/optimizer';
+import type { AutoPieceBreakdown } from '../types';
 import {
   OptimizationResult,
   ShapedPiece,

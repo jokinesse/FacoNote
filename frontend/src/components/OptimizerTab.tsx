@@ -25,7 +25,7 @@ import {
   MATERIAL_GROUPS,
   WorkshopScrapProposal,
 } from '../types';
-import type { AutoPieceBreakdown } from '../utils/optimizer';
+import type { AutoPieceBreakdown } from '../types';
 import { WorkshopPrintModal, WorkshopJobData } from './WorkshopPrintModal';
 import { cleanWorkshopText } from '../utils/textCleaner';
 import { VisualPreEncoderModal } from './VisualPreEncoderModal';

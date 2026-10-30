@@ -38,6 +38,92 @@ export interface FastEncoderEntryResponse {
   material: string;
 }
 
+// --- Calculateur Bobine (/optimizer/coil-encode et /optimizer/coil-summary) ---
+
+export type MetalFamily = 'ALU' | 'ZINC' | 'AUTRE';
+
+export interface CoilEncodeRequest {
+  width: string;
+  quantity: number;
+  length: string;
+  length_unit?: 'm' | 'mm';
+  material?: string;
+}
+
+export interface CoilEncodeResponse {
+  width: number;
+  quantity: number;
+  unit_length_m: number;
+  total_length_m: number;
+  material: string;
+  is_chute: boolean;
+  is_standard: boolean;
+}
+
+export interface CoilSummaryEntry {
+  id: string;
+  width: number;
+  quantity: number;
+  unit_length_m: number;
+  material: string;
+}
+
+export interface CoilSummaryRequest {
+  entries: CoilSummaryEntry[];
+}
+
+export interface CoilSheetDetail {
+  id: string;
+  quantity: number;
+  unit_length_m: number;
+}
+
+export interface CoilRow {
+  width: number;
+  material: string;
+  family: MetalFamily;
+  is_standard: boolean;
+  is_empty: boolean;
+  quantity: number;
+  length_m: number;
+  surface_m2: number;
+  weight_kg: number;
+  materials_in_width: number;
+  sheets: CoilSheetDetail[];
+}
+
+export interface CoilChute {
+  material: string;
+  family: MetalFamily;
+  quantity: number;
+  length_m: number;
+  sheets: CoilSheetDetail[];
+}
+
+export interface CoilFamilyTotals {
+  quantity: number;
+  length_m: number;
+  weight_kg: number;
+}
+
+export interface CoilTotals {
+  quantity: number;
+  length_m: number;
+  surface_m2: number;
+  weight_kg: number;
+  chutes_quantity: number;
+  chutes_length_m: number;
+}
+
+export interface CoilSummaryResponse {
+  rows: CoilRow[];
+  chutes: CoilChute[];
+  totals: CoilTotals;
+  alu: CoilFamilyTotals;
+  zinc: CoilFamilyTotals;
+  standard_widths: number[];
+}
+
 export interface AutoBreakdownRequest {
   total_meters: number;
   current_pieces?: ShapedPieceModel[];

@@ -2,6 +2,10 @@ import { apiRequest, apiRequestRaw, ApiResponse } from './client';
 import {
   AutoBreakdownRequest,
   AutoPieceBreakdownResponse,
+  CoilEncodeRequest,
+  CoilEncodeResponse,
+  CoilSummaryRequest,
+  CoilSummaryResponse,
   FastEncoderInputRequest,
   FastEncoderEntryResponse,
   OptimizationRequest,
@@ -26,6 +30,26 @@ export const optimizerApi = {
    */
   async autoBreakdown(request: AutoBreakdownRequest): Promise<ApiResponse<AutoPieceBreakdownResponse>> {
     return apiRequest<AutoPieceBreakdownResponse>('/api/v1/optimizer/auto-breakdown', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  },
+
+  /**
+   * Calculateur Bobine : validation et calcul d'une saisie (largeur / quantité / longueur).
+   */
+  async coilEncode(request: CoilEncodeRequest): Promise<ApiResponse<CoilEncodeResponse>> {
+    return apiRequest<CoilEncodeResponse>('/api/v1/optimizer/coil-encode', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  },
+
+  /**
+   * Calculateur Bobine : tableau largeur × matière, totaux et chutes par matière.
+   */
+  async coilSummary(request: CoilSummaryRequest): Promise<ApiResponse<CoilSummaryResponse>> {
+    return apiRequest<CoilSummaryResponse>('/api/v1/optimizer/coil-summary', {
       method: 'POST',
       body: JSON.stringify(request),
     });

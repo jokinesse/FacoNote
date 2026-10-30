@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   Calculator,
@@ -12,14 +12,15 @@ import {
   X,
 } from 'lucide-react';
 import { MATERIAL_GROUPS, STANDARD_MATERIALS } from '../types';
-import { evaluateExpression } from '../utils/mathEvaluator';
-import { getMaterialDensity } from '../utils/optimizer';
 import { DEFAULT_BOBINE_BOUNDS } from '../utils/sheetLogic';
+import { ApiError, CoilSummaryResponse, MetalFamily, optimizerApi } from '../api';
 
 // Calculateur Bobine : saisies propres à l'onglet Bobine, séparées du tableau des pièces.
 // On saisit la largeur de bobine consommée (0 = chute), la quantité et la longueur.
-// Les totaux sont faits par matière × largeur. Les chutes sont notées par matière,
-// à part, sans entrer dans les totaux.
+// Tous les calculs sont faits par le backend :
+// - /optimizer/coil-encode valide et calcule chaque saisie,
+// - /optimizer/coil-summary calcule le tableau (largeur × matière, totaux, chutes par matière).
+// Ce composant garde seulement la liste des saisies et gère l'affichage.
 
 interface CoilEntry {
   id: string;
@@ -38,24 +39,6 @@ interface CoilCalculatorProps {
   onMaterialChange: (material: string) => void;
 }
 
-type MetalFamily = 'ALU' | 'ZINC' | 'AUTRE';
-
-interface CoilRow {
-  id: string;
-  width: number;
-  material: string;
-  family: MetalFamily;
-  entries: CoilEntry[];
-  quantity: number;
-  length: number;
-  surface: number;
-  weight: number;
-  isStandard: boolean;
-}
-
-const metalFamily = (material: string): MetalFamily =>
-  /alu/i.test(material) ? 'ALU' : /zinc/i.test(material) ? 'ZINC' : 'AUTRE';
-
 // Nuances disponibles par largeur standard (affiché sur les lignes vides)
 const WIDTH_HINTS: Record<number, string> = {
   600: 'Zinc : Naturel · ATZ · Quartz',
@@ -67,8 +50,7 @@ const WIDTH_HINTS: Record<number, string> = {
 };
 
 // Badge matière, même rendu que dans le calculateur des pièces
-const MaterialBadge: React.FC<{ material: string }> = ({ material }) => {
-  const family = metalFamily(material);
+const MaterialBadge: React.FC<{ material: string; family: MetalFamily }> = ({ material, family }) => {
   if (family === 'ALU') {
     return (
       <span
@@ -111,11 +93,6 @@ const MaterialBadge: React.FC<{ material: string }> = ({ material }) => {
   );
 };
 
-const round = (value: number, decimals: number) => {
-  const f = 10 ** decimals;
-  return Math.round(value * f) / f;
-};
-
 const fmt = (value: number, decimals = 2) =>
   value.toLocaleString('fr-BE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 
@@ -128,6 +105,9 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
   const [isConfirmingClear, setIsConfirmingClear] = useState(false);
   const [materialFilter, setMaterialFilter] = useState<'ALL' | 'ALU' | 'ZINC'>('ALL');
   const [hideEmpty, setHideEmpty] = useState(false);
+  const [summary, setSummary] = useState<CoilSummaryResponse | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const summaryRequestRef = useRef(0);
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const widthRef = useRef<HTMLInputElement>(null);
@@ -170,58 +150,64 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
     }
   };
 
-  const handleAdd = () => {
-    const width = evaluateExpression(inputWidth.replace(',', '.'));
-    if (inputWidth.trim() === '' || isNaN(width) || width < 0) {
-      setFeedback({ success: false, message: 'Largeur de bobine invalide (en mm, ou 0 pour une chute).' });
+  const handleAdd = async () => {
+    if (isSubmitting) return;
+    if (inputWidth.trim() === '') {
+      setFeedback({ success: false, message: 'Largeur de bobine manquante (en mm, ou 0 pour une chute).' });
       focus(widthRef);
       return;
     }
-
-    const quantity = parseInt(inputQuantity, 10);
-    if (isNaN(quantity) || quantity < 1) {
-      setFeedback({ success: false, message: 'Quantité invalide (1 minimum).' });
-      focus(qtyRef);
-      return;
-    }
-
-    const rawLength = evaluateExpression(inputLength.replace(/,/g, '.'));
-    if (inputLength.trim() === '' || isNaN(rawLength) || rawLength <= 0) {
-      setFeedback({ success: false, message: `Longueur invalide (en ${lengthUnit}, ex : 3.5 ou 2*1.5+4).` });
+    if (inputLength.trim() === '') {
+      setFeedback({ success: false, message: `Longueur manquante (en ${lengthUnit}, ex : 3.5 ou 2*1.5+4).` });
       focus(lengthRef);
       return;
     }
 
-    const unitLength = round(lengthUnit === 'mm' ? rawLength / 1000 : rawLength, 3);
-    const totalLength = round(unitLength * quantity, 3);
-    const isChute = width === 0;
-    const roundedWidth = Math.round(width);
+    setIsSubmitting(true);
+    try {
+      const res = await optimizerApi.coilEncode({
+        width: inputWidth.trim(),
+        quantity: parseInt(inputQuantity, 10) || 0,
+        length: inputLength.trim(),
+        length_unit: lengthUnit,
+        material: activeMaterial,
+      });
+      const d = res.data;
+      const entry: CoilEntry = {
+        id: `coil-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        width: d.width,
+        quantity: d.quantity,
+        unitLength: d.unit_length_m,
+        totalLength: d.total_length_m,
+        material: d.material,
+        isChute: d.is_chute,
+        time: new Date().toLocaleTimeString('fr-BE'),
+      };
+      setEntries((prev) => [entry, ...prev]);
 
-    const entry: CoilEntry = {
-      id: `coil-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      width: roundedWidth,
-      quantity,
-      unitLength,
-      totalLength,
-      material: activeMaterial,
-      isChute,
-      time: new Date().toLocaleTimeString('fr-BE'),
-    };
-    setEntries((prev) => [entry, ...prev]);
+      setFeedback({
+        success: true,
+        message: d.is_chute
+          ? `Chute notée (${res.executionTimeMs}ms) : ${d.quantity} × ${fmt(d.unit_length_m, 3)} m = ${fmt(d.total_length_m, 3)} m [${d.material}]`
+          : `Ajouté (${res.executionTimeMs}ms) : bobine ${d.width} mm · ${d.quantity} × ${fmt(d.unit_length_m, 3)} m = ${fmt(d.total_length_m, 3)} m [${d.material}]` +
+            (d.is_standard ? '' : ' — largeur hors standard'),
+      });
 
-    setFeedback({
-      success: true,
-      message: isChute
-        ? `Chute notée : ${quantity} × ${fmt(unitLength, 3)} m = ${fmt(totalLength, 3)} m [${activeMaterial}]`
-        : `Ajouté : bobine ${roundedWidth} mm · ${quantity} × ${fmt(unitLength, 3)} m = ${fmt(totalLength, 3)} m [${activeMaterial}]` +
-          (DEFAULT_BOBINE_BOUNDS.includes(roundedWidth) ? '' : ' — largeur hors standard'),
-    });
-
-    // Retour sur la case Largeur, vidée comme dans le calculateur des pièces
-    setInputWidth('');
-    setInputQuantity('1');
-    setInputLength('');
-    focus(widthRef);
+      // Retour sur la case Largeur, vidée comme dans le calculateur des pièces
+      setInputWidth('');
+      setInputQuantity('1');
+      setInputLength('');
+      focus(widthRef);
+    } catch (err) {
+      const message = err instanceof ApiError || err instanceof Error ? err.message : 'Erreur lors du calcul de la saisie.';
+      setFeedback({ success: false, message });
+      // Remet le curseur sur la case en cause
+      if (/largeur|width/i.test(message)) focus(widthRef);
+      else if (/quantit/i.test(message)) focus(qtyRef);
+      else focus(lengthRef);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -268,114 +254,58 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
     setFeedback({ success: true, message: `Toutes les saisies bobines passent en : ${activeMaterial}` });
   };
 
-  // Lignes du tableau : une par largeur × matière, largeurs standard affichées même vides
-  const tableRows = useMemo(() => {
-    const groups = new Map<string, { width: number; material: string; entries: CoilEntry[] }>();
-    for (const e of entries) {
-      if (e.isChute) continue;
-      const key = `${e.width}__${e.material}`;
-      if (!groups.has(key)) groups.set(key, { width: e.width, material: e.material, entries: [] });
-      groups.get(key)!.entries.push(e);
-    }
-
-    const rows: CoilRow[] = Array.from(groups.values()).map((g) => {
-      const quantity = g.entries.reduce((s, e) => s + e.quantity, 0);
-      const length = round(g.entries.reduce((s, e) => s + e.totalLength, 0), 3);
-      const surface = round((g.width / 1000) * length, 2);
-      return {
-        id: `${g.width}-${g.material}`,
-        width: g.width,
-        material: g.material,
-        family: metalFamily(g.material),
-        entries: [...g.entries].reverse(),
-        quantity,
-        length,
-        surface,
-        weight: round(surface * getMaterialDensity(g.material), 1),
-        isStandard: DEFAULT_BOBINE_BOUNDS.includes(g.width),
-      };
-    });
-
-    for (const width of DEFAULT_BOBINE_BOUNDS) {
-      if (!rows.some((r) => r.width === width)) {
-        rows.push({
-          id: `${width}-empty`,
-          width,
-          material: '',
-          family: 'AUTRE',
-          entries: [],
-          quantity: 0,
-          length: 0,
-          surface: 0,
-          weight: 0,
-          isStandard: true,
-        });
-      }
-    }
-
-    return rows.sort((a, b) => a.width - b.width || a.material.localeCompare(b.material));
+  // Tableau recalculé par le backend à chaque changement des saisies.
+  // On ignore les réponses d'une requête dépassée par une plus récente.
+  useEffect(() => {
+    const requestId = ++summaryRequestRef.current;
+    const payload = {
+      entries: [...entries].reverse().map((e) => ({
+        id: e.id,
+        width: e.width,
+        quantity: e.quantity,
+        unit_length_m: e.unitLength,
+        material: e.material,
+      })),
+    };
+    optimizerApi
+      .coilSummary(payload)
+      .then((res) => {
+        if (requestId === summaryRequestRef.current) setSummary(res.data);
+      })
+      .catch((err) => {
+        if (requestId !== summaryRequestRef.current) return;
+        const message = err instanceof Error ? err.message : 'erreur inconnue';
+        setFeedback({ success: false, message: `Calcul du tableau bobines impossible : ${message}` });
+      });
   }, [entries]);
 
-  const familySummary = (family: 'ALU' | 'ZINC') => {
-    const rows = tableRows.filter((r) => r.family === family);
-    return {
-      quantity: rows.reduce((s, r) => s + r.quantity, 0),
-      length: round(rows.reduce((s, r) => s + r.length, 0), 2),
-      weight: round(rows.reduce((s, r) => s + r.weight, 0), 1),
-    };
+  const rows = summary?.rows ?? [];
+  const chutes = summary?.chutes ?? [];
+  const totals = summary?.totals ?? {
+    quantity: 0, length_m: 0, surface_m2: 0, weight_kg: 0, chutes_quantity: 0, chutes_length_m: 0,
   };
-  const aluSummary = familySummary('ALU');
-  const zincSummary = familySummary('ZINC');
+  const aluSummary = summary?.alu ?? { quantity: 0, length_m: 0, weight_kg: 0 };
+  const zincSummary = summary?.zinc ?? { quantity: 0, length_m: 0, weight_kg: 0 };
 
-  const filteredRows = tableRows.filter((r) => {
-    if (r.quantity === 0) return !hideEmpty && materialFilter === 'ALL';
+  // Filtres d'affichage (pas de calcul)
+  const filteredRows = rows.filter((r) => {
+    if (r.is_empty) return !hideEmpty && materialFilter === 'ALL';
     return materialFilter === 'ALL' || r.family === materialFilter;
   });
-
-  // Chutes par matière (notées à part, hors totaux)
-  const chuteGroups = useMemo(() => {
-    const map = new Map<string, { quantity: number; length: number; entries: CoilEntry[] }>();
-    for (const e of entries) {
-      if (!e.isChute) continue;
-      const row = map.get(e.material) || { quantity: 0, length: 0, entries: [] };
-      row.quantity += e.quantity;
-      row.length = round(row.length + e.totalLength, 3);
-      row.entries.unshift(e);
-      map.set(e.material, row);
-    }
-    return Array.from(map.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([material, r]) => ({ material, family: metalFamily(material), ...r }));
-  }, [entries]);
-
-  // Même largeur utilisée dans plusieurs matières (plusieurs bobines de cette largeur à sortir)
-  const materialsPerWidth = new Map<number, number>();
-  for (const r of tableRows) {
-    if (r.quantity > 0) materialsPerWidth.set(r.width, (materialsPerWidth.get(r.width) || 0) + 1);
-  }
   // Nombre de lignes affichées par largeur, pour fusionner la case Largeur
   const visibleRowsPerWidth = new Map<number, number>();
   for (const r of filteredRows) {
     visibleRowsPerWidth.set(r.width, (visibleRowsPerWidth.get(r.width) || 0) + 1);
   }
-
-  const filteredChutes = chuteGroups.filter((c) => materialFilter === 'ALL' || c.family === materialFilter);
-
-  const totals = {
-    quantity: tableRows.reduce((s, r) => s + r.quantity, 0),
-    length: round(tableRows.reduce((s, r) => s + r.length, 0), 3),
-    surface: round(tableRows.reduce((s, r) => s + r.surface, 0), 2),
-    weight: round(tableRows.reduce((s, r) => s + r.weight, 0), 1),
-    chutes: round(chuteGroups.reduce((s, g) => s + g.length, 0), 3),
-  };
+  const filteredChutes = chutes.filter((c) => materialFilter === 'ALL' || c.family === materialFilter);
 
   const handleExportCSV = () => {
     const lines = ['Largeur_bobine_mm;Matiere;Nombre;Metrage_m;Surface_m2;Poids_kg'];
-    for (const r of tableRows) {
-      if (r.quantity > 0) lines.push(`${r.width};${r.material};${r.quantity};${r.length};${r.surface};${r.weight}`);
+    for (const r of rows) {
+      if (!r.is_empty) lines.push(`${r.width};${r.material};${r.quantity};${r.length_m};${r.surface_m2};${r.weight_kg}`);
     }
-    for (const c of chuteGroups) {
-      lines.push(`CHUTE;${c.material};${c.quantity};${c.length};;`);
+    for (const c of chutes) {
+      lines.push(`CHUTE;${c.material};${c.quantity};${c.length_m};;`);
     }
     const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -495,6 +425,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
             <button
               ref={addRef}
               type="button"
+              disabled={isSubmitting}
               onClick={handleAdd}
               onKeyDown={(e) => {
                 // Entrée = Ajouter. On bloque la propagation, sinon la calculette d'atelier
@@ -554,7 +485,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
         <div className="faco-card bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Métrage Total</span>
           <div className="mt-0.5 flex items-baseline gap-1">
-            <span className="text-xl font-bold font-mono text-[#00478a] tabular-nums">{totals.length.toFixed(2)}</span>
+            <span className="text-xl font-bold font-mono text-[#00478a] tabular-nums">{totals.length_m.toFixed(2)}</span>
             <span className="text-xs text-slate-500">m</span>
           </div>
         </div>
@@ -569,15 +500,15 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Surface & Poids</span>
           <div className="mt-0.5 flex items-baseline gap-2">
             <span className="text-xl font-bold font-mono text-[#282828] tabular-nums">
-              {totals.surface.toFixed(2)} <span className="text-xs font-normal text-slate-500">m²</span>
+              {totals.surface_m2.toFixed(2)} <span className="text-xs font-normal text-slate-500">m²</span>
             </span>
-            <span className="text-xs font-mono font-semibold text-[#3ca7da]">· {totals.weight} kg</span>
+            <span className="text-xs font-mono font-semibold text-[#3ca7da]">· {totals.weight_kg.toFixed(1)} kg</span>
           </div>
         </div>
         <div className="faco-card bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
           <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Chutes (hors totaux)</span>
           <div className="mt-0.5 flex items-baseline gap-1">
-            <span className="text-xl font-bold font-mono text-[#e7511f] tabular-nums">{totals.chutes.toFixed(2)}</span>
+            <span className="text-xl font-bold font-mono text-[#e7511f] tabular-nums">{totals.chutes_length_m.toFixed(2)}</span>
             <span className="text-xs text-slate-500">m</span>
           </div>
         </div>
@@ -626,7 +557,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
         </div>
 
         {/* Filtre matière */}
-        {totals.quantity + chuteGroups.length > 0 && (
+        {totals.quantity + totals.chutes_quantity > 0 && (
           <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-1.5">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
               <Filter className="w-3 h-3 text-slate-400" />
@@ -641,7 +572,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
                   : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
               }`}
             >
-              Toutes ({totals.length.toFixed(1)}m · {totals.quantity} pcs)
+              Toutes ({totals.length_m.toFixed(1)}m · {totals.quantity} pcs)
             </button>
             {aluSummary.quantity > 0 && (
               <button
@@ -655,7 +586,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
               >
                 <span className="px-1.5 py-0.2 bg-[#00478a] text-white rounded text-[9px] font-black">ALU</span>
                 <span>
-                  {aluSummary.length.toFixed(1)}m ({aluSummary.quantity} pcs · {aluSummary.weight.toFixed(1)} kg)
+                  {aluSummary.length_m.toFixed(1)}m ({aluSummary.quantity} pcs · {aluSummary.weight_kg.toFixed(1)} kg)
                 </span>
               </button>
             )}
@@ -671,7 +602,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
               >
                 <span className="px-1.5 py-0.2 bg-slate-700 text-white rounded text-[9px] font-black">ZINC</span>
                 <span>
-                  {zincSummary.length.toFixed(1)}m ({zincSummary.quantity} pcs · {zincSummary.weight.toFixed(1)} kg)
+                  {zincSummary.length_m.toFixed(1)}m ({zincSummary.quantity} pcs · {zincSummary.weight_kg.toFixed(1)} kg)
                 </span>
               </button>
             )}
@@ -707,14 +638,14 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
             </thead>
             <tbody className="divide-y divide-slate-100 font-mono">
               {filteredRows.map((row, index) => {
-                const isEmpty = row.quantity === 0;
-                const sharedCount = materialsPerWidth.get(row.width) || 0;
+                const isEmpty = row.is_empty;
+                const sharedCount = row.materials_in_width;
                 const isShared = !isEmpty && sharedCount > 1;
                 const isFirstOfWidth = index === 0 || filteredRows[index - 1].width !== row.width;
                 const span = visibleRowsPerWidth.get(row.width) || 1;
                 return (
                   <tr
-                    key={row.id}
+                    key={`${row.width}-${row.material || 'vide'}`}
                     className={`transition-colors ${
                       isEmpty
                         ? 'bg-[#f8fafc]/50 hover:bg-slate-50 text-slate-400'
@@ -733,7 +664,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={`tabular-nums font-mono text-sm ${isEmpty ? 'text-slate-400' : ''}`}>{row.width}</span>
                           <span className={isEmpty ? 'text-slate-400' : ''}>mm</span>
-                          {!row.isStandard && (
+                          {!row.is_standard && (
                             <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold font-sans bg-amber-100 text-amber-900 border border-amber-300">
                               hors standard
                             </span>
@@ -750,18 +681,18 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
                         )}
                       </td>
                     )}
-                    <td className="py-2 px-4">{isEmpty ? <span className="text-slate-300">-</span> : <MaterialBadge material={row.material} />}</td>
+                    <td className="py-2 px-4">{isEmpty ? <span className="text-slate-300">-</span> : <MaterialBadge material={row.material} family={row.family} />}</td>
                     <td className="py-2 px-4 text-[11px]">
                       {isEmpty ? (
                         <span className="font-sans text-slate-400">{WIDTH_HINTS[row.width] || '-'}</span>
                       ) : (
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {row.entries.map((e) => (
+                          {[...row.sheets].reverse().map((e) => (
                             <span
                               key={e.id}
                               className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded border bg-slate-100 text-slate-700 border-slate-200"
                             >
-                              {e.quantity}×{e.unitLength}m
+                              {e.quantity}×{e.unit_length_m}m
                             </span>
                           ))}
                         </div>
@@ -771,13 +702,13 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
                       {isEmpty ? <span className="text-slate-300">-</span> : <span className="text-[#282828] font-semibold">{row.quantity}</span>}
                     </td>
                     <td className="py-2 px-4 text-right tabular-nums font-bold text-xs">
-                      {isEmpty ? <span className="text-slate-300">0.00 m</span> : <span className="text-[#00478a]">{row.length.toFixed(2)} m</span>}
+                      {isEmpty ? <span className="text-slate-300">0.00 m</span> : <span className="text-[#00478a]">{row.length_m.toFixed(2)} m</span>}
                     </td>
                     <td className="py-2 px-4 text-right tabular-nums">
-                      {isEmpty ? <span className="text-slate-300">-</span> : `${row.surface.toFixed(2)} m²`}
+                      {isEmpty ? <span className="text-slate-300">-</span> : `${row.surface_m2.toFixed(2)} m²`}
                     </td>
                     <td className="py-2 px-4 text-right tabular-nums">
-                      {isEmpty ? <span className="text-slate-300">-</span> : `${row.weight.toFixed(1)} kg`}
+                      {isEmpty ? <span className="text-slate-300">-</span> : `${row.weight_kg.toFixed(1)} kg`}
                     </td>
                     <td className="py-2 px-4 text-right">
                       {!isEmpty && (
@@ -798,21 +729,21 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
               {filteredChutes.map((c) => (
                 <tr key={`chute-${c.material}`} className="bg-amber-50/50 text-amber-900 border-t border-amber-200">
                   <td className="py-2 px-4 font-bold">0 (CHUTES)</td>
-                  <td className="py-2 px-4"><MaterialBadge material={c.material} /></td>
+                  <td className="py-2 px-4"><MaterialBadge material={c.material} family={c.family} /></td>
                   <td className="py-2 px-4 text-[11px]">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      {c.entries.map((e) => (
+                      {[...c.sheets].reverse().map((e) => (
                         <span
                           key={e.id}
                           className="inline-flex items-center text-[10px] font-mono px-2 py-0.5 rounded border bg-amber-100/80 text-amber-900 border-amber-200"
                         >
-                          {e.quantity}×{e.unitLength}m
+                          {e.quantity}×{e.unit_length_m}m
                         </span>
                       ))}
                     </div>
                   </td>
                   <td className="py-2 px-4 text-right tabular-nums font-bold">{c.quantity}</td>
-                  <td className="py-2 px-4 text-right tabular-nums font-bold text-[#e7511f]">{c.length.toFixed(2)} m</td>
+                  <td className="py-2 px-4 text-right tabular-nums font-bold text-[#e7511f]">{c.length_m.toFixed(2)} m</td>
                   <td className="py-2 px-4 text-right">-</td>
                   <td className="py-2 px-4 text-right">-</td>
                   <td className="py-2 px-4 text-right">

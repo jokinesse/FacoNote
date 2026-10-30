@@ -5,6 +5,12 @@ Spécification technique : Section 4.3 du Cahier des Charges.
 
 from fastapi import APIRouter, HTTPException, Response, status
 from app.core.constants import OFFICIAL_MATERIALS
+from app.models.coils import (
+    CoilEncodeRequest,
+    CoilEncodeResponse,
+    CoilSummaryRequest,
+    CoilSummaryResponse,
+)
 from app.models.optimizer import (
     AutoBreakdownRequest,
     AutoPieceBreakdownResponse,
@@ -13,6 +19,7 @@ from app.models.optimizer import (
 )
 from app.models.pieces import FastEncoderEntryResponse, FastEncoderInputRequest
 from app.services.breakdown_engine import resolve_auto_piece_breakdown
+from app.services.coil_engine import encode_coil_entry, summarize_coils
 from app.services.encoder_engine import parse_composite_input
 from app.services.nesting_engine import run_nesting_optimization
 from app.services.sheet_generator import generate_workshop_sheet_html
@@ -125,6 +132,51 @@ def quick_encode_endpoint(request: FastEncoderInputRequest) -> FastEncoderEntryR
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Division par zéro dans l'expression arithmétique",
         ) from exc
+
+
+@router.post(
+    "/coil-encode",
+    response_model=CoilEncodeResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Validation et calcul d'une saisie du calculateur Bobine",
+)
+def coil_encode_endpoint(request: CoilEncodeRequest) -> CoilEncodeResponse:
+    """
+    Valide une saisie bobine (largeur en mm, 0 = chute / quantité / longueur)
+    et calcule la longueur unitaire et le métrage total.
+    """
+    try:
+        return encode_coil_entry(
+            width_expr=request.width,
+            quantity=request.quantity,
+            length_expr=request.length,
+            length_unit=request.length_unit,
+            material_name=request.material,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except ZeroDivisionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Division par zéro dans l'expression arithmétique",
+        ) from exc
+
+
+@router.post(
+    "/coil-summary",
+    response_model=CoilSummaryResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Tableau récapitulatif du calculateur Bobine",
+)
+def coil_summary_endpoint(request: CoilSummaryRequest) -> CoilSummaryResponse:
+    """
+    Regroupe les saisies bobines par largeur × matière (métrage, surface, poids),
+    calcule les totaux, le résumé ALU/ZINC et les chutes par matière (hors totaux).
+    """
+    return summarize_coils(request.entries)
 
 
 @router.post(

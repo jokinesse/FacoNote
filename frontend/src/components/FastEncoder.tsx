@@ -42,6 +42,7 @@ import {
 } from '../api';
 import { WorkshopCalculator } from './WorkshopCalculator';
 import { VisualPreEncoderModal } from './VisualPreEncoderModal';
+import { CoilCalculator } from './CoilCalculator';
 
 interface FastEncoderProps {
   onTransferToOptimizer: (pieces: ShapedPiece[]) => void;
@@ -103,9 +104,9 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
   // Preset switch
   const handlePresetChange = (newPreset: SheetPreset) => {
     setPreset(newPreset);
-    setIntervals(createInitialIntervals(newPreset));
     setLastFeedback(null);
   };
+  const isCoilMode = preset === 'DEV_BOBINE';
 
   // Main Submit handler using the 3 cases connected to FastAPI
   const handleSubmitEntry = async (
@@ -194,7 +195,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
         raw_input: rawExpressionToEncode,
         material: activeMaterial,
         length_unit: lengthUnit,
-        preset: preset === 'DEV_BOBINE' ? 'DEV_BOBINE' : 'DEV_PIECE',
+        preset: 'DEV_PIECE',
       });
 
       const entry = apiResult.data;
@@ -426,7 +427,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
       // Confirmed!
       if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
       setIsConfirmingClear(false);
-      setIntervals(createInitialIntervals(preset));
+      setIntervals(createInitialIntervals('DEV_PIECE'));
       setChuteLength(0);
       setChuteCount(0);
       setEntriesHistory([]);
@@ -1231,6 +1232,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
           </div>
         </div>
 
+        <div className={isCoilMode ? 'hidden' : 'space-y-3.5'}>
         {/* The 3 Input Fields Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
           <div>
@@ -1360,8 +1362,15 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
             </button>
           </div>
         )}
+        </div>
       </div>
 
+      {/* Calculateur Bobine (séparé du tableau des pièces) */}
+      <div className={isCoilMode ? '' : 'hidden'}>
+        <CoilCalculator activeMaterial={activeMaterial} lengthUnit={lengthUnit} />
+      </div>
+
+      <div className={isCoilMode ? 'hidden' : 'space-y-4'}>
       {breakdownAlternatives.length > 0 && (
         <div className="bg-white border border-[#3ca7da]/40 rounded-xl p-3 space-y-2 shadow-2xs">
           <div className="text-[11px] font-bold text-[#00478a] uppercase tracking-wider flex items-center justify-between">
@@ -2087,6 +2096,8 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
         }}
       />
 
+      </div>
+
       <VisualPreEncoderModal
         isOpen={isVisualModalOpen}
         onClose={() => setIsVisualModalOpen(false)}
@@ -2096,7 +2107,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
       />
 
       {/* Compact History Log */}
-      {entriesHistory.length > 0 && (
+      {!isCoilMode && entriesHistory.length > 0 && (
         <div className="faco-card bg-white border border-slate-200 rounded-xl p-4 space-y-2.5 shadow-2xs">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-[#00478a] flex items-center gap-1.5">

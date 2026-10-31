@@ -109,3 +109,57 @@ def test_load_firewall_blocks_unauthenticated_flood_and_allows_admin() -> None:
     )
     assert unlocked.status_code == 200
     reset_security_state_for_tests()
+
+
+def test_ai_quota_per_ip_and_per_day() -> None:
+    """Quota IA : 20 appels par IP et par 10 min, plafond global par jour, refus non décomptés."""
+    from app.core import admin_security as sec
+
+    reset_security_state_for_tests()
+    path = "/api/v1/ai/parse-document"
+    for _ in range(sec.AI_LIMIT_PER_IP):
+        assert sec.check_rate_limit("10.0.0.1", path, None)[0] is True
+    allowed, retry_after = sec.check_rate_limit("10.0.0.1", path, None)
+    assert allowed is False and retry_after > 0
+    # Une autre IP n'est pas touchée par le blocage de la première
+    assert sec.check_rate_limit("10.0.0.2", path, None)[0] is True
+
+    reset_security_state_for_tests()
+    original = sec.AI_LIMIT_PER_DAY
+    sec.AI_LIMIT_PER_DAY = 3
+    try:
+        for i in range(3):
+            assert sec.check_rate_limit(f"10.1.0.{i}", path, None)[0] is True
+        assert sec.check_rate_limit("10.1.0.99", path, None)[0] is False
+    finally:
+        sec.AI_LIMIT_PER_DAY = original
+        reset_security_state_for_tests()
+
+
+def test_rate_buckets_are_pruned() -> None:
+    """Les compteurs inactifs sont purgés quand ils deviennent trop nombreux."""
+    from app.core import admin_security as sec
+
+    reset_security_state_for_tests()
+    original = sec.MAX_RATE_KEYS
+    sec.MAX_RATE_KEYS = 5
+    try:
+        with sec._SECURITY_LOCK:
+            for i in range(10):
+                sec._RATE_BUCKETS[(f"10.2.0.{i}", "light")] = [0.0]
+        sec.check_rate_limit("10.2.1.1", "/api/v1/optimizer/materials", None)
+        assert len(sec._RATE_BUCKETS) <= 2
+    finally:
+        sec.MAX_RATE_KEYS = original
+        reset_security_state_for_tests()
+
+
+def test_calculate_rejects_too_many_pieces() -> None:
+    """Le calcul refuse une liste de pièces au-delà du plafond (422)."""
+    from app.models.optimizer import MAX_PIECES_PER_REQUEST
+
+    reset_security_state_for_tests()
+    piece = {"id": "p", "label": "Bavette", "dev": 250, "length": 2.0, "quantity": 1, "bends": 2}
+    payload = {"pieces": [dict(piece, id=f"p-{i}") for i in range(MAX_PIECES_PER_REQUEST + 1)]}
+    r = client.post("/api/v1/optimizer/calculate", json=payload)
+    assert r.status_code == 422

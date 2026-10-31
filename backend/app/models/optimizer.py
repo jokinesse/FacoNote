@@ -8,6 +8,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.models.pieces import ShapedPieceModel
 
 
+# Plafond de pièces par requête : protège le moteur de refente contre les requêtes géantes.
+MAX_PIECES_PER_REQUEST: int = 500
+
 class AutoPieceBreakdownAlternative(BaseModel):
     """
     Proposition alternative de découpage pour un métrage linéaire sans quantité.
@@ -52,7 +55,7 @@ class AutoBreakdownRequest(BaseModel):
 
     total_meters: float = Field(..., gt=0.0, le=500.0, description="Métrage linéaire total requis en mètres")
     current_pieces: list[ShapedPieceModel] = Field(
-        default_factory=list, description="Pièces déjà existantes sur la commande pour harmonisation de débit"
+        default_factory=list, max_length=MAX_PIECES_PER_REQUEST, description="Pièces déjà existantes sur la commande pour harmonisation de débit"
     )
     target_material: str = Field("Zinc Naturel 0.7", description="Matière ciblée pour la recherche de cohortes")
     forced_length: Optional[float] = Field(None, gt=0.0, description="Longueur forcée manuellement par l'opérateur")
@@ -68,7 +71,9 @@ class OptimizationRequest(BaseModel):
     client_name: str = Field("Client Comptoir", description="Nom du client")
     chantier_ref: str = Field("Chantier Standard", description="Référence du chantier")
     material: str = Field("Zinc Naturel 0.7", description="Matière globale par défaut")
-    pieces: list[ShapedPieceModel] = Field(..., min_length=1, description="Liste des pièces à imbriquer")
+    pieces: list[ShapedPieceModel] = Field(
+        ..., min_length=1, max_length=MAX_PIECES_PER_REQUEST, description="Liste des pièces à imbriquer"
+    )
     available_mother_widths: Optional[list[int]] = Field(None, description="Laizes mères en stock autorisées")
     use_workshop_scraps: bool = Field(False, description="Activer la substitution par des bandes de rack")
     use_generated_scraps: bool = Field(

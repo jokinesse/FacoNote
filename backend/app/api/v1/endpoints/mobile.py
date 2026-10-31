@@ -9,7 +9,7 @@ from app.models.mobile import (
     MobileStatusResponse,
     MobileUploadRequest,
 )
-from app.services.session_store import global_session_store
+from app.services.session_store import SessionStoreFullError, global_session_store
 
 router = APIRouter(prefix="/mobile", tags=["Sessions Mobiles Atelier"])
 
@@ -24,7 +24,10 @@ def create_mobile_session_endpoint() -> MobileSessionResponse:
     """
     Initialise une session temporaire pour appairer un smartphone d'ouvrier avec le poste PC.
     """
-    return global_session_store.create_session()
+    try:
+        return global_session_store.create_session()
+    except SessionStoreFullError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
 
 @router.post(

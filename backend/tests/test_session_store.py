@@ -105,3 +105,16 @@ def test_session_concurrent_thread_safety() -> None:
     # 100 sessions uniques créées sans collision
     assert len(created_ids) == 100
     assert len(set(created_ids)) == 100
+
+
+def test_session_store_max_sessions() -> None:
+    """Au-delà du plafond, plus de nouvelle session (ni par création, ni à la volée)."""
+    from app.services.session_store import SessionStoreFullError
+
+    store = MobileSessionStore(ttl_seconds=2700.0)
+    store.MAX_SESSIONS = 3
+    for _ in range(3):
+        store.create_session()
+    with pytest.raises(SessionStoreFullError):
+        store.create_session()
+    assert store.save_upload("FAC-0000-NEW1", "aGVsbG8=") is False

@@ -37,6 +37,13 @@ RATE_LIMIT_WINDOW_SECONDS: float = 10.0
 HEAVY_ROUTE_LIMIT_PER_WINDOW: int = 40
 LIGHT_ROUTE_LIMIT_PER_WINDOW: int = 120
 
+# Quota IA (routes /api/v1/ai/*) : chaque appel peut coûter un appel Gemini payant.
+AI_WINDOW_SECONDS: float = 600.0
+AI_LIMIT_PER_IP: int = 20          # par IP et par 10 minutes
+AI_DAY_SECONDS: float = 86400.0
+AI_LIMIT_PER_DAY: int = 500        # tous visiteurs confondus, par jour et par processus
+MAX_RATE_KEYS: int = 10000         # au-delà, les compteurs inactifs sont purgés
+
 ENV_VAR_NAME: str = "FACONOTE_ADMIN_HASH"
 BACKEND_ENV_PATH: Path = Path(__file__).resolve().parents[2] / ".env"
 
@@ -250,6 +257,25 @@ def check_rate_limit(client_ip: str, path: str, admin_token: Optional[str]) -> t
     if verify_admin_token(admin_token) is not None:
         return True, 0
 
+    if path.startswith("/api/v1/ai/"):
+        # Quota global du jour d'abord, puis quota par IP ; un refus n'est pas décompté.
+        now = time.time()
+        with _SECURITY_LOCK:
+            _prune_rate_buckets(now)
+            day_key = ("*", "ai_day")
+            ip_key = (client_ip, "ai")
+            day = [t for t in _RATE_BUCKETS.get(day_key, []) if now - t < AI_DAY_SECONDS]
+            per_ip = [t for t in _RATE_BUCKETS.get(ip_key, []) if now - t < AI_WINDOW_SECONDS]
+            _RATE_BUCKETS[day_key] = day
+            _RATE_BUCKETS[ip_key] = per_ip
+            if len(day) >= AI_LIMIT_PER_DAY:
+                return False, max(1, int(AI_DAY_SECONDS - (now - day[0])) + 1)
+            if len(per_ip) >= AI_LIMIT_PER_IP:
+                return False, max(1, int(AI_WINDOW_SECONDS - (now - per_ip[0])) + 1)
+            day.append(now)
+            per_ip.append(now)
+            return True, 0
+
     if not path.startswith("/api/v1/optimizer/"):
         return True, 0
 
@@ -260,6 +286,7 @@ def check_rate_limit(client_ip: str, path: str, admin_token: Optional[str]) -> t
     now = time.time()
     key = (client_ip, bucket_name)
     with _SECURITY_LOCK:
+        _prune_rate_buckets(now)
         timestamps = [t for t in _RATE_BUCKETS.get(key, []) if now - t < RATE_LIMIT_WINDOW_SECONDS]
         if len(timestamps) >= max_requests:
             retry_after = max(1, int(RATE_LIMIT_WINDOW_SECONDS - (now - timestamps[0])) + 1)
@@ -268,6 +295,18 @@ def check_rate_limit(client_ip: str, path: str, admin_token: Optional[str]) -> t
         timestamps.append(now)
         _RATE_BUCKETS[key] = timestamps
         return True, 0
+
+
+def _prune_rate_buckets(now: float) -> None:
+    """Supprime les compteurs devenus inutiles quand il y en a trop (à appeler sous verrou)."""
+    if len(_RATE_BUCKETS) < MAX_RATE_KEYS:
+        return
+    for key in list(_RATE_BUCKETS):
+        if key[0] == "*":
+            continue
+        window = AI_WINDOW_SECONDS if key[1] == "ai" else RATE_LIMIT_WINDOW_SECONDS
+        if not any(now - t < window for t in _RATE_BUCKETS[key]):
+            del _RATE_BUCKETS[key]
 
 
 def reset_security_state_for_tests() -> None:

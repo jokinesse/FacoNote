@@ -24,6 +24,10 @@ class _InternalSession:
     note: Optional[str] = None
 
 
+class SessionStoreFullError(RuntimeError):
+    """Levée quand le nombre maximal de sessions mobiles est atteint."""
+
+
 class MobileSessionStore:
     """
     Gestionnaire thread-safe des sessions de téléversement photo mobile.
@@ -31,6 +35,7 @@ class MobileSessionStore:
     """
 
     DEFAULT_TTL_SECONDS: float = 45.0 * 60.0  # 45 minutes
+    MAX_SESSIONS: int = 500  # protège la mémoire contre la création de sessions en masse
 
     def __init__(self, ttl_seconds: float = DEFAULT_TTL_SECONDS) -> None:
         self._lock = threading.RLock()
@@ -52,6 +57,8 @@ class MobileSessionStore:
         self.cleanup_expired()
 
         with self._lock:
+            if len(self._sessions) >= self.MAX_SESSIONS:
+                raise SessionStoreFullError("Trop de sessions mobiles ouvertes, réessayez dans quelques minutes.")
             session_id = self._generate_session_id()
             while session_id in self._sessions:
                 session_id = self._generate_session_id()
@@ -83,6 +90,8 @@ class MobileSessionStore:
         with self._lock:
             session = self._sessions.get(session_id)
             if not session:
+                if len(self._sessions) >= self.MAX_SESSIONS:
+                    return False
                 # Création à la volée si URL valide scannée directement
                 session = _InternalSession(
                     id=session_id,

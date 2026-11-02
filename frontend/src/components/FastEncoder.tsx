@@ -6,10 +6,7 @@ import {
   RotateCcw,
   Download,
   ArrowRight,
-  CheckCircle2,
-  AlertCircle,
   Hash,
-  X,
   CornerDownLeft,
   Layers,
   Camera,
@@ -34,6 +31,15 @@ import {
 import { WorkshopCalculator } from './WorkshopCalculator';
 import { VisualPreEncoderModal } from './VisualPreEncoderModal';
 import { CoilCalculator } from './CoilCalculator';
+import {
+  BTN_DANGER,
+  CELL_SHARED_EDGE,
+  DeleteButton,
+  Notice,
+  ROW_SHARED,
+  SharedBadge,
+  useDeleteAction,
+} from './ui';
 
 interface FastEncoderProps {
   onTransferToOptimizer: (pieces: ShapedPiece[]) => void;
@@ -53,9 +59,12 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
   const [inputQuantity, setInputQuantity] = useState<string>('1');
   const [lengthUnit, setLengthUnit] = useState<'m' | 'mm'>('m');
 
-  // Inline delete confirmation state (safe in iframe, never uses window.confirm)
-  const [isConfirmingClear, setIsConfirmingClear] = useState<boolean>(false);
-  const clearTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Suppressions : confirmation Oui / Non et message communs à tout le site
+  const deleteAction = useDeleteAction();
+
+  // Alerte « même dév dans une autre matière » après une saisie
+  const [sharedWarning, setSharedWarning] = useState<string | null>(null);
+  const pendingSharedCheckRef = useRef<{ dev: number; material: string } | null>(null);
 
   // Visual Pre-Encoder Modal State
   const [isVisualModalOpen, setIsVisualModalOpen] = useState<boolean>(false);
@@ -149,6 +158,9 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     }));
     // L'historique est affiché du plus récent au plus ancien
     setEntriesHistory((prev) => [...newEntries.reverse(), ...prev]);
+    // Vérifié quand le backend a recalculé le tableau
+    const last = encoded[encoded.length - 1];
+    pendingSharedCheckRef.current = last ? { dev: last.dev, material: last.material } : null;
   };
 
   // Saisie : tous les calculs sont faits par le backend.
@@ -336,81 +348,63 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     });
   };
 
-  // Delete a specific history entry (le tableau est recalculé par le backend)
+  // Suppression d'une saisie de l'historique (le tableau est recalculé par le backend)
   const handleDeleteHistoryEntry = (entryId: string) => {
     const entry = entriesHistory.find((e) => e.id === entryId);
     if (!entry) return;
-
-    setEntriesHistory((prev) => prev.filter((e) => e.id !== entryId));
-    setLastFeedback({
-      success: true,
-      message: `Entrée supprimée : ${entry.rawInput} (-${entry.evaluatedLength}m, -${entry.quantity || 1} pcs)`,
-    });
+    deleteAction(`la saisie Dév ${entry.dev} mm · ${entry.quantity || 1} × ${entry.unitLength} m`, () =>
+      setEntriesHistory((prev) => prev.filter((e) => e.id !== entryId))
+    );
   };
 
-  // Undo the last entry
+  // Annuler la dernière saisie (sans confirmation, pour garder la saisie rapide)
   const handleUndoLast = () => {
     if (entriesHistory.length === 0) return;
     const [last] = entriesHistory;
-    handleDeleteHistoryEntry(last.id);
+    setEntriesHistory((prev) => prev.filter((e) => e.id !== last.id));
+    setLastFeedback({
+      success: true,
+      message: `Dernière saisie annulée : Dév ${last.dev} mm · ${last.quantity || 1} × ${last.unitLength} m`,
+    });
   };
 
-  // Clear all with 2-click inline confirmation (works 100% reliably in iframe)
-  const handleTriggerClear = () => {
-    if (!isConfirmingClear) {
-      setIsConfirmingClear(true);
-      if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
-      clearTimerRef.current = setTimeout(() => {
-        setIsConfirmingClear(false);
-      }, 5000);
-    } else {
-      // Confirmed!
-      if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
-      setIsConfirmingClear(false);
+  // Vider tout le tableau
+  const handleClearAll = () => {
+    if (entriesHistory.length === 0) return;
+    deleteAction('toutes les saisies Dév pièce', () => {
       setEntriesHistory([]);
-      setLastFeedback({
-        success: true,
-        message: 'Tous les cumuls et l\'historique ont été réinitialisés à zéro.',
-      });
+      setLastFeedback(null);
+      setSharedWarning(null);
       devRef.current?.focus();
-    }
+    });
   };
 
-  const handleCancelClear = () => {
-    if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
-    setIsConfirmingClear(false);
-  };
-
-  // Zero out a specific piece development & material row
+  // Supprimer une ligne Dév × matière du tableau
   const handleResetDevMaterialRow = (targetDev: number, targetMaterial: string) => {
-    setEntriesHistory((prev) =>
-      prev.filter(
-        (e) => !(e.dev === targetDev && (e.material || activeMaterial) === targetMaterial)
+    deleteAction(`Dév ${targetDev} mm (${targetMaterial})`, () =>
+      setEntriesHistory((prev) =>
+        prev.filter(
+          (e) => !(e.dev === targetDev && (e.material || activeMaterial) === targetMaterial)
+        )
       )
     );
-    setLastFeedback({
-      success: true,
-      message: `Pièce Dév ${targetDev} mm (${targetMaterial}) supprimée du tableau.`,
-    });
   };
 
-  // Zero out a specific interval row (with optional material filter)
+  // Supprimer une ligne Borne × matière du tableau
   const handleResetIntervalRow = (bound: number, targetMaterial?: string) => {
-    setEntriesHistory((prev) =>
-      prev.filter(
-        (e) =>
-          !(
-            e.matchedBound === bound &&
-            (!targetMaterial || (e.material || activeMaterial) === targetMaterial)
+    deleteAction(
+      targetMaterial ? `Borne ${bound} mm (${targetMaterial})` : `Borne ${bound} mm`,
+      () =>
+        setEntriesHistory((prev) =>
+          prev.filter(
+            (e) =>
+              !(
+                e.matchedBound === bound &&
+                (!targetMaterial || (e.material || activeMaterial) === targetMaterial)
+              )
           )
-      )
+        )
     );
-    setLastFeedback({
-      success: true,
-      message: targetMaterial
-        ? `Borne ${bound} mm (${targetMaterial}) remise à zéro.`
-        : `Borne ${bound} mm remise à zéro.`,
-    });
   };
 
   // Quick preset button click
@@ -607,6 +601,21 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     sharedWithMaterials: r.shared_with_materials,
     entries: toCuts(r.cuts),
   }));
+
+  // Après une saisie : si le même dév existe dans une autre matière, on prévient
+  // (l'information vient du backend : is_shared_dev / shared_with_materials).
+  useEffect(() => {
+    const pending = pendingSharedCheckRef.current;
+    if (!pending || !summary) return;
+    const row = summary.dev_rows.find((r) => r.dev === pending.dev && r.material === pending.material);
+    if (!row) return;
+    pendingSharedCheckRef.current = null;
+    setSharedWarning(
+      row.is_shared_dev
+        ? `Attention : le Dév ${row.dev} mm existe aussi en ${row.shared_with_materials.join(', ')}. Vérifiez la matière avant de continuer.`
+        : null
+    );
+  }, [summary]);
 
   const tableIntervalRows = (summary?.bound_rows ?? []).map((r) => ({
     id: `bound-${r.bound}-${r.material || 'vide'}`,
@@ -979,29 +988,14 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
         {/* Live Feedback */}
         {lastFeedback && (
-          <div
-            className={`px-3 py-2 rounded-lg text-xs flex items-center justify-between gap-2 ${
-              lastFeedback.success
-                ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
-                : 'bg-rose-50 border border-rose-200 text-rose-800'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              {lastFeedback.success ? (
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-              ) : (
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-              )}
-              <span>{lastFeedback.message}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setLastFeedback(null)}
-              className="text-slate-400 hover:text-slate-700 cursor-pointer"
-            >
-              ✕
-            </button>
-          </div>
+          <Notice
+            kind={lastFeedback.success ? 'success' : 'error'}
+            message={lastFeedback.message}
+            onClose={() => setLastFeedback(null)}
+          />
+        )}
+        {sharedWarning && (
+          <Notice kind="warning" message={sharedWarning} onClose={() => setSharedWarning(null)} />
         )}
         </div>
       </div>
@@ -1146,34 +1140,15 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
               <span>CSV</span>
             </button>
 
-            {isConfirmingClear ? (
-              <div className="flex items-center gap-1 bg-rose-50 border border-rose-300 rounded-lg p-0.5">
-                <button
-                  type="button"
-                  onClick={handleTriggerClear}
-                  className="px-2 py-1 text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 rounded-md transition-colors cursor-pointer"
-                >
-                  Confirmer
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCancelClear}
-                  className="p-1 text-slate-500 hover:text-slate-800 cursor-pointer"
-                  title="Annuler"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={handleTriggerClear}
-                className="px-2.5 py-1.5 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Vider</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleClearAll}
+              disabled={entriesHistory.length === 0}
+              className={BTN_DANGER}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Vider</span>
+            </button>
 
             <button
               type="button"
@@ -1340,25 +1315,17 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                       <tr
                         key={row.id}
                         className={`transition-colors border-b border-slate-100 ${
-                          row.isSharedDev
-                            ? 'border-l-4 border-l-amber-400 bg-amber-50/20 hover:bg-amber-50/40'
-                            : 'bg-white hover:bg-slate-50/80'
+                          row.isSharedDev ? ROW_SHARED : 'bg-white hover:bg-slate-50/80'
                         }`}
                       >
                         {/* 1. Dév Réel (Gros et lisible) + Badge Même Dév si partagé */}
-                        <td className="py-2.5 px-4">
+                        <td className={`py-2.5 px-4 ${row.isSharedDev ? CELL_SHARED_EDGE : ''}`}>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-black font-mono text-[#282828] tabular-nums">
                               {row.dev} <span className="text-xs font-normal text-slate-500">mm</span>
                             </span>
                             {row.isSharedDev && (
-                              <span
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
-                                title={`Même développement (${row.dev} mm) également présent en : ${row.sharedWithMaterials.join(', ')}`}
-                              >
-                                <Layers className="w-3 h-3 text-amber-600 shrink-0" />
-                                <span>Même Dév</span>
-                              </span>
+                              <SharedBadge label="Même dév" materials={row.sharedWithMaterials} />
                             )}
                           </div>
                         </td>
@@ -1438,14 +1405,10 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
                         {/* 9. Action Supprimer cette pièce */}
                         <td className="py-2.5 px-4 text-right">
-                          <button
-                            type="button"
+                          <DeleteButton
+                            title={`Supprimer Dév ${row.dev} mm (${row.material})`}
                             onClick={() => handleResetDevMaterialRow(row.dev, row.material)}
-                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors rounded cursor-pointer"
-                            title={`Supprimer Dév ${row.dev}mm (${row.material})`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          />
                         </td>
                       </tr>
                     );
@@ -1483,7 +1446,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                       key={row.id}
                       className={`transition-colors ${
                         hasSharedDev
-                          ? 'border-l-4 border-l-amber-400 bg-amber-50/20 hover:bg-amber-50/40'
+                          ? ROW_SHARED
                           : isHighlighted
                           ? 'bg-[#3ca7da]/10 font-semibold'
                           : row.accumulatedLength > 0
@@ -1491,18 +1454,10 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                           : 'bg-[#f8fafc]/50 hover:bg-slate-50 text-slate-400'
                       }`}
                     >
-                      <td className="py-2 px-4 font-bold text-[#282828]">
+                      <td className={`py-2 px-4 font-bold text-[#282828] ${hasSharedDev ? CELL_SHARED_EDGE : ''}`}>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="tabular-nums font-mono text-sm">{row.bound}</span> mm
-                          {hasSharedDev && (
-                            <span
-                              className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-300"
-                              title="Contient un développement identique présent dans plusieurs matières"
-                            >
-                              <Layers className="w-2.5 h-2.5 text-amber-600 shrink-0" />
-                              <span>Même Dév</span>
-                            </span>
-                          )}
+                          {hasSharedDev && <SharedBadge label="Même dév" materials={[]} />}
                         </div>
                       </td>
                       <td className="py-2 px-4">
@@ -1578,14 +1533,10 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                       </td>
                       <td className="py-2 px-4 text-right">
                         {row.accumulatedLength > 0 && (
-                          <button
-                            type="button"
+                          <DeleteButton
+                            title={`Supprimer Borne ${row.bound} mm (${row.material})`}
                             onClick={() => handleResetIntervalRow(row.bound, row.material)}
-                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors rounded cursor-pointer"
-                            title="Remettre à zéro"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          />
                         )}
                       </td>
                     </tr>
@@ -1724,14 +1675,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                     <span className="font-mono text-[#282828] tabular-nums font-bold">
                       +{item.evaluatedLength.toFixed(2)} m
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteHistoryEntry(item.id)}
-                      className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                      title="Supprimer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <DeleteButton title="Supprimer cette saisie" onClick={() => handleDeleteHistoryEntry(item.id)} />
                   </div>
                 </div>
               );

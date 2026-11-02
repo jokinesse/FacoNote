@@ -1,18 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  AlertCircle,
   Calculator,
-  CheckCircle2,
   Download,
   Filter,
   Layers,
   Plus,
   RotateCcw,
   Trash2,
-  X,
 } from 'lucide-react';
 import { MATERIAL_GROUPS, STANDARD_MATERIALS } from '../types';
 import { ApiError, CoilSummaryResponse, MetalFamily, optimizerApi } from '../api';
+import {
+  BTN_DANGER,
+  BTN_SECONDARY,
+  CELL_SHARED_EDGE,
+  DeleteButton,
+  Notice,
+  ROW_SHARED,
+  SharedBadge,
+  useDeleteAction,
+} from './ui';
 
 // Calculateur Bobine : saisies propres à l'onglet Bobine, séparées du tableau des pièces.
 // On saisit la largeur de bobine consommée (0 = chute), la quantité et la longueur.
@@ -91,13 +98,16 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
   const [inputQuantity, setInputQuantity] = useState<string>('1');
   const [inputLength, setInputLength] = useState<string>('');
   const [feedback, setFeedback] = useState<{ success: boolean; message: string } | null>(null);
-  const [isConfirmingClear, setIsConfirmingClear] = useState(false);
+  // Alerte « même largeur dans une autre matière » après une saisie
+  const [sharedWarning, setSharedWarning] = useState<string | null>(null);
+  const pendingSharedCheckRef = useRef<{ width: number; material: string } | null>(null);
+  // Suppressions : confirmation Oui / Non et message communs à tout le site
+  const deleteAction = useDeleteAction();
   const [materialFilter, setMaterialFilter] = useState<'ALL' | 'ALU' | 'ZINC'>('ALL');
   const [hideEmpty, setHideEmpty] = useState(false);
   const [summary, setSummary] = useState<CoilSummaryResponse | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const summaryRequestRef = useRef(0);
-  const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const widthRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
@@ -173,6 +183,9 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
         time: new Date().toLocaleTimeString('fr-BE'),
       };
       setEntries((prev) => [entry, ...prev]);
+      // Vérifié quand le backend a recalculé le tableau
+      pendingSharedCheckRef.current = d.is_chute ? null : { width: d.width, material: d.material };
+      if (d.is_chute) setSharedWarning(null);
 
       setFeedback({
         success: true,
@@ -200,35 +213,46 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
   };
 
   const handleDelete = (id: string) => {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
+    const entry = entries.find((e) => e.id === id);
+    if (!entry) return;
+    const what = entry.isChute
+      ? `la saisie Chute · ${entry.quantity} × ${entry.unitLength} m`
+      : `la saisie ${entry.width} mm · ${entry.quantity} × ${entry.unitLength} m`;
+    deleteAction(what, () => setEntries((prev) => prev.filter((e) => e.id !== id)));
   };
 
   const handleDeleteGroup = (material: string, width: number | null) => {
-    setEntries((prev) =>
-      prev.filter((e) =>
-        width === null
-          ? !(e.isChute && e.material === material)
-          : !(!e.isChute && e.material === material && e.width === width)
+    deleteAction(width === null ? `les chutes (${material})` : `Largeur ${width} mm (${material})`, () =>
+      setEntries((prev) =>
+        prev.filter((e) =>
+          width === null
+            ? !(e.isChute && e.material === material)
+            : !(!e.isChute && e.material === material && e.width === width)
+        )
       )
     );
   };
 
+  // Annuler la dernière saisie (sans confirmation, pour garder la saisie rapide)
   const handleUndo = () => {
-    if (entries.length > 0) handleDelete(entries[0].id);
+    if (entries.length === 0) return;
+    const [last] = entries;
+    setEntries((prev) => prev.filter((e) => e.id !== last.id));
+    setFeedback({
+      success: true,
+      message: `Dernière saisie annulée : ${last.isChute ? 'Chute' : `${last.width} mm`} · ${last.quantity} × ${last.unitLength} m`,
+    });
   };
 
+  // Vider tout le tableau
   const handleClear = () => {
-    if (!isConfirmingClear) {
-      setIsConfirmingClear(true);
-      if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
-      clearTimerRef.current = setTimeout(() => setIsConfirmingClear(false), 5000);
-      return;
-    }
-    if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
-    setIsConfirmingClear(false);
-    setEntries([]);
-    setFeedback({ success: true, message: 'Calcul bobines remis à zéro.' });
-    focus(widthRef);
+    if (entries.length === 0) return;
+    deleteAction('toutes les saisies Bobine', () => {
+      setEntries([]);
+      setFeedback(null);
+      setSharedWarning(null);
+      focus(widthRef);
+    });
   };
 
   // Matière d'une ligne d'historique (correction en cas d'erreur).
@@ -267,6 +291,24 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
         setFeedback({ success: false, message: `Calcul du tableau bobines impossible : ${message}` });
       });
   }, [entries]);
+
+  // Après une saisie : si la même largeur existe dans une autre matière, on prévient
+  // (l'information vient du backend : materials_in_width).
+  useEffect(() => {
+    const pending = pendingSharedCheckRef.current;
+    if (!pending || !summary) return;
+    const row = summary.rows.find((r) => !r.is_empty && r.width === pending.width && r.material === pending.material);
+    if (!row) return;
+    pendingSharedCheckRef.current = null;
+    const others = summary.rows
+      .filter((r) => !r.is_empty && r.width === row.width && r.material !== row.material)
+      .map((r) => r.material);
+    setSharedWarning(
+      row.materials_in_width > 1
+        ? `Attention : la largeur ${row.width} mm existe aussi en ${others.join(', ')}. Vérifiez la matière avant de continuer.`
+        : null
+    );
+  }, [summary]);
 
   const rows = summary?.rows ?? [];
   const chutes = summary?.chutes ?? [];
@@ -442,30 +484,14 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
         </p>
 
         {feedback && (
-          <div
-            className={`px-3 py-2 rounded-lg text-xs flex items-center justify-between gap-2 ${
-              feedback.success
-                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                : 'bg-rose-50 text-rose-800 border border-rose-200'
-            }`}
-          >
-            <span className="flex items-center gap-1.5">
-              {feedback.success ? (
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              ) : (
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-              )}
-              <span>{feedback.message}</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setFeedback(null)}
-              className="p-0.5 opacity-60 hover:opacity-100 cursor-pointer"
-              aria-label="Fermer le message"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <Notice
+            kind={feedback.success ? 'success' : 'error'}
+            message={feedback.message}
+            onClose={() => setFeedback(null)}
+          />
+        )}
+        {sharedWarning && (
+          <Notice kind="warning" message={sharedWarning} onClose={() => setSharedWarning(null)} />
         )}
       </div>
 
@@ -515,7 +541,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
               type="button"
               onClick={handleUndo}
               disabled={!hasData}
-              className="px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white hover:bg-slate-100 disabled:opacity-40 border border-slate-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+              className={BTN_SECONDARY}
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Annuler</span>
@@ -524,7 +550,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
               type="button"
               onClick={handleExportCSV}
               disabled={!hasData}
-              className="px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white hover:bg-slate-100 disabled:opacity-40 border border-slate-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+              className={BTN_SECONDARY}
             >
               <Download className="w-3.5 h-3.5" />
               <span>CSV</span>
@@ -533,14 +559,10 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
               type="button"
               onClick={handleClear}
               disabled={!hasData}
-              className={`px-2.5 py-1.5 text-xs font-medium border rounded-lg transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-40 ${
-                isConfirmingClear
-                  ? 'bg-rose-600 text-white border-rose-600'
-                  : 'text-rose-600 bg-white hover:bg-rose-50 border-slate-200'
-              }`}
+              className={BTN_DANGER}
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>{isConfirmingClear ? 'Confirmer la remise à zéro' : 'Tout effacer'}</span>
+              <span>Vider</span>
             </button>
           </div>
         </div>
@@ -639,7 +661,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
                       isEmpty
                         ? 'bg-[#f8fafc]/50 hover:bg-slate-50 text-slate-400'
                         : isShared
-                        ? 'bg-sky-50/40 hover:bg-sky-50/80'
+                        ? ROW_SHARED
                         : 'bg-white hover:bg-slate-50/80'
                     }`}
                   >
@@ -647,7 +669,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
                       <td
                         rowSpan={span}
                         className={`py-2 px-4 font-bold text-[#282828] align-top ${
-                          isShared ? 'border-l-4 border-l-[#3ca7da] bg-sky-50/60' : ''
+                          isShared ? CELL_SHARED_EDGE : ''
                         }`}
                       >
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -660,13 +682,14 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
                           )}
                         </div>
                         {isShared && (
-                          <span
-                            className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold font-sans bg-[#3ca7da]/15 text-[#00478a] border border-[#3ca7da]/40"
-                            title={`Largeur ${row.width} mm utilisée dans ${sharedCount} matières : ${sharedCount} bobines différentes à sortir`}
-                          >
-                            <Layers className="w-2.5 h-2.5 shrink-0" />
-                            <span>{sharedCount} matières</span>
-                          </span>
+                          <div className="mt-1">
+                            <SharedBadge
+                              label={`Même largeur · ${sharedCount} matières`}
+                              materials={rows
+                                .filter((r) => !r.is_empty && r.width === row.width)
+                                .map((r) => r.material)}
+                            />
+                          </div>
                         )}
                       </td>
                     )}
@@ -707,14 +730,10 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
                     </td>
                     <td className="py-2 px-4 text-right">
                       {!isEmpty && (
-                        <button
-                          type="button"
+                        <DeleteButton
+                          title={`Supprimer Largeur ${row.width} mm (${row.material})`}
                           onClick={() => handleDeleteGroup(row.material, row.width)}
-                          className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                          title={`Supprimer toutes les feuilles ${row.width} mm en ${row.material}`}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        />
                       )}
                     </td>
                   </tr>
@@ -742,14 +761,10 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
                   <td className="py-2 px-4 text-right">-</td>
                   <td className="py-2 px-4 text-right">-</td>
                   <td className="py-2 px-4 text-right">
-                    <button
-                      type="button"
+                    <DeleteButton
+                      title={`Supprimer les chutes (${c.material})`}
                       onClick={() => handleDeleteGroup(c.material, null)}
-                      className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                      title={`Supprimer les chutes ${c.material}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    />
                   </td>
                 </tr>
               ))}
@@ -814,14 +829,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-[#282828] tabular-nums font-bold">+{item.totalLength.toFixed(2)} m</span>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(item.id)}
-                    className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                    title="Supprimer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <DeleteButton title="Supprimer cette saisie" onClick={() => handleDelete(item.id)} />
                 </div>
               </div>
             ))}

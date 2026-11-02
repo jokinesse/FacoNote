@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Plus,
-  Trash2,
   Layers,
   ArrowRight,
   Eye,
@@ -29,6 +28,7 @@ import {
 import { ShapedPiece, STANDARD_MATERIALS, MATERIAL_GROUPS } from '../types';
 import { mobileApi, aiApi, ApiError } from '../api';
 import { optimizeImageForOcr } from '../utils/imageOptimizer';
+import { DeleteButton, useDeleteAction } from './ui';
 
 interface VisualPreEncoderModalProps {
   isOpen: boolean;
@@ -65,6 +65,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
 
   // Extracted Pieces for Review & Correction
   const [extractedPieces, setExtractedPieces] = useState<ShapedPiece[]>([]);
+  const deleteAction = useDeleteAction();
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [clientInfo, setClientInfo] = useState<{ client?: string; chantier?: string; finish?: string }>({});
 
@@ -314,10 +315,14 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
 
   // Delete piece
   const handleDeletePiece = (index: number) => {
-    setExtractedPieces((prev) => prev.filter((_, idx) => idx !== index));
-    setSelectedIndices((prev) =>
-      prev.filter((i) => i !== index).map((i) => (i > index ? i - 1 : i))
-    );
+    const piece = extractedPieces[index];
+    if (!piece) return;
+    deleteAction(`la ligne ${index + 1} (Dév ${piece.dev} mm)`, () => {
+      setExtractedPieces((prev) => prev.filter((_, idx) => idx !== index));
+      setSelectedIndices((prev) =>
+        prev.filter((i) => i !== index).map((i) => (i > index ? i - 1 : i))
+      );
+    });
   };
 
   // Add piece manually to verification list
@@ -876,14 +881,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                             {p.workshopSplitReason || '-'}
                           </td>
                           <td className="py-2 px-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleDeletePiece(idx)}
-                              className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors cursor-pointer"
-                              title="Supprimer cette ligne"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <DeleteButton title="Supprimer cette ligne" onClick={() => handleDeletePiece(idx)} />
                           </td>
                         </tr>
                       );

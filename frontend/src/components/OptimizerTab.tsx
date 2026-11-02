@@ -41,6 +41,7 @@ import {
   SheetsRecapTotals,
 } from '../api';
 import { CuttingPlan2D } from './CuttingPlan2D';
+import { BTN_DANGER, DeleteButton, useDeleteAction } from './ui';
 
 interface OptimizerTabProps {
   initialPieces?: ShapedPiece[];
@@ -56,6 +57,8 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
 
   // Pieces to optimize
   const [pieces, setPieces] = useState<ShapedPiece[]>([]);
+  // Suppressions : confirmation Oui / Non et message communs à tout le site
+  const deleteAction = useDeleteAction();
 
   // Selected default material for optimization
   const [selectedMaterial, setSelectedMaterial] = useState<string>('Zinc Naturel 0.7');
@@ -502,16 +505,21 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
 
   // Remove a piece
   const handleRemovePiece = (id: string) => {
-    setPieces((prev) => prev.filter((p) => p.id !== id));
+    const piece = pieces.find((p) => p.id === id);
+    if (!piece) return;
+    deleteAction(`la pièce ${piece.label} (Dév ${piece.dev} mm)`, () =>
+      setPieces((prev) => prev.filter((p) => p.id !== id))
+    );
   };
 
   // Clear all pieces
   const handleClearPieces = () => {
-    setPieces([]);
-    setOptimizationResult(null);
-    setAcceptedProposalIds([]);
-    setUseWorkshopScraps(false);
-    setActionNotice('Toutes les pièces ont été réinitialisées.');
+    deleteAction("toutes les pièces de l'optimiseur", () => {
+      setPieces([]);
+      setOptimizationResult(null);
+      setAcceptedProposalIds([]);
+      setUseWorkshopScraps(false);
+    });
   };
 
   // Toggle Scrap Proposal
@@ -888,7 +896,7 @@ Sois direct, pro et concis en français.`;
               <button
                 type="button"
                 onClick={handleClearPieces}
-                className="px-2.5 py-1.5 bg-white hover:bg-red-50 text-slate-500 hover:text-red-600 border border-slate-200 hover:border-red-200 text-xs font-semibold rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                className={BTN_DANGER}
                 title="Vider la liste des pièces"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -1053,14 +1061,7 @@ Sois direct, pro et concis en français.`;
                       {(p.length * p.quantity).toFixed(2)} m
                     </td>
                     <td className="py-2 px-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePiece(p.id)}
-                        className="text-slate-400 hover:text-red-600 p-1 transition-colors cursor-pointer"
-                        title="Supprimer cette pièce"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <DeleteButton title="Supprimer cette pièce" onClick={() => handleRemovePiece(p.id)} />
                     </td>
                   </tr>
                 ))}

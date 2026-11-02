@@ -95,7 +95,7 @@ def test_standard_bounds_counts() -> None:
     )
 
     # Mode DEV BOBINE : toutes les largeurs de bobines des matières officielles
-    assert DEV_BOBINE_BOUNDS == (600, 650, 670, 750, 1000)
+    assert DEV_BOBINE_BOUNDS == (600, 650, 670, 750, 1000, 1100)
 
     # Chutes de rack : 5 largeurs
     assert len(RACK_SCRAP_WIDTHS) == 5

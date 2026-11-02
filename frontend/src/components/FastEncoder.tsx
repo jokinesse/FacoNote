@@ -1469,9 +1469,9 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                             {row.bound === 600 && 'Zinc : Naturel · ATZ · Quartz'}
                             {row.bound === 650 && 'Alu 0.7 : RAL 7016 · 9005 · 9010 · 7039'}
                             {row.bound === 670 && 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge'}
-                            {row.bound === 750 && 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge'}
+                            {row.bound === 750 && 'Zinc : Naturel · ATZ · Quartz'}
                             {row.bound === 1000 && 'Zinc & Alu : toutes nuances'}
-                            {row.bound === 1100 && 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge'}
+                            {row.bound === 1100 && 'Zinc 0.7 / 0.8 : Naturel · ATZ · Quartz'}
                           </span>
                         ) : (
                           <div className="flex flex-wrap items-center gap-1.5">

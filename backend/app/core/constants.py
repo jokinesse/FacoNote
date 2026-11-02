@@ -158,7 +158,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=1.00,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=7.20,
-        standard_mother_widths_mm=(600, 670, 750, 1000),
+        standard_mother_widths_mm=(1000,),  # Perforée : feuilles de 1000 uniquement
     ),
     "Zinc Perforée 1": MaterialSpec(
         name="Zinc Perforée 1.0",
@@ -167,7 +167,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=1.00,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=7.20,
-        standard_mother_widths_mm=(600, 670, 750, 1000),
+        standard_mother_widths_mm=(1000,),  # Perforée : feuilles de 1000 uniquement
     ),
     "Zinc Perforée 0.7": MaterialSpec(
         name="Zinc Perforée 1.0",
@@ -176,7 +176,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=1.00,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=7.20,
-        standard_mother_widths_mm=(600, 670, 750, 1000),
+        standard_mother_widths_mm=(1000,),  # Perforée : feuilles de 1000 uniquement
     ),
     "Zinc Perforée 0.8": MaterialSpec(
         name="Zinc Perforée 1.0",
@@ -185,7 +185,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=1.00,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=7.20,
-        standard_mother_widths_mm=(600, 670, 750, 1000),
+        standard_mother_widths_mm=(1000,),  # Perforée : feuilles de 1000 uniquement
     ),
     "Zinc Pigmento Rouge 0.7": MaterialSpec(
         name="Zinc Pigmento Rouge 0.8",

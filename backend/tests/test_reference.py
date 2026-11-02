@@ -22,7 +22,7 @@ EXPECTED_WIDTHS: dict[str, tuple[int, ...]] = {
     "Zinc Quartz 0.7": ZINC_WIDTHS,
     "Zinc Quartz 0.8": ZINC_WIDTHS,
     "Zinc Pigmento Rouge 0.8": ZINC_WIDTHS,
-    "Zinc Perforée 1.0": ZINC_WIDTHS,
+    "Zinc Perforée 1.0": (1000,),
     "Alu RAL 9005 0.7": (650, 1000),
     "Alu RAL 9010 0.7": (1000,),
     "Alu RAL 7016 0.7": (1000,),

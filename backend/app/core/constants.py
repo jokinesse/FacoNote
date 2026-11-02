@@ -205,7 +205,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.70,
         volumetric_density_kg_m3=2700.0,
         surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(650, 1000),
+        standard_mother_widths_mm=(1000,),
     ),
     "Alu 7016 gris bleu 0.7": MaterialSpec(
         name="Alu RAL 7016 0.7",
@@ -214,7 +214,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.70,
         volumetric_density_kg_m3=2700.0,
         surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(650, 1000),
+        standard_mother_widths_mm=(1000,),
     ),
     "Alu 7016 gris bleu": MaterialSpec(
         name="Alu RAL 7016 0.7",
@@ -223,7 +223,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.70,
         volumetric_density_kg_m3=2700.0,
         surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(650, 1000),
+        standard_mother_widths_mm=(1000,),
     ),
     "Alu 7016 gris bleu 0.8": MaterialSpec(
         name="Alu RAL 7016 0.7",
@@ -232,7 +232,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.70,
         volumetric_density_kg_m3=2700.0,
         surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(650, 1000),
+        standard_mother_widths_mm=(1000,),
     ),
 
     "Alu RAL 9005 0.7": MaterialSpec(
@@ -279,7 +279,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.70,
         volumetric_density_kg_m3=2700.0,
         surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(650, 1000),
+        standard_mother_widths_mm=(1000,),
     ),
     "Alu 9010 Blanc 0.7": MaterialSpec(
         name="Alu RAL 9010 0.7",
@@ -288,7 +288,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.70,
         volumetric_density_kg_m3=2700.0,
         surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(650, 1000),
+        standard_mother_widths_mm=(1000,),
     ),
     "Alu 9010 Blanc": MaterialSpec(
         name="Alu RAL 9010 0.7",
@@ -297,7 +297,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.70,
         volumetric_density_kg_m3=2700.0,
         surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(650, 1000),
+        standard_mother_widths_mm=(1000,),
     ),
     "Alu 9010 Blanc 0.8": MaterialSpec(
         name="Alu RAL 9010 0.7",
@@ -306,7 +306,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.70,
         volumetric_density_kg_m3=2700.0,
         surface_density_kg_m2=1.89,
-        standard_mother_widths_mm=(650, 1000),
+        standard_mother_widths_mm=(1000,),
     ),
 
     "Alu RAL 7039 0.7": MaterialSpec(

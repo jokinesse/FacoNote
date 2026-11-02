@@ -24,8 +24,8 @@ EXPECTED_WIDTHS: dict[str, tuple[int, ...]] = {
     "Zinc Pigmento Rouge 0.8": (670, 1000),
     "Zinc Perforée 1.0": (1000,),
     "Alu RAL 9005 0.7": (650, 1000),
-    "Alu RAL 9010 0.7": (650, 1000),
-    "Alu RAL 7016 0.7": (650, 1000),
+    "Alu RAL 9010 0.7": (1000,),
+    "Alu RAL 7016 0.7": (1000,),
     "Alu RAL 7039 0.7": (650, 1000),
     "Alu 1.5 Brut": (1000,),
 }
@@ -41,13 +41,11 @@ def test_aliases_follow_their_base_material() -> None:
     for alias, spec in STANDARDIZED_MATERIALS.items():
         if spec.name in EXPECTED_WIDTHS:
             assert spec.standard_mother_widths_mm == EXPECTED_WIDTHS[spec.name], alias
-    assert resolve_material_spec("Alu 9010 Blanc").standard_mother_widths_mm == (650, 1000)
+    assert resolve_material_spec("Alu 9010 Blanc").standard_mother_widths_mm == (1000,)
 
 
 def test_materials_for_width() -> None:
-    assert official_materials_for_width(650) == [
-        "Alu RAL 7016 0.7", "Alu RAL 9005 0.7", "Alu RAL 9010 0.7", "Alu RAL 7039 0.7",
-    ]
+    assert official_materials_for_width(650) == ["Alu RAL 9005 0.7", "Alu RAL 7039 0.7"]
     assert official_materials_for_width(1100) == [
         "Zinc Naturel 0.7", "Zinc ATZ 0.7", "Zinc Quartz 0.7",
         "Zinc Naturel 0.8", "Zinc ATZ 0.8", "Zinc Quartz 0.8",

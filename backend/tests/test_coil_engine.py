@@ -159,9 +159,7 @@ def test_summary_non_standard_width() -> None:
 def test_summary_lists_available_materials_per_width() -> None:
     summary = summarize_coils([])
     by_width = {r.width: r.available_materials for r in summary.rows}
-    assert by_width[650] == [
-        "Alu RAL 7016 0.7", "Alu RAL 9005 0.7", "Alu RAL 9010 0.7", "Alu RAL 7039 0.7",
-    ]
+    assert by_width[650] == ["Alu RAL 9005 0.7", "Alu RAL 7039 0.7"]
     assert "Zinc Pigmento Rouge 0.8" not in by_width[600]
     assert "Zinc Pigmento Rouge 0.8" in by_width[670]
     assert "Zinc Perforée 1.0" not in by_width[1100]

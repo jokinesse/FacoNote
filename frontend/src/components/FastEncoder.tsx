@@ -1467,7 +1467,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                         {preset === 'DEV_BOBINE' && row.count === 0 ? (
                           <span className="font-sans text-slate-400">
                             {row.bound === 600 && 'Zinc : Naturel · ATZ · Quartz'}
-                            {row.bound === 650 && 'Alu 0.7 : RAL 7016 · 9005 · 9010 · 7039'}
+                            {row.bound === 650 && 'Alu 0.7 : RAL 9005 · 7039'}
                             {row.bound === 670 && 'Zinc : Naturel · ATZ · Quartz · Pigmento Rouge'}
                             {row.bound === 750 && 'Zinc : Naturel · ATZ · Quartz'}
                             {row.bound === 1000 && 'Zinc & Alu : toutes nuances'}

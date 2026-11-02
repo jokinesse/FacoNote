@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from app.core.constants import (
+    MAX_SHEET_LENGTH_M,
     RACK_SCRAP_WIDTHS,
     calculate_surface_m2,
     calculate_weight_kg,
@@ -24,6 +25,20 @@ from app.models.optimizer import (
     WorkshopScrapProposalModel,
 )
 from app.services.sheets_recap import build_sheets_recap
+
+
+def split_to_max_sheet_length(length_m: float, max_length_m: float = MAX_SHEET_LENGTH_M) -> list[float]:
+    """
+    Coupe une longueur en parts égales de max_length_m au plus (pas de marge).
+    Ex. : 8 m -> [4, 4] ; 13 m -> [4.333, 4.333, 4.334] ; 6 m -> [6].
+    La dernière part absorbe l'arrondi pour que la somme reste exacte.
+    """
+    total = round_meters(length_m)
+    if total <= max_length_m:
+        return [total]
+    parts = int(-(-total // max_length_m))  # arrondi supérieur
+    part = round_meters(total / parts)
+    return [part] * (parts - 1) + [round_meters(total - part * (parts - 1))]
 
 
 @dataclass(frozen=True)
@@ -375,18 +390,21 @@ def run_nesting_optimization(request: OptimizationRequest) -> OptimizationRespon
                     )
                 )
         else:
+            # Feuilles de 6 m maximum : une pièce plus longue est coupée en parts égales
+            segments = split_to_max_sheet_length(p.length)
             for _ in range(p.quantity):
-                all_cuts.append(
-                    FlattenedCut(
-                        id=f"cut-{cut_counter}",
-                        piece_id=p.id,
-                        label=p.label,
-                        dev=p.dev,
-                        length=round_meters(p.length),
-                        material=p_mat_spec.name,
+                for seg_len in segments:
+                    all_cuts.append(
+                        FlattenedCut(
+                            id=f"cut-{cut_counter}",
+                            piece_id=p.id,
+                            label=p.label,
+                            dev=p.dev,
+                            length=seg_len,
+                            material=p_mat_spec.name,
+                        )
                     )
-                )
-                cut_counter += 1
+                    cut_counter += 1
 
     # 1. Calcul de base ("baseline" sur tôles mères pour les pièces non passées en chute)
     if all_cuts:

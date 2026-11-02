@@ -395,6 +395,10 @@ RACK_SCRAP_WIDTHS: Final[tuple[int, ...]] = (
     100, 120, 150, 200, 250
 )
 
+# Longueur maximale d'une feuille sortie de bobine (atelier, 02/11/2026).
+# Une pièce plus longue est coupée en parts égales de 6 m maximum.
+MAX_SHEET_LENGTH_M: Final[float] = 6.0
+
 # Longueurs standards de plieuse et formats machine
 STANDARD_FOLDING_LENGTHS: Final[tuple[float, ...]] = (
     2.0, 2.5, 3.0, 4.0

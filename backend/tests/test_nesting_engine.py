@@ -6,7 +6,7 @@ Spécification technique : Section 3.3 du Cahier des Charges.
 import pytest
 from app.models.optimizer import OptimizationRequest
 from app.models.pieces import ShapedPieceModel
-from app.services.nesting_engine import run_nesting_optimization
+from app.services.nesting_engine import run_nesting_optimization, split_to_max_sheet_length
 
 
 def test_material_segregation() -> None:
@@ -429,3 +429,33 @@ def test_partial_piece_split_155mm_individual_scrap() -> None:
     assert resp_after.applied_workshop_scraps[0].scrap_dev == 200
 
 
+
+
+def test_split_to_max_sheet_length() -> None:
+    """Feuilles de 6 m maximum : coupe en parts égales, somme exacte."""
+    assert split_to_max_sheet_length(6.0) == [6.0]
+    assert split_to_max_sheet_length(2.5) == [2.5]
+    assert split_to_max_sheet_length(8.0) == [4.0, 4.0]
+    assert split_to_max_sheet_length(12.0) == [6.0, 6.0]
+    parts = split_to_max_sheet_length(13.0)
+    assert len(parts) == 3 and max(parts) <= 6.0
+    assert round(sum(parts), 3) == 13.0
+
+
+def test_long_piece_cut_into_sheets_of_6m_max() -> None:
+    """Une pièce de 8 m sort en 2 feuilles de 4 m ; aucune feuille ne dépasse 6 m."""
+    req = OptimizationRequest(
+        pieces=[
+            ShapedPieceModel(
+                id="long", label="Rive 8 m", dev=300, length=8.0, quantity=1, material="Zinc Quartz 0.7"
+            ),
+            ShapedPieceModel(
+                id="court", label="Bavette", dev=300, length=2.0, quantity=1, material="Zinc Quartz 0.7"
+            ),
+        ],
+    )
+    res = run_nesting_optimization(req)
+    assert all(s.mother_length <= 6.0 for s in res.slits)
+    long_strips = [(s.mother_length, st.qty) for s in res.slits for st in s.strips if st.piece_id == "long"]
+    assert sum(length * qty for length, qty in long_strips) == pytest.approx(8.0)
+    assert all(length == 4.0 for length, _ in long_strips)

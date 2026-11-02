@@ -225,3 +225,20 @@ def test_api_coil_summary() -> None:
     assert data["totals"]["chutes_length_m"] == 1.2
     assert data["standard_widths"] == list(DEV_BOBINE_BOUNDS)
     assert len(data["chutes"]) == 1
+
+
+def test_summary_totals_per_material() -> None:
+    """Totaux par matière précise : Zinc Naturel et Zinc ATZ séparés, chutes exclues."""
+    summary = summarize_coils([
+        entry("a", 600, 2, 2.0, "Zinc Naturel 0.7"),
+        entry("b", 670, 1, 3.0, "Zinc Naturel 0.7"),
+        entry("c", 600, 1, 2.5, "Zinc ATZ 0.7"),
+        entry("d", 0, 1, 4.0, "Zinc ATZ 0.7"),
+    ])
+    by_name = {m.material: m for m in summary.materials}
+    assert list(by_name) == ["Zinc ATZ 0.7", "Zinc Naturel 0.7"]
+    assert by_name["Zinc Naturel 0.7"].quantity == 3
+    assert by_name["Zinc Naturel 0.7"].length_m == 7.0
+    assert by_name["Zinc ATZ 0.7"].quantity == 1
+    assert by_name["Zinc ATZ 0.7"].length_m == 2.5
+    assert by_name["Zinc ATZ 0.7"].family == "ZINC"

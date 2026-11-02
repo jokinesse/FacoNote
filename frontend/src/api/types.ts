@@ -127,7 +127,16 @@ export interface CoilSummaryResponse {
   totals: CoilTotals;
   alu: CoilFamilyTotals;
   zinc: CoilFamilyTotals;
+  materials: CoilMaterialTotals[];
   standard_widths: number[];
+}
+
+export interface CoilMaterialTotals {
+  material: string;
+  family: MetalFamily;
+  quantity: number;
+  length_m: number;
+  weight_kg: number;
 }
 
 // --- Calculateur Pièce (/optimizer/pieces-encode et /optimizer/pieces-summary) ---

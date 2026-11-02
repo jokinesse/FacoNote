@@ -107,6 +107,17 @@ class CoilFamilyTotals(BaseModel):
     weight_kg: float
 
 
+class CoilMaterialTotals(BaseModel):
+    """Totaux d'une matière précise (ex : Zinc ATZ 0.7), pour le filtre par matière."""
+    model_config = ConfigDict(extra="forbid")
+
+    material: str
+    family: MetalFamily
+    quantity: int
+    length_m: float
+    weight_kg: float
+
+
 class CoilTotalsModel(BaseModel):
     """Totaux généraux du calcul bobines (chutes exclues)."""
     model_config = ConfigDict(extra="forbid")
@@ -128,4 +139,5 @@ class CoilSummaryResponse(BaseModel):
     totals: CoilTotalsModel
     alu: CoilFamilyTotals
     zinc: CoilFamilyTotals
+    materials: list[CoilMaterialTotals] = Field(default_factory=list)
     standard_widths: list[int]

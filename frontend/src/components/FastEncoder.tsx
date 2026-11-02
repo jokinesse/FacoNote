@@ -35,6 +35,7 @@ import {
   BTN_DANGER,
   CELL_SHARED_EDGE,
   DeleteButton,
+  MaterialFilterButtons,
   Notice,
   ROW_SHARED,
   SharedBadge,
@@ -653,6 +654,17 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
   const zincSummary = toFamily(summary?.zinc);
 
   // Filtres d'affichage (pas de calcul)
+  // Matière filtrée qui n'existe plus dans le tableau (lignes supprimées) : retour à « Toutes »
+  useEffect(() => {
+    if (
+      !['ALL', 'ALU', 'ZINC'].includes(selectedMaterialFilter) &&
+      summary &&
+      !summary.materials.some((m) => m.material === selectedMaterialFilter)
+    ) {
+      setSelectedMaterialFilter('ALL');
+    }
+  }, [summary, selectedMaterialFilter]);
+
   const matchesFilter = (family: string, material: string) =>
     selectedMaterialFilter === 'ALL' ||
     (selectedMaterialFilter === 'ALU' && family === 'ALU') ||
@@ -1218,6 +1230,20 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                     {zincSummary.lengthM.toFixed(1)}m ({zincSummary.count} pcs · {zincSummary.weightKg.toFixed(1)} kg)
                   </span>
                 </button>
+              )}
+
+              {/* Filtre par matière précise (Naturel, ATZ, Quartz… et épaisseur séparés) */}
+              {materialsSummary.length > 1 && (
+                <MaterialFilterButtons
+                  items={materialsSummary.map((m) => ({
+                    material: m.material,
+                    family: m.metalFamily,
+                    lengthM: m.lengthM,
+                    count: m.count,
+                  }))}
+                  selected={selectedMaterialFilter}
+                  onSelect={setSelectedMaterialFilter}
+                />
               )}
             </div>
 

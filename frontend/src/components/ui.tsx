@@ -215,3 +215,49 @@ export const BTN_DANGER =
 // Ligne de tableau dont le dév / la largeur existe dans plusieurs matières
 export const ROW_SHARED = 'bg-amber-50/30 hover:bg-amber-50/60';
 export const CELL_SHARED_EDGE = 'shadow-[inset_4px_0_0_#fbbf24]';
+
+// Boutons de filtre par matière précise (ex : Zinc Naturel 0.7 et Zinc ATZ 0.7 séparés).
+// Les totaux affichés viennent du backend.
+export interface MaterialFilterItem {
+  material: string;
+  family: string;
+  lengthM: number;
+  count: number;
+}
+
+export const MaterialFilterButtons: React.FC<{
+  items: MaterialFilterItem[];
+  selected: string;
+  onSelect: (material: string) => void;
+}> = ({ items, selected, onSelect }) => (
+  <>
+    {items.map((m) => {
+      const isActive = selected === m.material;
+      const isAlu = m.family === 'ALU';
+      const isRouge = /rouge/i.test(m.material);
+      const active = isAlu
+        ? 'bg-[#00478a] text-white border-[#00478a]'
+        : isRouge
+        ? 'bg-rose-600 text-white border-rose-600'
+        : 'bg-slate-700 text-white border-slate-700';
+      const idle = isAlu
+        ? 'bg-white text-[#00478a] border-sky-200 hover:bg-sky-50'
+        : isRouge
+        ? 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50'
+        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100';
+      return (
+        <button
+          key={m.material}
+          type="button"
+          onClick={() => onSelect(isActive ? 'ALL' : m.material)}
+          className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
+            isActive ? `${active} shadow-2xs` : idle
+          }`}
+          title={`Afficher seulement ${m.material}`}
+        >
+          {m.material} ({m.lengthM.toFixed(1)}m · {m.count} pcs)
+        </button>
+      );
+    })}
+  </>
+);

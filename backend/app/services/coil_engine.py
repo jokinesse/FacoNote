@@ -19,6 +19,7 @@ from app.models.coils import (
     CoilChuteModel,
     CoilEncodeResponse,
     CoilFamilyTotals,
+    CoilMaterialTotals,
     CoilRowModel,
     CoilSheetDetail,
     CoilSummaryEntry,
@@ -167,6 +168,18 @@ def summarize_coils(entries: list[CoilSummaryEntry]) -> CoilSummaryResponse:
             weight_kg=round(sum(r.weight_kg for r in selected), 2),
         )
 
+    # Totaux par matière précise (chutes exclues), triés par nom
+    materials = [
+        CoilMaterialTotals(
+            material=name,
+            family=metal_family(name),
+            quantity=sum(r.quantity for r in filled if r.material == name),
+            length_m=round_meters(sum(r.length_m for r in filled if r.material == name)),
+            weight_kg=round(sum(r.weight_kg for r in filled if r.material == name), 2),
+        )
+        for name in sorted({r.material for r in filled})
+    ]
+
     totals = CoilTotalsModel(
         quantity=sum(r.quantity for r in filled),
         length_m=round_meters(sum(r.length_m for r in filled)),
@@ -182,5 +195,6 @@ def summarize_coils(entries: list[CoilSummaryEntry]) -> CoilSummaryResponse:
         totals=totals,
         alu=family_totals("ALU"),
         zinc=family_totals("ZINC"),
+        materials=materials,
         standard_widths=list(DEV_BOBINE_BOUNDS),
     )

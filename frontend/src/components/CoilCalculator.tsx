@@ -15,6 +15,7 @@ import {
   BTN_SECONDARY,
   CELL_SHARED_EDGE,
   DeleteButton,
+  MaterialFilterButtons,
   Notice,
   ROW_SHARED,
   SharedBadge,
@@ -103,7 +104,8 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
   const pendingSharedCheckRef = useRef<{ width: number; material: string } | null>(null);
   // Suppressions : confirmation Oui / Non et message communs à tout le site
   const deleteAction = useDeleteAction();
-  const [materialFilter, setMaterialFilter] = useState<'ALL' | 'ALU' | 'ZINC'>('ALL');
+  // 'ALL', 'ALU', 'ZINC' ou le nom exact d'une matière (ex : Zinc ATZ 0.7)
+  const [materialFilter, setMaterialFilter] = useState<string>('ALL');
   const [hideEmpty, setHideEmpty] = useState(false);
   const [summary, setSummary] = useState<CoilSummaryResponse | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -321,14 +323,29 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
   // Filtres d'affichage (pas de calcul)
   const filteredRows = rows.filter((r) => {
     if (r.is_empty) return !hideEmpty && materialFilter === 'ALL';
-    return materialFilter === 'ALL' || r.family === materialFilter;
+    return materialFilter === 'ALL' || r.family === materialFilter || r.material === materialFilter;
   });
   // Nombre de lignes affichées par largeur, pour fusionner la case Largeur
   const visibleRowsPerWidth = new Map<number, number>();
   for (const r of filteredRows) {
     visibleRowsPerWidth.set(r.width, (visibleRowsPerWidth.get(r.width) || 0) + 1);
   }
-  const filteredChutes = chutes.filter((c) => materialFilter === 'ALL' || c.family === materialFilter);
+  const filteredChutes = chutes.filter(
+    (c) => materialFilter === 'ALL' || c.family === materialFilter || c.material === materialFilter
+  );
+  const materialTotals = summary?.materials ?? [];
+
+  // Matière filtrée qui n'existe plus dans le tableau : retour à « Toutes »
+  useEffect(() => {
+    if (
+      !['ALL', 'ALU', 'ZINC'].includes(materialFilter) &&
+      summary &&
+      !summary.materials.some((m) => m.material === materialFilter) &&
+      !summary.chutes.some((c) => c.material === materialFilter)
+    ) {
+      setMaterialFilter('ALL');
+    }
+  }, [summary, materialFilter]);
 
   const handleExportCSV = () => {
     const lines = ['Largeur_bobine_mm;Matiere;Nombre;Metrage_m;Surface_m2;Poids_kg'];
@@ -616,6 +633,19 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, 
                   {zincSummary.length_m.toFixed(1)}m ({zincSummary.quantity} pcs · {zincSummary.weight_kg.toFixed(1)} kg)
                 </span>
               </button>
+            )}
+            {/* Filtre par matière précise (Naturel, ATZ, Quartz… et épaisseur séparés) */}
+            {materialTotals.length > 1 && (
+              <MaterialFilterButtons
+                items={materialTotals.map((m) => ({
+                  material: m.material,
+                  family: m.family,
+                  lengthM: m.length_m,
+                  count: m.quantity,
+                }))}
+                selected={materialFilter}
+                onSelect={setMaterialFilter}
+              />
             )}
           </div>
         )}

@@ -474,8 +474,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
       const ok = reply.message || `Commande ${order} reçue par l'extension.`;
       setExtStatus({ kind: 'success', message: `${ok} Pré-remplissez maintenant dans D365, matière par matière.` });
       notify(ok);
-      // Proposer de vider, jamais automatiquement. La commande reste dans l'extension.
-      deleteAction(`toutes les saisies Dév pièce (la commande ${order} reste dans l'extension)`, () => clearSheet());
     } catch (err) {
       const message = err instanceof Error ? err.message : 'erreur inconnue';
       setExtStatus({ kind: 'error', message });

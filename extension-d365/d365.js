@@ -18,6 +18,19 @@
     ...FD.BOUNDS.map((b) => ({ key: String(b), label: `Longueur (DEV${b})`, kind: 'number' })),
   ];
 
+  // Dernière borne avec une longueur > 0 (null si aucune)
+  function lastBound(group) {
+    const used = FD.BOUNDS.filter((b) => group.lengths[String(b)] > 0);
+    return used.length ? used[used.length - 1] : null;
+  }
+
+  // Champs à saisir : Matières, Epaisseur, puis les DEV jusqu'à la dernière borne utilisée.
+  // Les DEV suivants ne sont ni cherchés ni écrits (gain de temps).
+  function fieldsToFill(group) {
+    const last = lastBound(group);
+    return FIELDS.filter((f) => f.kind === 'text' || (last !== null && Number(f.key) <= last));
+  }
+
   // ---------- Outils DOM D365 ----------
 
   const norm = (s) =>
@@ -372,7 +385,15 @@
             );
           }
           panel.appendChild(table);
-          panel.appendChild(el('div', { class: 'muted', text: 'Les autres champs DEV seront mis à 0,00.' }));
+          const last = lastBound(g);
+          panel.appendChild(
+            el('div', {
+              class: 'muted',
+              text: last
+                ? `Saisie de Matières, Epaisseur et DEV100 à DEV${last} (les DEV à 0 jusque-là sont mis à 0,00). Les DEV suivants ne sont pas touchés.`
+                : 'Saisie de Matières et Epaisseur seulement.',
+            })
+          );
         }
       }
     }
@@ -504,9 +525,10 @@
       return;
     }
 
-    // 2. Les 21 champs doivent exister, être visibles et modifiables AVANT toute écriture
+    // 2. Les champs à saisir doivent exister, être visibles et modifiables AVANT toute écriture
+    const toFill = fieldsToFill(g);
     const problems = [];
-    for (const f of FIELDS) {
+    for (const f of toFill) {
       const r = inspectField(f);
       if (r.state !== 'OK') problems.push(`${f.label} : ${r.state}`);
     }
@@ -524,24 +546,38 @@
     setMessage('warn', `Saisie de ${g.material} en cours… Ne touchez pas à la page.`);
     try {
       // 3. Écriture champ par champ, en re-cherchant chaque champ (D365 redessine le DOM)
-      for (const f of FIELDS) {
+      // Un champ qui affiche déjà la bonne valeur n'est pas réécrit (pas de pause).
+      let written = 0;
+      for (const f of toFill) {
         const now = detectOrder();
         if (now.orderNumber !== o.orderNumber) throw new Error('la commande affichée a changé pendant la saisie. Arrêt.');
         const r = inspectField(f);
         if (r.state !== 'OK') throw new Error(`${f.label} n’est plus modifiable (${r.state}). Arrêt.`);
         const v = expectedValue(g, f);
+        if (valueMatches(f, r.el.value, v)) continue;
         await writeField(r.el, f.kind === 'number' ? FD.formatD365(v) : v);
+        written++;
       }
 
       // 5. Relecture
-      await sleep(VERIFY_DELAY_MS);
+      if (written) await sleep(VERIFY_DELAY_MS);
       const mismatches = [];
-      for (const f of FIELDS) {
+      for (const f of toFill) {
         const r = inspectField(f);
         const expected = expectedValue(g, f);
         const shown = r.el ? r.el.value : undefined;
         if (!r.el || !valueMatches(f, shown, expected)) {
           mismatches.push(`${f.label} : attendu « ${f.kind === 'number' ? FD.formatD365(expected) : expected} », lu « ${shown === undefined ? '—' : shown} »`);
+        }
+      }
+      // DEV après la dernière borne : simple lecture. Une valeur non nulle déjà présente est signalée.
+      for (const f of FIELDS) {
+        if (toFill.includes(f)) continue;
+        const r = inspectField(f);
+        if (!r.el) continue;
+        const n = parseNumber(r.el.value);
+        if (Number.isFinite(n) && n !== 0) {
+          mismatches.push(`${f.label} : contient « ${r.el.value} », Façonote attend 0 (non modifié, à corriger à la main)`);
         }
       }
       if (mismatches.length) {
@@ -556,7 +592,7 @@
       state.busy = false;
       setMessage(
         'ok',
-        `${g.material} saisie et relue : OK.\nVérifiez puis enregistrez vous-même dans D365.` +
+        `${g.material} saisie et relue : OK (${written} champ${written > 1 ? 's' : ''} écrit${written > 1 ? 's' : ''}).\nVérifiez puis enregistrez vous-même dans D365.` +
           (next ? `\nMatière suivante : ${next.material}.` : '\nToutes les matières de la commande sont faites.')
       );
     } catch (err) {

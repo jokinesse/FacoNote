@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Façonote → D365",
   "short_name": "Façonote D365",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Reçoit les longueurs par borne envoyées par Façonote et pré-remplit la commande dans Dynamics 365 Finance & Operations, matière par matière.",
   "permissions": ["storage"],
   "content_scripts": [

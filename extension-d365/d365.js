@@ -201,7 +201,7 @@
 
   const host = document.createElement('div');
   host.id = 'faconote-d365-host';
-  host.style.cssText = 'all: initial; position: fixed; z-index: 2147483000; right: 16px; bottom: 16px;';
+  host.style.cssText = 'all: initial; position: fixed; z-index: 2147483000; left: 16px; bottom: 16px;';
   const root = host.attachShadow({ mode: 'closed' });
   // Le clavier dans le panneau ne doit pas déclencher les raccourcis D365
   for (const t of ['keydown', 'keyup', 'keypress']) host.addEventListener(t, (e) => e.stopPropagation());
@@ -213,7 +213,7 @@
     .fab { border: 0; border-radius: 20px; padding: 8px 14px; font-weight: 700; color: #fff;
            background: #00478a; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
     .fab.todo { background: #c62828; }
-    .panel { position: absolute; right: 0; bottom: 44px; width: 380px; max-height: 75vh; overflow: auto;
+    .panel { position: absolute; left: 0; bottom: 44px; width: 380px; max-height: 75vh; overflow: auto;
              background: #fff; color: #222; border: 1px solid #c8c8c8; border-radius: 8px;
              box-shadow: 0 6px 24px rgba(0,0,0,.25); padding: 10px; }
     .hidden { display: none; }

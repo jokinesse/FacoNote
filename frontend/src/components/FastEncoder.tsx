@@ -12,6 +12,7 @@ import {
   Camera,
   Filter,
   Sparkles,
+  Send,
 } from 'lucide-react';
 import {
   EncodedEntry,
@@ -27,7 +28,16 @@ import {
   FastEncoderEntryResponse,
   PieceCutDetail,
   PiecesSummaryResponse,
+  loadReference,
 } from '../api';
+import {
+  D365_ORDER_RE,
+  buildD365Groups,
+  clearSavedSheet,
+  loadSavedSheet,
+  postToExtension,
+  saveSheet,
+} from '../utils/d365Bridge';
 import { WorkshopCalculator } from './WorkshopCalculator';
 import { VisualPreEncoderModal } from './VisualPreEncoderModal';
 import { CoilCalculator } from './CoilCalculator';
@@ -40,6 +50,7 @@ import {
   ROW_SHARED,
   SharedBadge,
   useDeleteAction,
+  useNotify,
 } from './ui';
 
 interface FastEncoderProps {
@@ -48,10 +59,21 @@ interface FastEncoderProps {
 
 export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer }) => {
   const [preset, setPreset] = useState<SheetPreset>('DEV_PIECE');
-  const [entriesHistory, setEntriesHistory] = useState<EncodedEntry[]>([]);
+  // Feuille en cours sauvegardée dans le navigateur (survit à F5), effacée par « Vider »
+  const [savedSheet] = useState(() => loadSavedSheet());
+  const [entriesHistory, setEntriesHistory] = useState<EncodedEntry[]>(() => savedSheet?.entries ?? []);
 
   // Active encoding material (retains last used material for all subsequent pieces)
-  const [activeMaterial, setActiveMaterial] = useState<string>('Zinc Quartz 0.7');
+  const [activeMaterial, setActiveMaterial] = useState<string>(
+    () => savedSheet?.activeMaterial || 'Zinc Quartz 0.7'
+  );
+
+  // N° de commande D365 et envoi vers l'extension « Façonote → D365 »
+  const [orderNumber, setOrderNumber] = useState<string>(() => savedSheet?.orderNumber ?? '');
+  const [isSendingToExt, setIsSendingToExt] = useState<boolean>(false);
+  const [extStatus, setExtStatus] = useState<{ kind: 'success' | 'error' | 'warning'; message: string } | null>(null);
+  const orderInputRef = useRef<HTMLInputElement>(null);
+  const notify = useNotify();
   const [isCustomMaterial, setIsCustomMaterial] = useState<boolean>(false);
 
   // 3-case input states
@@ -76,7 +98,11 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     message: string;
     boundMatched?: number;
     executionTimeMs?: number;
-  } | null>(null);
+  } | null>(() =>
+    savedSheet && savedSheet.entries.length > 0
+      ? { success: true, message: `Feuille restaurée : ${savedSheet.entries.length} saisie(s) retrouvée(s) après rechargement.` }
+      : null
+  );
 
   // API loading & auto-calepinage alternatives
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -369,15 +395,93 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     });
   };
 
-  // Vider tout le tableau
+  // Vide la feuille (saisies, n° de commande, sauvegarde du navigateur)
+  const clearSheet = () => {
+    setEntriesHistory([]);
+    setOrderNumber('');
+    clearSavedSheet();
+    setLastFeedback(null);
+    setSharedWarning(null);
+    devRef.current?.focus();
+  };
+
+  // Vider tout le tableau. Avec un n° de commande valide, la commande est aussi retirée de l'extension.
   const handleClearAll = () => {
-    if (entriesHistory.length === 0) return;
-    deleteAction('toutes les saisies Dév pièce', () => {
-      setEntriesHistory([]);
-      setLastFeedback(null);
-      setSharedWarning(null);
-      devRef.current?.focus();
+    if (entriesHistory.length === 0 && !orderNumber) return;
+    const order = D365_ORDER_RE.test(orderNumber) ? orderNumber : null;
+    const what = order
+      ? `toutes les saisies Dév pièce et la commande ${order} dans l'extension D365`
+      : 'toutes les saisies Dév pièce';
+    deleteAction(what, () => {
+      clearSheet();
+      setExtStatus(null);
+      if (order) {
+        postToExtension({ type: 'CLEAR', orderNumber: order })
+          .then((reply) =>
+            setExtStatus(
+              reply.type === 'ACK'
+                ? { kind: 'success', message: reply.message || `Commande ${order} retirée de l'extension.` }
+                : { kind: 'error', message: `Extension : ${reply.error || 'erreur inconnue'}` }
+            )
+          )
+          .catch((err: Error) => setExtStatus({ kind: 'warning', message: err.message }));
+      }
     });
+  };
+
+  // Envoi vers l'extension : un groupe par matière, toutes les bornes, longueurs du backend
+  const handleSendToExtension = async () => {
+    const order = orderNumber.trim();
+    if (!D365_ORDER_RE.test(order)) {
+      setExtStatus({ kind: 'error', message: 'N° de commande D365 invalide : CC suivi de 11 chiffres (ex. CC26000236736).' });
+      orderInputRef.current?.focus();
+      return;
+    }
+    if (entriesHistory.filter((e) => !e.isChute && e.dev > 0).length === 0) {
+      setExtStatus({ kind: 'error', message: 'Aucune pièce à envoyer : encodez d’abord les pièces.' });
+      return;
+    }
+    setIsSendingToExt(true);
+    setExtStatus(null);
+    try {
+      // Tableau recalculé à l'instant par le backend, pour envoyer exactement l'état affiché
+      const [fresh, reference] = await Promise.all([
+        optimizerApi.piecesSummary(buildSummaryPayload()),
+        loadReference(),
+      ]);
+      const { groups, unknown } = buildD365Groups(fresh.data, reference);
+      if (unknown.length > 0) {
+        setExtStatus({
+          kind: 'error',
+          message: `Envoi refusé : matière sans correspondance D365 (${unknown.join(', ')}). Choisissez une matière de la liste.`,
+        });
+        return;
+      }
+      if (groups.length === 0) {
+        setExtStatus({ kind: 'error', message: 'Aucune matière à envoyer.' });
+        return;
+      }
+      const reply = await postToExtension({
+        type: 'SEND',
+        sentAt: new Date().toISOString(),
+        orderNumber: order,
+        groups,
+      });
+      if (reply.type !== 'ACK') {
+        setExtStatus({ kind: 'error', message: `Extension : ${reply.error || 'envoi refusé'}` });
+        return;
+      }
+      const ok = reply.message || `Commande ${order} reçue par l'extension.`;
+      setExtStatus({ kind: 'success', message: `${ok} Pré-remplissez maintenant dans D365, matière par matière.` });
+      notify(ok);
+      // Proposer de vider, jamais automatiquement. La commande reste dans l'extension.
+      deleteAction(`toutes les saisies Dév pièce (la commande ${order} reste dans l'extension)`, () => clearSheet());
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'erreur inconnue';
+      setExtStatus({ kind: 'error', message });
+    } finally {
+      setIsSendingToExt(false);
+    }
   };
 
   // Supprimer une ligne Dév × matière du tableau
@@ -502,20 +606,21 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
   // On ignore les réponses d'une requête dépassée par une plus récente.
   const [summary, setSummary] = useState<PiecesSummaryResponse | null>(null);
   const summaryRequestRef = useRef(0);
+  const buildSummaryPayload = () => ({
+    entries: [...entriesHistory]
+      .reverse()
+      .filter((e) => !e.isChute && e.dev > 0)
+      .map((e) => ({
+        id: e.id,
+        dev: e.dev,
+        quantity: e.quantity || 1,
+        unit_length_m: e.unitLength,
+        material: e.material || activeMaterial,
+      })),
+  });
   useEffect(() => {
     const requestId = ++summaryRequestRef.current;
-    const payload = {
-      entries: [...entriesHistory]
-        .reverse()
-        .filter((e) => !e.isChute && e.dev > 0)
-        .map((e) => ({
-          id: e.id,
-          dev: e.dev,
-          quantity: e.quantity || 1,
-          unit_length_m: e.unitLength,
-          material: e.material || activeMaterial,
-        })),
-    };
+    const payload = buildSummaryPayload();
     optimizerApi
       .piecesSummary(payload)
       .then((res) => {
@@ -527,6 +632,11 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
         setLastFeedback({ success: false, message: `Calcul du tableau impossible : ${message}` });
       });
   }, [entriesHistory, activeMaterial]);
+
+  // Sauvegarde de la feuille en cours dans le navigateur
+  useEffect(() => {
+    saveSheet({ orderNumber, activeMaterial, entries: entriesHistory });
+  }, [entriesHistory, orderNumber, activeMaterial]);
 
   // Totaux (backend). Surface : aux bornes ; poids : au développement réel.
   const totalLengthM = summary?.totals.length_m ?? 0;
@@ -1152,10 +1262,42 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
               <span>CSV</span>
             </button>
 
+            <input
+              ref={orderInputRef}
+              type="text"
+              value={orderNumber}
+              onChange={(e) => setOrderNumber(e.target.value.toUpperCase().replace(/\s+/g, ''))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSendToExtension();
+                }
+              }}
+              placeholder="N° commande D365"
+              aria-label="N° commande D365"
+              title="N° de commande D365 : CC suivi de 11 chiffres (ex. CC26000236736)"
+              maxLength={13}
+              className={`faco-input w-36 bg-white border rounded-lg px-2 py-1.5 text-xs font-mono focus:outline-none ${
+                orderNumber && !D365_ORDER_RE.test(orderNumber)
+                  ? 'border-rose-400 focus:border-rose-500'
+                  : 'border-slate-300 focus:border-[#00478a]'
+              }`}
+            />
+            <button
+              type="button"
+              onClick={handleSendToExtension}
+              disabled={isSendingToExt}
+              className="px-2.5 py-1.5 text-xs font-semibold text-[#00478a] bg-white hover:bg-sky-50 disabled:opacity-40 border border-sky-300 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+              title="Envoyer les longueurs par borne, matière par matière, vers l'extension Edge « Façonote → D365 »"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{isSendingToExt ? 'Envoi…' : "Envoyer vers l'extension"}</span>
+            </button>
+
             <button
               type="button"
               onClick={handleClearAll}
-              disabled={entriesHistory.length === 0}
+              disabled={entriesHistory.length === 0 && !orderNumber}
               className={BTN_DANGER}
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -1172,6 +1314,12 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
             </button>
           </div>
         </div>
+
+        {extStatus && (
+          <div className="px-4 py-2 border-b border-slate-200">
+            <Notice kind={extStatus.kind} message={extStatus.message} onClose={() => setExtStatus(null)} />
+          </div>
+        )}
 
         {/* Multi-Material Filter & Distribution Toolbar */}
         {materialsSummary.length > 0 && (

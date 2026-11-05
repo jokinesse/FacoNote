@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Façonote → D365",
+  "short_name": "Façonote D365",
+  "version": "0.2.0",
+  "description": "Reçoit les longueurs par borne envoyées par Façonote et pré-remplit la commande dans Dynamics 365 Finance & Operations, matière par matière.",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["https://faconote.jokinesse.be/*"],
+      "js": ["common.js", "faconote.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": ["https://facozinc-prod.operations.fr.dynamics.com/*"],
+      "js": ["common.js", "d365.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}

@@ -19,6 +19,8 @@ class MaterialReference(BaseModel):
     thickness_mm: float
     surface_density_kg_m2: float
     coil_widths_mm: list[int] = Field(..., description="Largeurs de bobines disponibles pour cette matière")
+    d365_matiere: str | None = Field(None, description="Champ « Matières » dans D365 (None = pas encore connu)")
+    d365_epaisseur: str = Field(..., description="Champ « Epaisseur » dans D365 (ex: '0.7 mm')")
 
 
 class ReferenceResponse(BaseModel):

@@ -4,12 +4,14 @@ Tout vient de app.core.constants, la seule source.
 """
 
 from app.core.constants import (
+    D365_MATIERE_LABELS,
     DEV_BOBINE_BOUNDS,
     DEV_PIECE_BOUNDS,
     OFFICIAL_MATERIALS,
     RACK_SCRAP_WIDTHS,
     MaterialSpec,
     STANDARDIZED_MATERIALS,
+    d365_epaisseur_label,
 )
 from app.models.coils import MetalFamily
 from app.models.reference import MaterialReference, ReferenceResponse
@@ -48,6 +50,8 @@ def build_reference() -> ReferenceResponse:
                 thickness_mm=spec.thickness_mm,
                 surface_density_kg_m2=spec.surface_density_kg_m2,
                 coil_widths_mm=list(spec.standard_mother_widths_mm),
+                d365_matiere=D365_MATIERE_LABELS.get(name),
+                d365_epaisseur=d365_epaisseur_label(spec.thickness_mm),
             )
         )
     return ReferenceResponse(

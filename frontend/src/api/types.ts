@@ -241,6 +241,8 @@ export interface MaterialReference {
   thickness_mm: number;
   surface_density_kg_m2: number;
   coil_widths_mm: number[];
+  d365_matiere: string | null; // champ « Matières » dans D365 (null = pas encore connu)
+  d365_epaisseur: string; // champ « Epaisseur » dans D365, ex. « 0.7 mm »
 }
 
 export interface ReferenceResponse {

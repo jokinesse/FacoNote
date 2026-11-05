@@ -28,11 +28,12 @@ export function buildD365Groups(
   summary: PiecesSummaryResponse,
   reference: ReferenceResponse
 ): { groups: D365Group[]; unknown: string[] } {
+  // unknown : matières sans libellé D365 connu (l'envoi est alors refusé)
   const groups: D365Group[] = [];
   const unknown: string[] = [];
   for (const m of summary.materials) {
     const ref = reference.materials.find((r) => r.name === m.material);
-    if (!ref) {
+    if (!ref || !ref.d365_matiere) {
       unknown.push(m.material);
       continue;
     }
@@ -45,8 +46,8 @@ export function buildD365Groups(
     }
     groups.push({
       material: m.material,
-      matiere: ref.finish,
-      epaisseur: `${ref.thickness_mm.toFixed(1)} mm`,
+      matiere: ref.d365_matiere,
+      epaisseur: ref.d365_epaisseur,
       lengths,
     });
   }

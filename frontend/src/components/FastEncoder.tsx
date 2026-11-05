@@ -453,7 +453,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
       if (unknown.length > 0) {
         setExtStatus({
           kind: 'error',
-          message: `Envoi refusé : matière sans correspondance D365 (${unknown.join(', ')}). Choisissez une matière de la liste.`,
+          message: `Envoi refusé : libellé D365 pas encore connu pour ${unknown.join(', ')}. Retirez ces saisies ou demandez l'ajout du libellé.`,
         });
         return;
       }

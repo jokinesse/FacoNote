@@ -55,6 +55,27 @@ OFFICIAL_MATERIALS: Final[tuple[str, ...]] = (
     "Zinc Perforée 1.0",
 )
 
+# Libellé du champ « Matières » dans Dynamics 365 F&O (formulaire de commande client),
+# donné par l'atelier le 05/11/2026. Matière absente = pas encore connue : l'envoi vers D365 est refusé.
+D365_MATIERE_LABELS: Final[dict[str, str]] = {
+    "Zinc Naturel 0.7": "ZN",
+    "Zinc Naturel 0.8": "ZN",
+    "Zinc ATZ 0.7": "ATZ",
+    "Zinc ATZ 0.8": "ATZ",
+    "Zinc Quartz 0.7": "QZ",
+    "Zinc Quartz 0.8": "QZ",
+    "Alu RAL 7016 0.7": "ALU 7016",
+    "Alu RAL 9010 0.7": "ALU 9010",
+    "Alu RAL 9005 0.7": "ALU PREFA 03 NOIR P10",
+    "Alu RAL 7039 0.7": "ALU PREFA 47 PATINA GRAU P10",
+}
+
+
+def d365_epaisseur_label(thickness_mm: float) -> str:
+    """Libellé du champ « Epaisseur » dans D365 (ex : 0.7 -> « 0.7 mm »)."""
+    return f"{thickness_mm:.1f} mm"
+
+
 # Table officielle des densités volumétriques
 VOLUMETRIC_DENSITIES: Final[dict[str, float]] = {
     "ZINC": 7200.0,

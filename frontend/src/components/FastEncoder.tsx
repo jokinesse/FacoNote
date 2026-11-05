@@ -4,7 +4,7 @@ import {
   Plus,
   Trash2,
   RotateCcw,
-  Download,
+  Printer,
   ArrowRight,
   Hash,
   CornerDownLeft,
@@ -38,6 +38,7 @@ import {
   postToExtension,
   saveSheet,
 } from '../utils/d365Bridge';
+import { printBoundSheet } from '../utils/boundSheetPrint';
 import { WorkshopCalculator } from './WorkshopCalculator';
 import { VisualPreEncoderModal } from './VisualPreEncoderModal';
 import { CoilCalculator } from './CoilCalculator';
@@ -518,35 +519,23 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     handleSubmitEntry(dev.toString(), len, qty);
   };
 
-  // Export CSV (valeurs calculées par le backend)
-  const handleExportCSV = () => {
-    const headers = [
-      'Borne_Dev_mm',
-      'Matiere',
-      'Longueur_Cumulee_m',
-      'Nombre_Pieces',
-      'Surface_m2',
-      'Poids_Est_kg',
-    ];
-    const rows = (summary?.bound_rows ?? [])
-      .filter((r) => !r.is_empty)
-      .map(
-        (r) =>
-          `${r.bound};${r.material};${r.length_m};${r.quantity};${r.surface_m2.toFixed(2)};${r.weight_kg}`
-      );
-
-    const csvContent =
-      'data:text/csv;charset=utf-8,' + [headers.join(';'), ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute(
-      'download',
-      `facozinc_cumuls_${preset.toLowerCase()}_${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  // Feuille A4 « pièces par borne » (imprimante ou PDF), avec le tableau recalculé à l'instant par le backend
+  const [isPrinting, setIsPrinting] = useState<boolean>(false);
+  const handlePrintBounds = async () => {
+    if (entriesHistory.filter((e) => !e.isChute && e.dev > 0).length === 0) {
+      setLastFeedback({ success: false, message: 'Aucune pièce à imprimer : encodez d’abord les pièces.' });
+      return;
+    }
+    setIsPrinting(true);
+    try {
+      const fresh = await optimizerApi.piecesSummary(buildSummaryPayload());
+      printBoundSheet(fresh.data, D365_ORDER_RE.test(orderNumber) ? orderNumber : '');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'erreur inconnue';
+      setLastFeedback({ success: false, message: `Impression impossible : ${message}` });
+    } finally {
+      setIsPrinting(false);
+    }
   };
 
   // Transfer to Optimizer : les pièces saisies, regroupées si identiques (même dév, longueur, matière)
@@ -1253,11 +1242,13 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
             </button>
             <button
               type="button"
-              onClick={handleExportCSV}
-              className="px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+              onClick={handlePrintBounds}
+              disabled={isPrinting}
+              className="px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white hover:bg-slate-100 disabled:opacity-40 border border-slate-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+              title="Feuille A4 des pièces par borne, à imprimer ou enregistrer en PDF"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>CSV</span>
+              <Printer className="w-3.5 h-3.5" />
+              <span>{isPrinting ? 'Préparation…' : 'PDF / Imprimer'}</span>
             </button>
 
             <input

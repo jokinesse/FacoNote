@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Layers, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Camera, CheckCircle2, Layers, Trash2, X } from 'lucide-react';
 
 // Éléments communs à tout le site, pour que les actions se comportent partout pareil :
 // - confirmation de suppression (fenêtre Oui / Non) et message après suppression,
@@ -205,6 +205,20 @@ export const SharedBadge: React.FC<{ label: string; materials: string[] }> = ({ 
     <Layers className="w-3 h-3 text-amber-600 shrink-0" />
     <span>{label}</span>
   </span>
+);
+
+// Bouton d'analyse IA (croquis, photo, PDF) : même libellé, même style dans le Calculateur et l'Optimiseur.
+// Placé en dernier dans la barre du haut de la première carte de chaque onglet.
+export const AiScanButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="px-3 py-1.5 bg-[#f8fafc] hover:bg-slate-100 text-[#00478a] font-semibold rounded-lg text-xs flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
+    title="Scanner un croquis, une photo ou un plan PDF avec l'IA"
+  >
+    <Camera className="w-3.5 h-3.5 text-[#3ca7da]" />
+    <span>Scanner IA</span>
+  </button>
 );
 
 // Classes communes

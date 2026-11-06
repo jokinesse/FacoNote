@@ -9,7 +9,6 @@ import {
   Hash,
   CornerDownLeft,
   Layers,
-  Camera,
   Filter,
   Sparkles,
   Send,
@@ -43,6 +42,7 @@ import { WorkshopCalculator } from './WorkshopCalculator';
 import { VisualPreEncoderModal } from './VisualPreEncoderModal';
 import { CoilCalculator } from './CoilCalculator';
 import {
+  AiScanButton,
   BTN_DANGER,
   CELL_SHARED_EDGE,
   DeleteButton,
@@ -986,15 +986,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsVisualModalOpen(true)}
-              className="px-3 py-1.5 bg-[#f8fafc] hover:bg-slate-100 text-[#00478a] font-semibold rounded-lg text-xs flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
-              title="Scanner un croquis ou un plan PDF avec l'IA"
-            >
-              <Camera className="w-3.5 h-3.5 text-[#3ca7da]" />
-              <span>Scanner IA</span>
-            </button>
+            <AiScanButton onClick={() => setIsVisualModalOpen(true)} />
           </div>
         </div>
 

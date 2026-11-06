@@ -41,7 +41,7 @@ import {
   SheetsRecapTotals,
 } from '../api';
 import { CuttingPlan2D } from './CuttingPlan2D';
-import { BTN_DANGER, DeleteButton, useDeleteAction } from './ui';
+import { AiScanButton, BTN_DANGER, DeleteButton, useDeleteAction } from './ui';
 
 interface OptimizerTabProps {
   initialPieces?: ShapedPiece[];
@@ -792,6 +792,8 @@ Sois direct, pro et concis en français.`;
             >
               <span>Aperçu</span>
             </button>
+
+            <AiScanButton onClick={() => setIsVisualModalOpen(true)} />
           </div>
         </div>
 
@@ -882,16 +884,6 @@ Sois direct, pro et concis en français.`;
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsVisualModalOpen(true)}
-              className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
-              title="Importer un plan PDF ou une photo de croquis"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-[#00478a]" />
-              <span>Importer PDF / Photo</span>
-            </button>
-
             {pieces.length > 0 && (
               <button
                 type="button"

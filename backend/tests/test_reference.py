@@ -76,7 +76,7 @@ def test_api_reference() -> None:
 
 
 def test_d365_labels() -> None:
-    """Libellés D365 donnés par l'atelier ; Pigmento Rouge, Perforée et Alu Brut pas encore connus."""
+    """Libellés D365 donnés par l'atelier ; Pigmento Rouge et Perforée pas encore connus."""
     ref = {m.name: m for m in build_reference().materials}
     assert ref["Zinc Naturel 0.7"].d365_matiere == "ZN"
     assert ref["Zinc Naturel 0.8"].d365_matiere == "ZN"
@@ -86,7 +86,8 @@ def test_d365_labels() -> None:
     assert ref["Alu RAL 9010 0.7"].d365_matiere == "ALU 9010"
     assert ref["Alu RAL 9005 0.7"].d365_matiere == "ALU PREFA 03 NOIR P10"
     assert ref["Alu RAL 7039 0.7"].d365_matiere == "ALU PREFA 47 PATINA GRAU P10"
-    for name in ("Zinc Pigmento Rouge 0.8", "Zinc Perforée 1.0", "Alu 1.5 Brut"):
+    assert ref["Alu 1.5 Brut"].d365_matiere == "ALU BRUT"
+    for name in ("Zinc Pigmento Rouge 0.8", "Zinc Perforée 1.0"):
         assert ref[name].d365_matiere is None, name
     assert ref["Zinc ATZ 0.7"].d365_epaisseur == "0.7 mm"
     assert ref["Zinc Perforée 1.0"].d365_epaisseur == "1.0 mm"

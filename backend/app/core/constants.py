@@ -68,6 +68,7 @@ D365_MATIERE_LABELS: Final[dict[str, str]] = {
     "Alu RAL 9010 0.7": "ALU 9010",
     "Alu RAL 9005 0.7": "ALU PREFA 03 NOIR P10",
     "Alu RAL 7039 0.7": "ALU PREFA 47 PATINA GRAU P10",
+    "Alu 1.5 Brut": "ALU BRUT",
 }
 
 

@@ -459,3 +459,40 @@ def test_long_piece_cut_into_sheets_of_6m_max() -> None:
     long_strips = [(s.mother_length, st.qty) for s in res.slits for st in s.strips if st.piece_id == "long"]
     assert sum(length * qty for length, qty in long_strips) == pytest.approx(8.0)
     assert all(length == 4.0 for length, _ in long_strips)
+
+
+def test_mother_widths_by_material_are_independent() -> None:
+    """
+    Les laizes choisies sont propres à chaque matière : désactiver 1000 pour le zinc
+    ne doit pas retirer 1000 à l'alu, et inversement.
+    """
+    pieces = [
+        ShapedPieceModel(id="z", label="Zinc", dev=500, length=2.0, quantity=1, bends=2, material="Zinc Naturel 0.7"),
+        ShapedPieceModel(id="a", label="Alu", dev=500, length=2.0, quantity=1, bends=2, material="Alu RAL 9005 0.7"),
+    ]
+    req = OptimizationRequest(
+        material="Zinc Naturel 0.7",
+        pieces=pieces,
+        mother_widths_by_material={
+            "Zinc Naturel 0.7": [600],
+            "Alu RAL 9005 0.7": [650],
+        },
+    )
+    resp = run_nesting_optimization(req)
+    widths = {s.material: s.mother_width for s in resp.slits}
+    assert widths == {"Zinc Naturel 0.7": 600, "Alu RAL 9005 0.7": 650}
+
+
+def test_mother_widths_by_material_fallback_when_nothing_compatible() -> None:
+    """Aucune laize compatible pour la matière : retour à toutes ses laizes."""
+    pieces = [
+        ShapedPieceModel(id="a", label="Alu", dev=900, length=2.0, quantity=1, bends=2, material="Alu RAL 7016 0.7"),
+    ]
+    req = OptimizationRequest(
+        material="Alu RAL 7016 0.7",
+        pieces=pieces,
+        available_mother_widths=[600],
+        mother_widths_by_material={"Alu RAL 7016 0.7": []},
+    )
+    resp = run_nesting_optimization(req)
+    assert [s.mother_width for s in resp.slits] == [1000]

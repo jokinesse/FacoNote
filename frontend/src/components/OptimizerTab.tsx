@@ -65,7 +65,8 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
 
   // Largeurs de bobines : données de référence du backend. L'opérateur peut en désactiver.
   const reference = useReference();
-  const [disabledWidths, setDisabledWidths] = useState<number[]>([]);
+  // Largeurs désactivées, propres à chaque matière (clé = nom de matière)
+  const [disabledWidthsByMat, setDisabledWidthsByMat] = useState<Record<string, number[]>>({});
 
   // Mode: baseline is pure calculation without scraps (100% mother sheets)
   const [useWorkshopScraps, setUseWorkshopScraps] = useState<boolean>(false);
@@ -275,20 +276,32 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
 
   const isAlu = useMemo(() => /alu/i.test(selectedMaterial), [selectedMaterial]);
 
-  // Largeurs disponibles pour la matière choisie (toute la grille si matière hors liste)
-  const materialWidths = useMemo(() => {
-    if (!reference) return [];
-    const mat = reference.materials.find((m) => m.name === selectedMaterial);
-    return mat ? mat.coil_widths_mm : reference.coil_widths_mm;
-  }, [reference, selectedMaterial]);
+  // Matières présentes dans la liste (matière par défaut si la liste est vide)
+  const usedMaterials = useMemo(() => {
+    const names = Array.from(new Set(pieces.map((p) => p.material || selectedMaterial)));
+    return names.length > 0 ? names : [selectedMaterial];
+  }, [pieces, selectedMaterial]);
 
-  // Largeurs envoyées au moteur : toute la grille sauf celles désactivées.
-  // Le moteur ne garde ensuite, pour chaque matière, que ses largeurs disponibles.
+  // Largeurs disponibles pour chaque matière utilisée (toute la grille si matière hors liste)
+  const widthsByMaterial = useMemo(() => {
+    if (!reference) return [] as { material: string; widths: number[] }[];
+    return usedMaterials.map((name) => {
+      const mat = reference.materials.find((m) => m.name === name);
+      return { material: name, widths: mat ? mat.coil_widths_mm : reference.coil_widths_mm };
+    });
+  }, [reference, usedMaterials]);
+
+  // Largeurs envoyées au moteur, matière par matière, sauf celles désactivées.
   // Tant que la référence n'est pas chargée : aucune liste, le moteur prend ses largeurs par défaut.
-  const activeMotherWidths = useMemo(() => {
+  const motherWidthsByMaterial = useMemo(() => {
     if (!reference) return undefined;
-    return reference.coil_widths_mm.filter((w) => !disabledWidths.includes(w));
-  }, [reference, disabledWidths]);
+    const out: Record<string, number[]> = {};
+    for (const { material, widths } of widthsByMaterial) {
+      const disabled = disabledWidthsByMat[material] ?? [];
+      out[material] = widths.filter((w) => !disabled.includes(w));
+    }
+    return out;
+  }, [reference, widthsByMaterial, disabledWidthsByMat]);
 
   // Mode Auto-Métrage (activé quand Quantité = 0) : aperçu calculé par le backend (auto-breakdown)
   const isAutoMeterMode = newQty.trim() === '0';
@@ -343,7 +356,7 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
         chantier_ref: chantierRef || 'Chantier Standard',
         material: selectedMaterial,
         pieces: currentPieces.map(mapShapedPieceToModel),
-        available_mother_widths: activeMotherWidths,
+        mother_widths_by_material: motherWidthsByMaterial,
         use_workshop_scraps: withScraps,
         use_generated_scraps: withGeneratedScraps,
         accepted_proposal_ids: propIds,
@@ -376,7 +389,7 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
         chantier_ref: chantierRef || 'Chantier Standard',
         material: selectedMaterial,
         pieces: pieces.map(mapShapedPieceToModel),
-        available_mother_widths: activeMotherWidths,
+        mother_widths_by_material: motherWidthsByMaterial,
         use_workshop_scraps: useWorkshopScraps,
         use_generated_scraps: useGeneratedScraps,
         accepted_proposal_ids: acceptedProposalIds,
@@ -402,13 +415,15 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
   // Re-run optimization when pieces or widths change
   useEffect(() => {
     calculateOptimization(pieces, useWorkshopScraps, acceptedProposalIds, useGeneratedScraps);
-  }, [pieces, activeMotherWidths, selectedMaterial, useWorkshopScraps, acceptedProposalIds, useGeneratedScraps]);
+  }, [pieces, motherWidthsByMaterial, selectedMaterial, useWorkshopScraps, acceptedProposalIds, useGeneratedScraps]);
 
   // Toggle Mother Width
-  const handleToggleMotherWidth = (width: number) => {
-    setDisabledWidths((prev) =>
-      prev.includes(width) ? prev.filter((w) => w !== width) : [...prev, width]
-    );
+  const handleToggleMotherWidth = (material: string, width: number) => {
+    setDisabledWidthsByMat((prev) => {
+      const current = prev[material] ?? [];
+      const next = current.includes(width) ? current.filter((w) => w !== width) : [...current, width];
+      return { ...prev, [material]: next };
+    });
   };
 
   // Feuilles / bobines mères à sortir : calculé par le moteur d'imbrication (sheets_recap)
@@ -827,25 +842,34 @@ Sois direct, pro et concis en français.`;
             <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1 tracking-wider">
               Largeurs Bobines Atelier
             </label>
-            <div className="flex flex-wrap gap-1">
-              {materialWidths.map((w) => {
-                const isActive = !disabledWidths.includes(w);
-                return (
-                  <button
-                    key={w}
-                    type="button"
-                    onClick={() => handleToggleMotherWidth(w)}
-                    className={`px-2 py-1 rounded text-[11px] font-mono font-semibold transition-colors cursor-pointer border ${
-                      isActive
-                        ? 'bg-[#00478a] text-white border-[#00478a]'
-                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-800'
-                    }`}
-                    title={isActive ? 'Désactiver cette largeur' : 'Activer cette largeur'}
-                  >
-                    {w}mm
-                  </button>
-                );
-              })}
+            <div className="space-y-1.5">
+              {widthsByMaterial.map(({ material, widths }) => (
+                <div key={material}>
+                  {widthsByMaterial.length > 1 && (
+                    <div className="text-[10px] font-semibold text-slate-600 mb-0.5">{material}</div>
+                  )}
+                  <div className="flex flex-wrap gap-1">
+                    {widths.map((w) => {
+                      const isActive = !(disabledWidthsByMat[material] ?? []).includes(w);
+                      return (
+                        <button
+                          key={w}
+                          type="button"
+                          onClick={() => handleToggleMotherWidth(material, w)}
+                          className={`px-2 py-1 rounded text-[11px] font-mono font-semibold transition-colors cursor-pointer border ${
+                            isActive
+                              ? 'bg-[#00478a] text-white border-[#00478a]'
+                              : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-800'
+                          }`}
+                          title={`${material} : ${isActive ? 'désactiver' : 'activer'} cette largeur`}
+                        >
+                          {w}mm
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

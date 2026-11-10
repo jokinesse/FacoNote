@@ -75,6 +75,10 @@ class OptimizationRequest(BaseModel):
         ..., min_length=1, max_length=MAX_PIECES_PER_REQUEST, description="Liste des pièces à imbriquer"
     )
     available_mother_widths: Optional[list[int]] = Field(None, description="Laizes mères en stock autorisées")
+    mother_widths_by_material: Optional[dict[str, list[int]]] = Field(
+        None,
+        description="Laizes autorisées par matière (prioritaire sur available_mother_widths pour la matière concernée)",
+    )
     use_workshop_scraps: bool = Field(False, description="Activer la substitution par des bandes de rack")
     use_generated_scraps: bool = Field(
         True,

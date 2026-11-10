@@ -346,6 +346,7 @@ export interface OptimizationRequest {
   material?: string;
   pieces: ShapedPieceModel[];
   available_mother_widths?: number[];
+  mother_widths_by_material?: Record<string, number[]>;
   use_workshop_scraps?: boolean;
   use_generated_scraps?: boolean;
   accepted_proposal_ids?: string[] | null;

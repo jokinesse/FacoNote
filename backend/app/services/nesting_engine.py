@@ -143,6 +143,7 @@ def _pack_cuts_into_mother_coils(
     cuts_to_pack: list[FlattenedCut],
     requested_mother_widths: Optional[list[int]],
     use_generated_scraps: bool = True,
+    widths_by_material: Optional[dict[str, list[int]]] = None,
 ) -> tuple[list[SlitNestResultModel], float]:
     """
     Imbrique une liste de coupes sur les laizes mères en respectant :
@@ -160,11 +161,21 @@ def _pack_cuts_into_mother_coils(
     slits_result: list[SlitNestResultModel] = []
     total_reusable_scrap_area = 0.0
 
+    # Laizes choisies matière par matière, indexées par nom de matière normalisé
+    per_material: dict[str, list[int]] = {}
+    for raw_name, widths in (widths_by_material or {}).items():
+        per_material[resolve_material_spec(raw_name).name] = list(widths)
+
     for mat_name, mat_cuts in material_groups.items():
         spec = resolve_material_spec(mat_name)
 
         # Détermination des laizes mères candidates pour cette matière
-        if requested_mother_widths:
+        if spec.name in per_material:
+            # Choix propre à la matière ; si rien de compatible, toutes ses laizes
+            candidate_widths = [w for w in per_material[spec.name] if w in spec.standard_mother_widths_mm]
+            if not candidate_widths:
+                candidate_widths = list(spec.standard_mother_widths_mm)
+        elif requested_mother_widths:
             # Filtrer les laizes demandées compatibles avec la matière
             candidate_widths = [w for w in requested_mother_widths if w in spec.standard_mother_widths_mm]
             if not candidate_widths:
@@ -412,6 +423,7 @@ def run_nesting_optimization(request: OptimizationRequest) -> OptimizationRespon
             cuts_to_pack=all_cuts,
             requested_mother_widths=request.available_mother_widths,
             use_generated_scraps=request.use_generated_scraps,
+            widths_by_material=request.mother_widths_by_material,
         )
     else:
         baseline_slits = []
@@ -497,6 +509,7 @@ def run_nesting_optimization(request: OptimizationRequest) -> OptimizationRespon
                 cuts_to_pack=remaining_cuts,
                 requested_mother_widths=request.available_mother_widths,
                 use_generated_scraps=request.use_generated_scraps,
+                widths_by_material=request.mother_widths_by_material,
             )
 
     # Déterminer la liste des propositions à renvoyer à l'opérateur

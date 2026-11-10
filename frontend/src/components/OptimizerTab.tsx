@@ -9,7 +9,6 @@ import {
   Layers,
   CheckCircle2,
   AlertTriangle,
-  Printer,
   Sliders,
   Scissors,
   ArrowRight,
@@ -218,7 +217,6 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
   const [isCalculating, setIsCalculating] = useState<boolean>(false);
   const [calculationTimeMs, setCalculationTimeMs] = useState<number | null>(null);
   const [calculationError, setCalculationError] = useState<string | null>(null);
-  const [isPrintingSheet, setIsPrintingSheet] = useState<boolean>(false);
 
   // Manual piece entry form
   const [newLabel, setNewLabel] = useState<string>('');
@@ -377,38 +375,6 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
       setCalculationError(msg);
     } finally {
       setIsCalculating(false);
-    }
-  };
-
-  const handlePrintOfficialA4Sheet = async () => {
-    if (pieces.length === 0) return;
-    setIsPrintingSheet(true);
-    try {
-      const { text: htmlContent } = await optimizerApi.getPrintSheetHtml({
-        client_name: clientName || 'Client Comptoir',
-        chantier_ref: chantierRef || 'Chantier Standard',
-        material: selectedMaterial,
-        pieces: pieces.map(mapShapedPieceToModel),
-        mother_widths_by_material: motherWidthsByMaterial,
-        use_workshop_scraps: useWorkshopScraps,
-        use_generated_scraps: useGeneratedScraps,
-        accepted_proposal_ids: acceptedProposalIds,
-      });
-
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.open();
-        printWindow.document.write(htmlContent);
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => {
-          printWindow.print();
-        }, 300);
-      }
-    } catch (err: any) {
-      setActionNotice(`Erreur lors de la génération de la fiche d'impression : ${err.message}`);
-    } finally {
-      setIsPrintingSheet(false);
     }
   };
 
@@ -786,17 +752,6 @@ Sois direct, pro et concis en français.`;
               {calculationTimeMs !== null && !isCalculating && (
                 <span className="text-[10px] text-slate-400 font-mono">({calculationTimeMs}ms)</span>
               )}
-            </button>
-
-            <button
-              type="button"
-              onClick={handlePrintOfficialA4Sheet}
-              disabled={isPrintingSheet || pieces.length === 0}
-              className="px-3.5 py-1.5 bg-[#e7511f] hover:bg-[#cf4315] disabled:opacity-40 text-white font-bold text-xs rounded-lg flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
-              title="Génère et imprime la fiche d'atelier A4 officielle"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>{isPrintingSheet ? 'Génération A4...' : 'Imprimer Fiche A4'}</span>
             </button>
 
             <button

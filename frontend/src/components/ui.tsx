@@ -217,7 +217,7 @@ export const AiScanButton: React.FC<{ onClick: () => void }> = ({ onClick }) => 
     title="Scanner un croquis, une photo ou un plan PDF avec l'IA"
   >
     <Camera className="w-3.5 h-3.5 text-[#3ca7da]" />
-    <span>Scanner IA</span>
+    <span>Scanner</span>
   </button>
 );
 

@@ -1,6 +1,6 @@
 # FacoNote — Backend (FastAPI)
 
-Mis à jour le 31/10/2026, état du code : commit `618f642` (main, déployé et poussé sur GitHub).
+Mis à jour le 18/11/2026.
 
 ## Règle principale
 **Tous les calculs métier sont faits ici** : longueurs, surfaces, poids, bornes, regroupements, totaux, découpe.
@@ -11,7 +11,8 @@ Tout nouveau calcul va dans `backend/app/services/`, avec ses tests pytest et un
 - Code : `/var/www/faconote` (propriétaire `faconote`), dépôt GitHub `jokinesse/FacoNote`.
 - Site : https://faconote.jokinesse.be (nginx → socket `/var/www/faconote/faconote.sock`).
 - Service systemd `faconote` : utilisateur `faconote`, 4 workers uvicorn,
-  `uvicorn app.main:app --uds /var/www/faconote/faconote.sock --workers 4 --app-dir backend`.
+  `uvicorn app.main:app --uds /var/www/faconote/faconote.sock --workers 4 --app-dir backend --proxy-headers --forwarded-allow-ips '*'`
+  (derrière nginx, pour recevoir la vraie IP des visiteurs).
 - Python dans `/var/www/faconote/.venv` (Python 3.14).
 - Santé : `GET /api/health`. Documentation interactive : `/docs`.
 
@@ -53,16 +54,21 @@ backend/app/
 │   ├── image_pipeline.py   # préparation des images
 │   └── ai_ocr_service.py   # extraction Gemini
 └── api/v1/endpoints/       # optimizer, mobile, ai, admin
-backend/tests/              # 15 fichiers de tests (101 tests au dernier passage)
+backend/tests/              # tests pytest
 ```
 
 ## Largeurs de bobines validées (atelier)
 | Matière | Largeurs (mm) |
 |---|---|
-| Zinc (toutes finitions) | 600, 670, 750, 1000 |
-| Alu RAL 9005 et RAL 7039 | 650, 1000 |
-| Alu RAL 9010 et RAL 7016 | 1000 |
+| Zinc Naturel, ATZ, Quartz 0.7 et 0.8 | 600, 670, 750, 1000, 1100 |
+| Zinc Pigmento Rouge (0.8 uniquement) | 670, 1000 |
+| Zinc Perforée 1.0 | 1000 |
+| Alu RAL 9005 et RAL 7039 (0.7) | 650, 1000 |
+| Alu RAL 9010 et RAL 7016 (0.7) | 1000 |
 | Alu Brut 1.5 | 1000 |
+
+Longueur max d'une feuille : 6 m (`MAX_SHEET_LENGTH_M`). L'Optimiseur coupe une pièce plus longue
+en parts égales de 6 m au plus (8 m → 2 × 4 m), sans marge.
 
 Pour les changer : `services/reference_service.py` / `core/constants.py`, puis tests et publication.
 
@@ -76,7 +82,7 @@ bash tools/publier.sh                    # publication complète
 `tools/publier.sh` (branche main, tout commité) enchaîne : pytest, mypy, contrôle du contrat
 routes frontend/backend (`tools/check_contract.py`), garde « pas de calcul métier dans le frontend »,
 tsc, sauvegarde de `frontend/dist`, build, redémarrage du service, contrôles en ligne, push GitHub.
-`--sans-push` pour ne pas pousser. Il a besoin de sudo : à lancer depuis `ubuntu`.
+`--sans-push` pour ne pas pousser. Il a besoin de sudo.
 
 Autres outils dans `tools/` : `set_admin_password.py`, `set_gemini_key.py`, `setup_tls.sh`, `stress_test.py`.
 

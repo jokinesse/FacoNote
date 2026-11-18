@@ -3,7 +3,7 @@ Store en mémoire thread-safe pour les sessions éphémères de transfert mobile
 Spécification technique : Section 4.1 & 5.2 du Cahier des Charges (TTL 45 minutes).
 """
 
-import random
+import secrets
 import string
 import threading
 import time
@@ -44,8 +44,9 @@ class MobileSessionStore:
 
     def _generate_session_id(self) -> str:
         """Génère un identifiant lisible de type FAC-4829-X7K1."""
-        num = random.randint(1000, 9999)
-        chars = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
+        alphabet = string.ascii_uppercase + string.digits
+        num = 1000 + secrets.randbelow(9000)
+        chars = "".join(secrets.choice(alphabet) for _ in range(4))
         return f"FAC-{num}-{chars}"
 
     def create_session(

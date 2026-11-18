@@ -10,8 +10,9 @@ Tout nouveau calcul va dans `backend/app/services/`, avec ses tests pytest et un
 ## Où et comment ça tourne
 - Code : `/var/www/faconote` (propriétaire `faconote`), dépôt GitHub `jokinesse/FacoNote`.
 - Site : https://faconote.jokinesse.be (nginx → socket `/var/www/faconote/faconote.sock`).
-- Service systemd `faconote` : utilisateur `faconote`, 4 workers uvicorn,
-  `uvicorn app.main:app --uds /var/www/faconote/faconote.sock --workers 4 --app-dir backend --proxy-headers --forwarded-allow-ips '*'`
+- Service systemd `faconote` : utilisateur `faconote`, **1 seul worker uvicorn** : les sessions mobiles et les limites
+  anti-abus sont gardées en mémoire, une session créée sur un worker serait inconnue des autres.
+  `uvicorn app.main:app --uds /var/www/faconote/faconote.sock --workers 1 --app-dir backend --proxy-headers --forwarded-allow-ips '*'`
   (derrière nginx, pour recevoir la vraie IP des visiteurs).
 - Python dans `/var/www/faconote/.venv` (Python 3.14).
 - Santé : `GET /api/health`. Documentation interactive : `/docs`.

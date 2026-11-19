@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { OrderSnapshot, useOrderHistory } from '../utils/useOrderHistory';
 import { OrderLines, OrderLineDraft } from './OrderLines';
-import { D365Preview } from './D365Preview';
 import type { D365OrderResponse } from '../api';
 import {
   Calculator,
@@ -539,8 +538,8 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
           material: e.material,
         })),
       });
-      // Étape 1 : aperçu de ce qui sera écrit dans D365 (préparé par le backend)
-      setD365Preview(res.data);
+      // Envoi direct : l'extension remplace la commande qu'elle a déjà pour ce n°
+      await sendPrepared(res.data);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'erreur inconnue';
       setExtStatus({ kind: 'error', message });
@@ -549,44 +548,35 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     }
   };
 
-  // Étape 2 : envoi confirmé depuis l'aperçu
-  const [d365Preview, setD365Preview] = useState<D365OrderResponse | null>(null);
-  const handleConfirmSend = async () => {
-    if (!d365Preview || d365Preview.errors.length > 0) return;
-    const { groups, version, warnings, order_number: order } = d365Preview;
-    setIsSendingToExt(true);
-    try {
-      const reply = await postToExtension(
-        { type: 'SEND', sentAt: new Date().toISOString(), orderNumber: order, groups },
-        version
-      );
-      if (reply.type !== 'ACK') {
-        const detail = reply.error || 'envoi refusé';
-        setD365Preview(null);
-        setExtStatus({
-          kind: 'error',
-          message: /Version de message non gérée/.test(detail)
-            ? 'Extension trop ancienne pour les bobines : installer la 0.4.0 (chauve.click/ext). Les pièces seules passent toujours.'
-            : `Extension : ${detail}`,
-        });
-        return;
-      }
-      const ok = reply.message || `Commande ${order} reçue par l'extension.`;
-      const base = `${ok} Pré-remplissez maintenant dans D365, matière par matière.`;
-      if (warnings.length > 0) {
-        setExtStatus({ kind: 'warning', message: `${base} ${warnings.map((w) => w.message).join(' ')}` });
-      } else {
-        setExtStatus({ kind: 'success', message: base });
-      }
-      notify(ok);
-      setD365Preview(null);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'erreur inconnue';
-      setD365Preview(null);
-      setExtStatus({ kind: 'error', message });
-    } finally {
-      setIsSendingToExt(false);
+  // Transmet à l'extension ce que le backend a préparé (route d365-order)
+  const sendPrepared = async (data: D365OrderResponse) => {
+    const { groups, version, errors, warnings, order_number: order } = data;
+    if (errors.length > 0) {
+      setExtStatus({ kind: 'error', message: errors.map((e) => e.message).join(' ') });
+      return;
     }
+    const reply = await postToExtension(
+      { type: 'SEND', sentAt: new Date().toISOString(), orderNumber: order, groups },
+      version
+    );
+    if (reply.type !== 'ACK') {
+      const detail = reply.error || 'envoi refusé';
+      setExtStatus({
+        kind: 'error',
+        message: /Version de message non gérée/.test(detail)
+          ? 'Extension trop ancienne pour les bobines : installer la 0.4.0 (chauve.click/ext). Les pièces seules passent toujours.'
+          : `Extension : ${detail}`,
+      });
+      return;
+    }
+    const ok = reply.message || `Commande ${order} reçue par l'extension.`;
+    const base = `${ok} Pré-remplissez maintenant dans D365, matière par matière.`;
+    if (warnings.length > 0) {
+      setExtStatus({ kind: 'warning', message: `${base} ${warnings.map((w) => w.message).join(' ')}` });
+    } else {
+      setExtStatus({ kind: 'success', message: base });
+    }
+    notify(ok);
   };
 
   // Supprimer une ligne Dév × matière du tableau
@@ -977,17 +967,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
         )}
       </OrderBar>
 
-      {d365Preview && (
-        <D365Preview
-          preview={d365Preview}
-          isSending={isSendingToExt}
-          onConfirm={handleConfirmSend}
-          onClose={() => {
-            setD365Preview(null);
-            orderInputRef.current?.focus();
-          }}
-        />
-      )}
 
       {/* Compact Input & Controls Card */}
       <div className="faco-card bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-3.5">

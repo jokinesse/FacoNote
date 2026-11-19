@@ -102,15 +102,19 @@ export const WorkshopPrintModal: React.FC<WorkshopPrintModalProps> = ({
 
           {/* Client & Material Grid */}
           <div className="grid grid-cols-2 gap-4 my-5 p-4 bg-slate-50 rounded border border-slate-200 text-xs">
-            <div>
-              <span className="text-[10px] uppercase font-bold text-slate-500 block">
-                Client / Chantier :
-              </span>
-              <strong className="text-sm text-slate-900">{job.client}</strong>
-              <div className="text-slate-700 mt-1">
-                Chantier : <strong>{job.chantier}</strong>
+            {(job.client || job.chantier) && (
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                  Client / Chantier :
+                </span>
+                <strong className="text-sm text-slate-900">{job.client}</strong>
+                {job.chantier && (
+                  <div className="text-slate-700 mt-1">
+                    Chantier : <strong>{job.chantier}</strong>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-500 block">

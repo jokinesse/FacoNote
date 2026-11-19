@@ -707,8 +707,8 @@ Sois direct, pro et concis en français.`;
 
   const printableJob: WorkshopJobData = {
     code: `FZ-DEBIT-${new Date().getFullYear()}`,
-    client: clientName,
-    chantier: chantierRef,
+    client: '',
+    chantier: '',
     date: new Date().toISOString().split('T')[0],
     material: isAlu ? 'ALUMINIUM' : 'ZINC',
     finish: selectedMaterial,
@@ -718,15 +718,17 @@ Sois direct, pro et concis en français.`;
 
   return (
     <div className="space-y-5">
-      {/* Top Notice */}
+      {/* Message court (transfert depuis le Calculateur, import) */}
       {actionNotice && (
-        <div className="bg-[#f0f7fc] border border-[#b9dcf2] text-[#00478a] px-4 py-2.5 rounded-lg flex items-center justify-between text-xs shadow-xs animate-in fade-in">
+        <div className="bg-[#f0f7fc] border border-[#b9dcf2] text-[#00478a] px-4 py-2 rounded-lg flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
-            <Info className="w-4 h-4 text-[#00478a] shrink-0" />
+            <Info className="w-4 h-4 shrink-0" />
             <span className="font-medium">{actionNotice}</span>
           </div>
           <button
+            type="button"
             onClick={() => setActionNotice(null)}
+            aria-label="Fermer"
             className="text-slate-400 hover:text-slate-700 font-bold ml-3 cursor-pointer"
           >
             ✕
@@ -734,448 +736,347 @@ Sois direct, pro et concis en français.`;
         </div>
       )}
 
-      {/* Main Header / Job Controls (Compact Single Card) */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3.5">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#00478a]" />
-            <h2 className="text-base font-bold text-[#282828] tracking-tight">
-              Optimiseur de Refente &amp; Feuilles Mères
-            </h2>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => calculateOptimization()}
-              disabled={isCalculating || pieces.length === 0}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-[#00478a] ${isCalculating ? 'animate-spin' : ''}`} />
-              <span>{isCalculating ? 'Calcul...' : 'Recalculer'}</span>
-              {calculationTimeMs !== null && !isCalculating && (
-                <span className="text-[10px] text-slate-400 font-mono">({calculationTimeMs}ms)</span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsPrintModalOpen(true)}
-              disabled={pieces.length === 0}
-              className="px-3 py-1.5 bg-white hover:bg-slate-50 disabled:opacity-40 text-slate-600 hover:text-slate-900 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
-            >
-              <span>Aperçu</span>
-            </button>
-
-            <AiScanButton onClick={() => setIsVisualModalOpen(true)} />
-          </div>
+      {/* 1. Réglages : largeurs de bobine, réemploi des chutes, impression */}
+      <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-xs flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="flex items-center gap-2">
+          <Scissors className="w-4 h-4 text-[#00478a]" />
+          <h2 className="text-sm font-bold text-[#282828]">Optimisation &amp; Coupe</h2>
+          {isCalculating && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
+              <RefreshCw className="w-3 h-3 animate-spin text-[#00478a]" />
+              Calcul…
+            </span>
+          )}
         </div>
 
-        {/* Client, Chantier & Mother Widths */}
-        <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-          <div>
-            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1 tracking-wider">
-              Client
-            </label>
-            <input
-              type="text"
-              value={clientName}
-              onChange={(e) => setClientName(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:border-[#00478a] focus:bg-white"
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1 tracking-wider">
-              Référence Chantier
-            </label>
-            <input
-              type="text"
-              value={chantierRef}
-              onChange={(e) => setChantierRef(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:border-[#00478a] focus:bg-white"
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1 tracking-wider">
-              Largeurs Bobines Atelier
-            </label>
-            <div className="space-y-1.5">
-              {widthsByMaterial.map(({ material, widths }) => (
-                <div key={material}>
-                  {widthsByMaterial.length > 1 && (
-                    <div className="text-[10px] font-semibold text-slate-600 mb-0.5">{material}</div>
-                  )}
-                  <div className="flex flex-wrap gap-1">
-                    {widths.map((w) => {
-                      const isActive = !(disabledWidthsByMat[material] ?? []).includes(w);
-                      return (
-                        <button
-                          key={w}
-                          type="button"
-                          onClick={() => handleToggleMotherWidth(material, w)}
-                          className={`px-2 py-1 rounded text-[11px] font-mono font-semibold transition-colors cursor-pointer border ${
-                            isActive
-                              ? 'bg-[#00478a] text-white border-[#00478a]'
-                              : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-800'
-                          }`}
-                          title={`${material} : ${isActive ? 'désactiver' : 'activer'} cette largeur`}
-                        >
-                          {w}mm
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Largeurs de bobine</span>
+          {widthsByMaterial.map(({ material, widths }) => (
+            <div key={material} className="flex items-center gap-1.5">
+              {widthsByMaterial.length > 1 && (
+                <span className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">{material}</span>
+              )}
+              <div className="flex flex-wrap gap-1">
+                {widths.map((w) => {
+                  const isActive = !(disabledWidthsByMat[material] ?? []).includes(w);
+                  return (
+                    <button
+                      key={w}
+                      type="button"
+                      onClick={() => handleToggleMotherWidth(material, w)}
+                      aria-pressed={isActive}
+                      className={`px-2 py-1 rounded text-[11px] font-mono font-semibold transition-colors cursor-pointer border ${
+                        isActive
+                          ? 'bg-[#00478a] text-white border-[#00478a]'
+                          : 'bg-white text-slate-400 border-slate-200 line-through hover:text-slate-700'
+                      }`}
+                      title={`${material} : ${isActive ? 'ne plus utiliser' : 'utiliser'} la bobine de ${w} mm`}
+                    >
+                      {w}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 ml-auto">
+          <label
+            className="inline-flex items-center gap-2 text-xs text-slate-700 cursor-pointer select-none"
+            title="Réutilise les chutes des feuilles plus longues pour d'autres pièces"
+          >
+            <input
+              type="checkbox"
+              checked={useGeneratedScraps}
+              onChange={() => setUseGeneratedScraps(!useGeneratedScraps)}
+              className="rounded border-slate-300 text-[#00478a] focus:ring-0 cursor-pointer"
+            />
+            <span>Réutiliser les chutes</span>
+          </label>
+          <button
+            type="button"
+            onClick={() => setIsPrintModalOpen(true)}
+            disabled={pieces.length === 0}
+            className="px-3 py-1.5 bg-white hover:bg-slate-50 disabled:opacity-40 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Imprimer</span>
+          </button>
         </div>
       </div>
 
       {calculationError && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-3.5 flex items-center justify-between gap-3 text-red-700 text-xs">
-          <div className="flex items-center gap-2.5">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center justify-between gap-3 text-red-700 text-xs">
+          <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-            <div>
-              <strong className="font-bold mr-1">Erreur :</strong>
-              <span>{calculationError}</span>
-            </div>
+            <span>{calculationError}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setCalculationError(null)}
-            className="text-red-600 hover:text-red-800 text-xs px-2 py-1 rounded bg-white border border-red-200 cursor-pointer"
-          >
-            Fermer
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => calculateOptimization()}
+              className="text-red-700 text-xs px-2 py-1 rounded bg-white border border-red-200 cursor-pointer"
+            >
+              Recalculer
+            </button>
+            <button
+              type="button"
+              onClick={() => setCalculationError(null)}
+              aria-label="Fermer"
+              className="text-red-600 hover:text-red-800 text-xs px-2 py-1 cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
 
-      {/* SECTION 1: Pièces à Débiter */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3.5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-100 pb-3">
+      {/* 2. Pièces à débiter */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
             <Layers className="w-4 h-4 text-[#00478a]" />
-            <h3 className="text-sm font-bold text-[#282828]">
-              Pièces à Débiter
-            </h3>
-            <span className="text-xs font-mono text-[#00478a] font-semibold px-2 py-0.5 rounded bg-[#f0f7fc] border border-[#b9dcf2]">
-              {totalPiecesCount} pc · {totalLinearMeters.toFixed(2)} ml
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-[#282828]">Pièces à débiter</h3>
             {pieces.length > 0 && (
-              <button
-                type="button"
-                onClick={handleClearPieces}
-                className={BTN_DANGER}
-                title="Vider la liste des pièces"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Vider</span>
-              </button>
+              <span className="text-xs font-mono text-slate-500">
+                {totalPiecesCount} pièces · {totalLinearMeters.toFixed(2)} m
+              </span>
             )}
           </div>
+          {pieces.length > 0 && (
+            <button type="button" onClick={handleClearPieces} className={BTN_DANGER} title="Vider la liste des pièces">
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Vider la liste</span>
+            </button>
+          )}
         </div>
 
         {analysisError && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg flex items-center gap-2">
+          <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
             <span>{analysisError}</span>
           </div>
         )}
 
-        {/* Piece Table */}
-        {pieces.length === 0 ? (
-          <div className="p-6 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-lg bg-slate-50/50">
-            Aucune pièce encodée. Ajoutez vos pièces ci-dessous ou transférez-les depuis le Calculateur.
-          </div>
-        ) : (
-          <div
-            className="table-wrapper border border-slate-200 rounded-lg"
-            tabIndex={0}
-            role="region"
-            aria-label="Liste des pièces à débiter"
-          >
+        <form onSubmit={handleAddPiece}>
+          <div className="table-wrapper" tabIndex={0} role="region" aria-label="Liste des pièces à débiter">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px] border-b border-slate-200">
+              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px] border-b border-slate-200 whitespace-nowrap">
                 <tr>
-                  <th className="py-2.5 px-3">Désignation</th>
-                  <th className="py-2.5 px-3 text-right">Dév (mm)</th>
-                  <th className="py-2.5 px-3 text-right">Long. (m)</th>
-                  <th className="py-2.5 px-3 text-right">Qté</th>
-                  <th className="py-2.5 px-3">Matière</th>
-                  <th className="py-2.5 px-3 text-center" title="Débit sur bobine mère ou prélèvement sur chute rack (raccourci : touche C)">
-                    Origine Atelier
+                  <th className="py-2 px-4 w-32">Dév (mm)</th>
+                  <th className="py-2 px-3 text-right">Longueur (m)</th>
+                  <th className="py-2 px-3 text-right">Qté</th>
+                  <th className="py-2 px-3">Matière</th>
+                  <th
+                    className="py-2 px-3"
+                    title="Débiter sur une bobine neuve ou prendre une chute de l'atelier (raccourci : touche C)"
+                  >
+                    Débit sur
                   </th>
-                  <th className="py-2.5 px-3 text-right">Métrage</th>
-                  <th className="py-2.5 px-3 text-right"></th>
+                  <th className="py-2 px-3 w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-mono">
-                {pieces.map((p) => (
-                  <tr
-                    key={p.id}
-                    onMouseEnter={() => setHoveredPieceId(p.id)}
-                    onMouseLeave={() => setHoveredPieceId(null)}
-                    className="hover:bg-slate-50/80 transition-colors"
-                  >
-                    <td className="py-2 px-3 font-sans text-slate-800 font-medium">
-                      {p.label}
-                      {p.workshopSplitReason && (
-                        <span className="block text-[10px] text-slate-400 font-normal">
-                          {p.workshopSplitReason}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 px-3 text-right text-[#00478a] font-bold">{p.dev} mm</td>
-                    <td className="py-2 px-3 text-right text-slate-600">{p.length} m</td>
-                    <td className="py-2 px-3 text-right text-slate-900 font-bold">
-                      <div>{p.quantity}</div>
-                      {p.originalTotalLengthRequested && (
-                        <span
-                          className="block text-[9px] font-sans font-normal text-[#00478a] whitespace-nowrap"
-                          title={`Métrage total initialement demandé : ${p.originalTotalLengthRequested}m`}
-                        >
-                          ({p.originalTotalLengthRequested}m auto)
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 px-3 font-sans text-[11px]">
-                      <select
-                        value={p.material || selectedMaterial}
-                        onChange={(e) => {
-                          const updatedMat = e.target.value;
-                          setPieces((prev) =>
-                            prev.map((item) => (item.id === p.id ? { ...item, material: updatedMat } : item))
-                          );
-                        }}
-                        className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-700 text-xs focus:outline-none focus:border-[#00478a] cursor-pointer"
-                        title="Modifier la matière de cette pièce"
-                      >
-                        {MATERIAL_GROUPS.map((grp) => (
-                          <optgroup key={grp.group} label={grp.group}>
-                            {grp.items.map((m) => (
-                              <option key={m.value} value={m.value}>
-                                {m.value}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="py-2 px-3 text-center">
-                      {p.sourceType === 'RACK_SCRAP' ? (
-                        <div className="inline-flex items-center justify-center gap-1.5 flex-wrap">
-                          <span className="px-2 py-0.5 rounded text-[11px] font-sans font-semibold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
-                            <Scissors className="w-3 h-3 text-amber-700" />
-                            <span>
-                              Chute Rack ({[100, 120, 150, 200, 250].find((w) => w >= p.dev) || Math.max(250, p.dev)} mm)
-                            </span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleMovePieceUnits(p.id, 'BOBINE', 1)}
-                            className="px-2 py-0.5 rounded text-[10px] font-sans font-semibold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 inline-flex items-center gap-1 transition-colors cursor-pointer"
-                            title={
-                              p.quantity > 1
-                                ? 'Remettre 1 seul exemplaire sur bobine mère (raccourci : C)'
-                                : 'Remettre cette pièce sur bobine mère (raccourci : C)'
-                            }
-                          >
-                            <RotateCcw className="w-2.5 h-2.5 text-[#00478a]" />
-                            <span>{p.quantity > 1 ? '1x bobine' : '↩ Bobine'}</span>
-                          </button>
-                          {p.quantity > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleMovePieceUnits(p.id, 'BOBINE', p.quantity)}
-                              className="px-1.5 py-0.5 rounded text-[10px] font-sans font-medium bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-800 border border-slate-200 transition-colors cursor-pointer"
-                              title={`Remettre les ${p.quantity} exemplaires sur bobine mère (raccourci : Shift+C)`}
-                            >
-                              Tout ({p.quantity})
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="inline-flex items-center justify-center gap-1.5 flex-wrap">
-                          <span className="px-2 py-0.5 rounded text-[11px] font-sans font-medium bg-slate-50 text-slate-600 border border-slate-200 inline-flex items-center gap-1">
-                            <Layers className="w-3 h-3 text-slate-400" />
-                            <span>Bobine mère</span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleMovePieceUnits(p.id, 'RACK_SCRAP', 1)}
-                            className="px-2 py-0.5 rounded text-[10px] font-sans font-semibold bg-[#f0f7fc] hover:bg-[#00478a] text-[#00478a] hover:text-white border border-[#b9dcf2] hover:border-[#00478a] inline-flex items-center gap-1 transition-all cursor-pointer"
-                            title={
-                              p.quantity > 1
-                                ? `Prendre uniquement 1 pièce en chute rack et laisser ${p.quantity - 1} sur bobine (raccourci : C)`
-                                : 'Prendre cette pièce en chute de rack atelier (raccourci : C)'
-                            }
-                          >
-                            <Scissors className="w-2.5 h-2.5" />
-                            <span>{p.quantity > 1 ? '+1 en chute' : 'En chute'}</span>
-                          </button>
-                          {p.quantity > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleMovePieceUnits(p.id, 'RACK_SCRAP', p.quantity)}
-                              className="px-1.5 py-0.5 rounded text-[10px] font-sans font-medium bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-[#00478a] border border-slate-200 transition-colors cursor-pointer"
-                              title={`Passer les ${p.quantity} exemplaires en chute rack (raccourci : Shift+C)`}
-                            >
-                              Tout ({p.quantity})
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-2 px-3 text-right text-slate-600">
-                      {(p.length * p.quantity).toFixed(2)} m
-                    </td>
-                    <td className="py-2 px-3 text-right">
-                      <DeleteButton title="Supprimer cette pièce" onClick={() => handleRemovePiece(p.id)} />
+                {pieces.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-6 px-4 text-center font-sans text-slate-400">
+                      Aucune pièce. Ajoutez-les ci-dessous, ou envoyez-les depuis le Calculateur (« Optimiser le débit »).
                     </td>
                   </tr>
-                ))}
+                )}
+                {pieces.map((p) => {
+                  const onScrap = p.sourceType === 'RACK_SCRAP';
+                  return (
+                    <tr
+                      key={p.id}
+                      onMouseEnter={() => setHoveredPieceId(p.id)}
+                      onMouseLeave={() => setHoveredPieceId(null)}
+                      className={`transition-colors ${onScrap ? 'bg-amber-50/40' : 'hover:bg-slate-50/80'}`}
+                    >
+                      <td className="py-2 px-4" title={p.label}>
+                        <span className="text-sm font-bold text-[#00478a]">{p.dev}</span>
+                      </td>
+                      <td className="py-2 px-3 text-right text-slate-700">{p.length}</td>
+                      <td className="py-2 px-3 text-right font-bold text-slate-900">
+                        {p.quantity}
+                        {p.originalTotalLengthRequested && (
+                          <span
+                            className="block text-[9px] font-sans font-normal text-[#00478a] whitespace-nowrap"
+                            title={`Métrage total demandé : ${p.originalTotalLengthRequested} m`}
+                          >
+                            ({p.originalTotalLengthRequested} m auto)
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 px-3 font-sans">
+                        <select
+                          value={p.material || selectedMaterial}
+                          onChange={(e) => {
+                            const updatedMat = e.target.value;
+                            setPieces((prev) =>
+                              prev.map((item) => (item.id === p.id ? { ...item, material: updatedMat } : item))
+                            );
+                          }}
+                          className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-700 text-xs focus:outline-none focus:border-[#00478a] cursor-pointer"
+                          aria-label="Matière de la pièce"
+                        >
+                          {MATERIAL_GROUPS.map((grp) => (
+                            <optgroup key={grp.group} label={grp.group}>
+                              {grp.items.map((m) => (
+                                <option key={m.value} value={m.value}>
+                                  {m.value}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-2 px-3 font-sans whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5">
+                          <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-[11px] font-semibold">
+                            <button
+                              type="button"
+                              onClick={() => onScrap && handleMovePieceUnits(p.id, 'BOBINE', p.quantity)}
+                              aria-pressed={!onScrap}
+                              className={`px-2 py-0.5 cursor-pointer ${
+                                !onScrap ? 'bg-[#00478a] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
+                              }`}
+                              title="Débiter sur une bobine neuve"
+                            >
+                              Bobine
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => !onScrap && handleMovePieceUnits(p.id, 'RACK_SCRAP', p.quantity)}
+                              aria-pressed={onScrap}
+                              className={`px-2 py-0.5 border-l border-slate-200 cursor-pointer ${
+                                onScrap ? 'bg-amber-500 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
+                              }`}
+                              title="Prendre dans les chutes de l'atelier"
+                            >
+                              Chute
+                            </button>
+                          </div>
+                          {p.quantity > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleMovePieceUnits(p.id, onScrap ? 'BOBINE' : 'RACK_SCRAP', 1)}
+                              className="px-1.5 py-0.5 rounded text-[10px] text-slate-500 hover:text-[#00478a] hover:bg-slate-100 cursor-pointer"
+                              title={onScrap ? 'Remettre 1 pièce sur bobine (C)' : 'Passer 1 seule pièce en chute (C)'}
+                            >
+                              {onScrap ? '1 sur bobine' : '1 en chute'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2 px-3 text-right">
+                        <DeleteButton title="Supprimer cette pièce" onClick={() => handleRemovePiece(p.id)} />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
+              {/* Ajout rapide : même ordre que les colonnes */}
+              <tfoot className="bg-slate-50 border-t border-slate-200">
+                <tr>
+                  <td className="py-2 px-4">
+                    <input
+                      type="number"
+                      value={newDev}
+                      onChange={(e) => setNewDev(e.target.value)}
+                      min="20"
+                      max="2000"
+                      required
+                      aria-label="Développé (mm)"
+                      placeholder="Dév"
+                      className="w-24 bg-white border border-slate-300 rounded-md px-2 py-1 font-mono text-xs focus:outline-none focus:border-[#00478a]"
+                    />
+                  </td>
+                  <td className="py-2 px-3 text-right">
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={newLength}
+                      onChange={(e) => setNewLength(e.target.value)}
+                      min="0.2"
+                      required
+                      aria-label={isAutoMeterMode ? 'Métrage total (m)' : 'Longueur (m)'}
+                      placeholder={isAutoMeterMode ? 'Total m' : 'Long.'}
+                      className={`w-24 border rounded-md px-2 py-1 font-mono text-xs text-right focus:outline-none ${
+                        isAutoMeterMode
+                          ? 'border-[#00478a] text-[#00478a] font-bold bg-[#f0f7fc]'
+                          : 'bg-white border-slate-300 focus:border-[#00478a]'
+                      }`}
+                    />
+                  </td>
+                  <td className="py-2 px-3 text-right">
+                    <input
+                      type="number"
+                      value={newQty}
+                      onChange={(e) => {
+                        setNewQty(e.target.value);
+                        if (e.target.value !== '0') setSelectedForcedLength(undefined);
+                      }}
+                      min="0"
+                      required
+                      aria-label="Quantité (0 = métrage auto)"
+                      title="0 = métrage auto : la longueur devient le métrage total"
+                      className={`w-16 border rounded-md px-2 py-1 font-mono text-xs text-right focus:outline-none ${
+                        isAutoMeterMode
+                          ? 'border-[#00478a] text-[#00478a] font-bold bg-[#f0f7fc]'
+                          : 'bg-white border-slate-300 focus:border-[#00478a]'
+                      }`}
+                    />
+                  </td>
+                  <td className="py-2 px-3">
+                    <select
+                      value={newMat}
+                      onChange={(e) => {
+                        setNewMat(e.target.value);
+                        setSelectedMaterial(e.target.value);
+                      }}
+                      aria-label="Matière"
+                      className="bg-white border border-slate-300 rounded-md px-1.5 py-1 text-xs focus:outline-none focus:border-[#00478a] cursor-pointer"
+                    >
+                      {MATERIAL_GROUPS.map((grp) => (
+                        <optgroup key={grp.group} label={grp.group}>
+                          {grp.items.map((m) => (
+                            <option key={m.value} value={m.value}>
+                              {m.value}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="py-2 px-3" colSpan={2}>
+                    <button
+                      type="submit"
+                      className="px-3 py-1 bg-[#e7511f] hover:bg-[#cf4315] text-white font-semibold rounded-md text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{isAutoMeterMode ? 'Ajouter (auto)' : 'Ajouter'}</span>
+                    </button>
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
-        )}
 
-        {/* Quick Add Form */}
-        <form
-          onSubmit={handleAddPiece}
-          className="bg-slate-50 border border-slate-200 rounded-lg p-3 grid grid-cols-2 sm:grid-cols-6 lg:grid-cols-7 gap-2.5 items-end text-xs"
-        >
-          <div className="col-span-2">
-            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-              Libellé pièce
-            </label>
-            <input
-              type="text"
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-              placeholder="Ex: Bavette, Rehausse..."
-              className="w-full bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-slate-800 text-xs focus:outline-none focus:border-[#00478a]"
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-              Dév (mm)
-            </label>
-            <input
-              type="number"
-              value={newDev}
-              onChange={(e) => setNewDev(e.target.value)}
-              min="20"
-              max="2000"
-              required
-              className="w-full bg-white border border-slate-300 rounded-md px-2.5 py-1.5 text-slate-800 font-mono text-xs focus:outline-none focus:border-[#00478a]"
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-              {isAutoMeterMode ? 'Métrage total (m)' : 'Longueur (m)'}
-            </label>
-            <input
-              type="number"
-              step="0.05"
-              value={newLength}
-              onChange={(e) => setNewLength(e.target.value)}
-              min="0.2"
-              placeholder={isAutoMeterMode ? 'Ex: 15.0m' : '2.0'}
-              required
-              className={`w-full bg-white border rounded-md px-2.5 py-1.5 font-mono text-xs focus:outline-none transition-colors ${
-                isAutoMeterMode
-                  ? 'border-[#00478a] text-[#00478a] font-bold bg-[#f0f7fc]'
-                  : 'border-slate-300 text-slate-800 focus:border-[#00478a]'
-              }`}
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-              Qté <span className="text-[9px] font-normal text-slate-400">(0=auto)</span>
-            </label>
-            <input
-              type="number"
-              value={newQty}
-              onChange={(e) => {
-                setNewQty(e.target.value);
-                if (e.target.value !== '0') {
-                  setSelectedForcedLength(undefined);
-                }
-              }}
-              min="0"
-              placeholder="1 (ou 0)"
-              required
-              className={`w-full bg-white border rounded-md px-2.5 py-1.5 font-mono text-xs focus:outline-none transition-colors ${
-                isAutoMeterMode
-                  ? 'border-[#00478a] text-[#00478a] font-bold bg-[#f0f7fc]'
-                  : 'border-slate-300 text-slate-800 focus:border-[#00478a]'
-              }`}
-            />
-          </div>
-
-          <div className="col-span-2 sm:col-span-2 lg:col-span-1">
-            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-              Matière
-            </label>
-            <select
-              value={newMat}
-              onChange={(e) => {
-                setNewMat(e.target.value);
-                setSelectedMaterial(e.target.value);
-              }}
-              className="w-full bg-white border border-slate-300 rounded-md px-2 py-1.5 text-slate-800 text-xs focus:outline-none focus:border-[#00478a] cursor-pointer"
-            >
-              {MATERIAL_GROUPS.map((grp) => (
-                <optgroup key={grp.group} label={grp.group}>
-                  {grp.items.map((m) => (
-                    <option key={m.value} value={m.value}>
-                      {m.value}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-
-          <div className="col-span-2 sm:col-span-6 lg:col-span-1">
-            <button
-              type="submit"
-              className="w-full py-1.5 bg-[#00478a] hover:bg-[#003566] text-white font-semibold rounded-md text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>{isAutoMeterMode ? 'Ajouter (Auto)' : 'Ajouter'}</span>
-            </button>
-          </div>
-
-          {/* Interactive Live Auto-Meterage Breakdown */}
+          {/* Métrage auto (Qté = 0) : découpage proposé par le backend */}
           {isAutoMeterMode && autoBreakdown && (
-            <div className="col-span-2 sm:col-span-6 lg:col-span-7 bg-[#f0f7fc] border border-[#b9dcf2] rounded-lg p-3 space-y-2 animate-in fade-in">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Zap className="w-3.5 h-3.5 text-[#00478a] shrink-0" />
-                  <span className="font-semibold text-slate-700">
-                    Calepinage auto ({autoBreakdown.requestedMeters}m) :
-                  </span>
-                  <span className="font-mono text-[#00478a] font-bold bg-white px-2 py-0.5 rounded border border-[#b9dcf2]">
-                    {autoBreakdown.quantity} × {autoBreakdown.length}m = {autoBreakdown.totalProduced}m
-                  </span>
-                </div>
-                <span className="text-[11px] text-slate-500">
-                  {autoBreakdown.reason}
+            <div className="mx-4 my-3 bg-[#f0f7fc] border border-[#b9dcf2] rounded-lg p-3 space-y-2">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <Zap className="w-3.5 h-3.5 text-[#00478a] shrink-0" />
+                <span className="font-semibold text-slate-700">Métrage auto ({autoBreakdown.requestedMeters} m) :</span>
+                <span className="font-mono text-[#00478a] font-bold bg-white px-2 py-0.5 rounded border border-[#b9dcf2]">
+                  {autoBreakdown.quantity} × {autoBreakdown.length} m = {autoBreakdown.totalProduced} m
                 </span>
+                <span className="text-[11px] text-slate-500">{autoBreakdown.reason}</span>
               </div>
-
               {autoBreakdown.alternatives.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-[#d5eaf7]">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {autoBreakdown.alternatives.map((alt) => {
                     const isSelected = Math.abs(alt.length - autoBreakdown.length) < 0.01;
                     return (
@@ -1183,28 +1084,14 @@ Sois direct, pro et concis en français.`;
                         key={alt.length}
                         type="button"
                         onClick={() => setSelectedForcedLength(alt.length)}
-                        className={`px-2.5 py-1 rounded-md font-mono text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                        className={`px-2.5 py-1 rounded-md font-mono text-xs font-semibold cursor-pointer border ${
                           isSelected
-                            ? 'bg-[#00478a] text-white border-[#00478a] shadow-xs'
+                            ? 'bg-[#00478a] text-white border-[#00478a]'
                             : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200'
                         }`}
                         title={alt.label}
                       >
-                        <span>
-                          {alt.quantity} × {alt.length}m
-                        </span>
-                        <span className="text-[10px] opacity-75">
-                          ({alt.totalProduced}m)
-                        </span>
-                        {alt.isExact && (
-                          <span
-                            className={`text-[9px] px-1 rounded font-bold ${
-                              isSelected ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-700'
-                            }`}
-                          >
-                            Pile
-                          </span>
-                        )}
+                        {alt.quantity} × {alt.length} m{alt.isExact ? ' · pile' : ''}
                       </button>
                     );
                   })}
@@ -1215,185 +1102,103 @@ Sois direct, pro et concis en français.`;
         </form>
       </div>
 
-      {/* SECTION 2: Résultat du Débit & Plan de Refente */}
+      {/* 3. Résultat du débit */}
       {optimizationResult && (
         <div className="space-y-4">
-          {/* KPI & Controls Card */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3.5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              <h3 className="text-sm font-bold text-[#282828] flex items-center gap-2">
-                <Scissors className="w-4 h-4 text-[#00478a]" />
-                <span>Synthèse du Débit</span>
-              </h3>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setUseGeneratedScraps(!useGeneratedScraps)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
-                    useGeneratedScraps
-                      ? 'bg-[#f0f7fc] text-[#00478a] border-[#b9dcf2]'
-                      : 'bg-slate-50 text-slate-500 border-slate-200 hover:text-slate-800'
-                  }`}
-                  title="Réutilise automatiquement les chutes d'opérations plus longues"
-                >
-                  <Scissors className="w-3 h-3" />
-                  <span>
-                    {useGeneratedScraps
-                      ? 'Réemploi chutes inter-longueurs : Actif'
-                      : 'Réemploi chutes inter-longueurs : Inactif'}
-                  </span>
-                </button>
+          {/* L'essentiel en une ligne (valeurs du backend) */}
+          <div className="bg-white border border-slate-200 rounded-xl shadow-xs grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-slate-100">
+            <div className="px-4 py-3">
+              <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">À sortir du stock</div>
+              <div className="mt-0.5 font-mono">
+                <span className="text-xl font-bold text-[#00478a]">{grandTotalSheets}</span>{' '}
+                <span className="text-xs text-slate-500">{grandTotalSheets > 1 ? 'feuilles' : 'feuille'}</span>
+              </div>
+              <div className="text-[11px] font-mono text-slate-500">
+                {grandTotalMeters.toFixed(2)} m · {grandTotalWeight} kg brut
               </div>
             </div>
-
-            {/* KPI STATS CARDS */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
-              <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-3">
-                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-                  Feuilles Mères
-                </span>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <span className="text-lg font-bold font-mono text-slate-900">
-                    {optimizationResult.motherItemsNeeded.length}
-                  </span>
-                  <span className="text-xs text-slate-500">bandes</span>
-                </div>
+            <div className="px-4 py-3">
+              <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Rendement matière</div>
+              <div className="mt-0.5 font-mono">
+                <span className="text-xl font-bold text-[#282828]">
+                  {optimizationResult.materialEfficiencyRate.toFixed(1)}
+                </span>{' '}
+                <span className="text-xs text-slate-500">%</span>
               </div>
-
-              <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-3">
-                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-                  Surface Nette
-                </span>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <span className="text-lg font-bold font-mono text-[#00478a]">
-                    {optimizationResult.totalNetSurfaceM2.toFixed(2)}
-                  </span>
-                  <span className="text-xs text-slate-500">m²</span>
-                </div>
-                <span className="text-[10px] text-slate-400 font-mono block">
-                  {optimizationResult.netWeightKg} kg utiles
-                </span>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-3">
-                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-                  Surface Brute
-                </span>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <span className="text-lg font-bold font-mono text-slate-800">
-                    {optimizationResult.totalGrossSurfaceM2.toFixed(2)}
-                  </span>
-                  <span className="text-xs text-slate-500">m²</span>
-                </div>
-                <span className="text-[10px] text-slate-400 font-mono block">
-                  {optimizationResult.grossWeightKg} kg à sortir
-                </span>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-3">
-                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-                  Chutes Rack &ge;100mm
-                </span>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <span className="text-lg font-bold font-mono text-emerald-700">
-                    {optimizationResult.reusableScrapSurfaceM2.toFixed(2)}
-                  </span>
-                  <span className="text-xs text-slate-500">m²</span>
-                </div>
-                <span className="text-[10px] text-slate-400 font-mono block">
-                  {optimizationResult.newReusableScrapsCreated.length} bande(s)
-                </span>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-3">
-                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-                  Perte &lt;100mm
-                </span>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <span className="text-lg font-bold font-mono text-slate-600">
-                    {optimizationResult.netLossSurfaceM2.toFixed(2)}
-                  </span>
-                  <span className="text-xs text-slate-500">m²</span>
-                </div>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-3">
-                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-                  Rendement
-                </span>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <span className="text-lg font-bold font-mono text-[#00478a]">
-                    {optimizationResult.materialEfficiencyRate.toFixed(1)}
-                  </span>
-                  <span className="text-xs text-slate-500">%</span>
-                </div>
+              <div className="text-[11px] font-mono text-slate-500">
+                {optimizationResult.totalNetSurfaceM2.toFixed(2)} m² utiles sur {optimizationResult.totalGrossSurfaceM2.toFixed(2)} m²
               </div>
             </div>
-
-            {/* PIÈCES PRÉLEVÉES SUR CHUTES RACK ATELIER (SI APPLIQUÉ) */}
-            {optimizationResult.appliedWorkshopScraps &&
-              optimizationResult.appliedWorkshopScraps.length > 0 && (
-                <div className="pt-2 border-t border-slate-100 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>
-                        Pièces prélevées sur Chutes Rack ({optimizationResult.appliedWorkshopScraps.length})
-                      </span>
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 text-xs font-mono">
-                    {optimizationResult.appliedWorkshopScraps.map((s, idx) => (
-                      <span
-                        key={idx}
-                        className="px-2.5 py-1 rounded-md bg-amber-50/80 border border-amber-200 text-slate-700 flex items-center gap-1.5"
-                      >
-                        <span className="font-sans font-semibold text-slate-900">{s.pieceLabel}</span>
-                        <span className="text-slate-500">({s.pieceDev}mm · {s.pieceLength}m)</span>
-                        <span className="text-amber-800 font-bold">→ Chute {s.scrapDev}mm</span>
-                        {s.pieceId && (
-                          <button
-                            type="button"
-                            onClick={() => handleMovePieceUnits(s.pieceId!, 'BOBINE', 1)}
-                            className="ml-1 px-1.5 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 text-[10px] font-sans font-semibold inline-flex items-center gap-0.5 transition-colors cursor-pointer"
-                            title="Remettre uniquement cette pièce (1x) sur bobine mère"
-                          >
-                            <RotateCcw className="w-2.5 h-2.5 text-[#00478a]" />
-                            <span>Remettre 1x sur bobine</span>
-                          </button>
-                        )}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+            <div className="px-4 py-3">
+              <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Chutes à ranger (≥ 100 mm)</div>
+              <div className="mt-0.5 font-mono">
+                <span className="text-xl font-bold text-emerald-700">
+                  {optimizationResult.newReusableScrapsCreated.length}
+                </span>{' '}
+                <span className="text-xs text-slate-500">
+                  {optimizationResult.newReusableScrapsCreated.length > 1 ? 'bandes' : 'bande'}
+                </span>
+              </div>
+              <div className="text-[11px] font-mono text-slate-500">
+                {optimizationResult.reusableScrapSurfaceM2.toFixed(2)} m²
+              </div>
+            </div>
+            <div className="px-4 py-3">
+              <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Perte (&lt; 100 mm)</div>
+              <div className="mt-0.5 font-mono">
+                <span className="text-xl font-bold text-slate-600">
+                  {optimizationResult.netLossSurfaceM2.toFixed(2)}
+                </span>{' '}
+                <span className="text-xs text-slate-500">m²</span>
+              </div>
+            </div>
           </div>
+
+          {/* Pièces prises dans les chutes de l'atelier */}
+          {optimizationResult.appliedWorkshopScraps && optimizationResult.appliedWorkshopScraps.length > 0 && (
+            <div className="bg-amber-50/60 border border-amber-200 rounded-xl px-4 py-3 space-y-2">
+              <div className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-amber-700" />
+                <span>Pris dans les chutes de l'atelier ({optimizationResult.appliedWorkshopScraps.length})</span>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs font-mono">
+                {optimizationResult.appliedWorkshopScraps.map((s, idx) => (
+                  <span
+                    key={idx}
+                    className="px-2 py-1 rounded-md bg-white border border-amber-200 text-slate-700 flex items-center gap-1.5"
+                    title={s.pieceLabel}
+                  >
+                    <span className="font-bold text-[#00478a]">{s.pieceDev} mm</span>
+                    <span className="text-slate-500">× {s.pieceLength} m</span>
+                    <span className="text-amber-800">→ chute {s.scrapDev} mm</span>
+                    {s.pieceId && (
+                      <button
+                        type="button"
+                        onClick={() => handleMovePieceUnits(s.pieceId!, 'BOBINE', 1)}
+                        className="ml-1 px-1.5 py-0.5 rounded bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-sans cursor-pointer"
+                        title="Remettre cette pièce sur bobine"
+                      >
+                        <RotateCcw className="w-2.5 h-2.5 inline -mt-0.5" /> bobine
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* RÉCAPITULATIF DES FEUILLES SORTIES & LEUR MATIÈRE */}
           {sheetsRecapByMaterial.length > 0 && (
             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3.5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                <h4 className="text-sm font-bold text-[#282828] flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-[#00478a]" />
-                  <span>Feuilles / Bobines Mères à Sortir</span>
-                </h4>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-2.5 py-1 bg-[#00478a] text-white font-semibold text-xs rounded-md">
-                    {grandTotalSheets} feuille(s)
-                  </span>
-                  <span className="px-2.5 py-1 bg-slate-100 text-slate-700 font-mono font-semibold text-xs rounded-md border border-slate-200">
-                    {grandTotalMeters.toFixed(2)} ml · {grandTotalWeight} kg brut
-                  </span>
-                </div>
-              </div>
+              <h4 className="text-sm font-bold text-[#282828] flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[#00478a]" />
+                <span>Feuilles à sortir du stock</span>
+              </h4>
 
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3 items-start">
               <div className="space-y-3 min-w-0">
                 <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  Détail par bobine
+                  Détail, de la plus grande à la plus petite
                 </h5>
                 {sheetsRecapByMaterial.map((matGroup, mIdx) => {
                   const isGroupAlu = /alu/i.test(matGroup.material);
@@ -1446,46 +1251,41 @@ Sois direct, pro et concis en français.`;
                         <table className="w-full text-left text-xs">
                           <thead className="bg-slate-50/60 text-slate-500 uppercase tracking-wider text-[10px] border-b border-slate-200 whitespace-nowrap">
                             <tr>
-                              <th className="py-2 px-3 whitespace-nowrap">Format Bobine</th>
-                              <th className="py-2 px-3 text-right">Long. Unitaire</th>
+                              <th className="py-2 px-3">Feuille (largeur × longueur)</th>
                               <th className="py-2 px-3 text-right">Quantité</th>
                               <th className="py-2 px-3 text-right">Métrage</th>
-                              <th className="py-2 px-3 text-right">Surface</th>
-                              <th className="py-2 px-3 text-right">Poids Brut</th>
-                              <th className="py-2 px-3 min-w-[12rem]">Pièces Débitées</th>
+                              <th className="py-2 px-3 text-right">Poids</th>
+                              <th className="py-2 px-3 min-w-[12rem]">Pièces débitées</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
                             {matGroup.formatList.map((f, fIdx) => (
                               <tr key={fIdx} className="hover:bg-slate-50/80 transition-colors">
-                                <td className="py-2 px-3 font-bold text-[#00478a] whitespace-nowrap">
-                                  {f.motherWidth} mm
+                                <td className="py-2 px-3 whitespace-nowrap">
+                                  <span className="font-bold text-[#00478a]">{f.motherWidth}</span>
+                                  <span className="text-slate-400"> × </span>
+                                  <span className="font-bold text-slate-800">{f.motherLength.toFixed(2)} m</span>
                                 </td>
-                                <td className="py-2 px-3 text-right text-slate-600 whitespace-nowrap">
-                                  {f.motherLength.toFixed(2)} m
-                                </td>
-                                <td className="py-2 px-3 text-right font-bold whitespace-nowrap">
-                                  <span className="inline-block whitespace-nowrap px-2 py-0.5 rounded bg-[#f0f7fc] text-[#00478a] border border-[#b9dcf2]">
-                                    {f.count} {f.count > 1 ? 'feuilles' : 'feuille'}
+                                <td className="py-2 px-3 text-right whitespace-nowrap">
+                                  <span className="inline-block min-w-[2rem] px-2 py-0.5 rounded bg-[#f0f7fc] text-[#00478a] border border-[#b9dcf2] font-bold text-center">
+                                    {f.count}
                                   </span>
                                 </td>
                                 <td className="py-2 px-3 text-right text-slate-700 whitespace-nowrap">
                                   {f.totalLengthM.toFixed(2)} m
                                 </td>
                                 <td className="py-2 px-3 text-right text-slate-600 whitespace-nowrap">
-                                  {f.totalSurfaceM2.toFixed(2)} m²
-                                </td>
-                                <td className="py-2 px-3 text-right font-bold text-slate-800 whitespace-nowrap">
                                   {f.totalWeightKg.toFixed(1)} kg
                                 </td>
-                                <td className="py-2 px-3 font-sans text-[11px]">
+                                <td className="py-2 px-3">
                                   <div className="flex flex-wrap gap-1">
-                                    {f.piecesProduced.map((p, pIdx) => (
+                                    {f.piecesProduced.map((pc, pIdx) => (
                                       <span
                                         key={pIdx}
-                                        className="bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-700"
+                                        className="bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded text-[10px] text-slate-700 whitespace-nowrap"
+                                        title={pc.label}
                                       >
-                                        {p.label} ({p.dev}mm) × {p.count}
+                                        {pc.dev} mm × {pc.count}
                                       </span>
                                     ))}
                                   </div>
@@ -1563,33 +1363,6 @@ Sois direct, pro et concis en français.`;
             onMovePieceToScrap={handleMovePieceToScrap}
           />
 
-          {/* AI ADVISORY PANEL (Compact) */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#00478a]" />
-                <h4 className="text-xs font-bold text-slate-700">
-                  Conseil Atelier IA
-                </h4>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleRequestAiAdvisory}
-                disabled={isAiAdvisoryLoading}
-                className="px-3 py-1 bg-slate-50 hover:bg-slate-100 text-[#00478a] border border-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <Sparkles className="w-3 h-3" />
-                <span>{isAiAdvisoryLoading ? 'Analyse...' : 'Analyser le débit'}</span>
-              </button>
-            </div>
-
-            {aiAdvisory && (
-              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 space-y-1.5 leading-relaxed font-sans whitespace-pre-line">
-                {aiAdvisory}
-              </div>
-            )}
-          </div>
         </div>
       )}
 

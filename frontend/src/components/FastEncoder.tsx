@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { OrderSnapshot, useOrderHistory } from '../utils/useOrderHistory';
 import { OrderLines, OrderLineDraft } from './OrderLines';
+import { D365Preview } from './D365Preview';
+import type { D365OrderResponse } from '../api';
 import {
   Calculator,
   Plus,
@@ -537,17 +539,30 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
           material: e.material,
         })),
       });
-      const { groups, version, errors, warnings } = res.data;
-      if (errors.length > 0) {
-        setExtStatus({ kind: 'error', message: errors.map((e) => e.message).join(' ') });
-        return;
-      }
+      // Étape 1 : aperçu de ce qui sera écrit dans D365 (préparé par le backend)
+      setD365Preview(res.data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'erreur inconnue';
+      setExtStatus({ kind: 'error', message });
+    } finally {
+      setIsSendingToExt(false);
+    }
+  };
+
+  // Étape 2 : envoi confirmé depuis l'aperçu
+  const [d365Preview, setD365Preview] = useState<D365OrderResponse | null>(null);
+  const handleConfirmSend = async () => {
+    if (!d365Preview || d365Preview.errors.length > 0) return;
+    const { groups, version, warnings, order_number: order } = d365Preview;
+    setIsSendingToExt(true);
+    try {
       const reply = await postToExtension(
         { type: 'SEND', sentAt: new Date().toISOString(), orderNumber: order, groups },
         version
       );
       if (reply.type !== 'ACK') {
         const detail = reply.error || 'envoi refusé';
+        setD365Preview(null);
         setExtStatus({
           kind: 'error',
           message: /Version de message non gérée/.test(detail)
@@ -564,8 +579,10 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
         setExtStatus({ kind: 'success', message: base });
       }
       notify(ok);
+      setD365Preview(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'erreur inconnue';
+      setD365Preview(null);
       setExtStatus({ kind: 'error', message });
     } finally {
       setIsSendingToExt(false);
@@ -959,6 +976,18 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
           <Notice kind={extStatus.kind} message={extStatus.message} onClose={() => setExtStatus(null)} />
         )}
       </OrderBar>
+
+      {d365Preview && (
+        <D365Preview
+          preview={d365Preview}
+          isSending={isSendingToExt}
+          onConfirm={handleConfirmSend}
+          onClose={() => {
+            setD365Preview(null);
+            orderInputRef.current?.focus();
+          }}
+        />
+      )}
 
       {/* Compact Input & Controls Card */}
       <div className="faco-card bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-3.5">

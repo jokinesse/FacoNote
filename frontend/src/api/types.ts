@@ -470,3 +470,43 @@ export class ApiError extends Error {
     this.executionTimeMs = executionTimeMs;
   }
 }
+
+// --- Commande envoyée vers l'extension (route d365-order) ---
+
+export interface D365OrderRequest {
+  order_number: string;
+  pieces: PieceSummaryEntry[];
+  coils: CoilSummaryEntry[];
+}
+
+export interface D365OrderCoil {
+  width_mm: number;
+  article: string;
+  quantity_m: number;
+}
+
+// Version 1 : seulement material, matiere, epaisseur, lengths. Version 2 : les autres champs aussi.
+export interface D365OrderGroup {
+  material: string;
+  matiere: string | null;
+  epaisseur: string | null;
+  lengths: Record<string, number>;
+  has_pieces?: boolean;
+  coils?: D365OrderCoil[];
+  all_articles?: string[];
+  chute_m?: number;
+}
+
+export interface D365OrderIssue {
+  material: string | null;
+  code: 'NO_MATIERE_LABEL' | 'EMPTY' | 'NO_COIL_ARTICLE' | 'SHEET_NOT_COIL';
+  message: string;
+}
+
+export interface D365OrderResponse {
+  order_number: string;
+  version: 1 | 2;
+  groups: D365OrderGroup[];
+  errors: D365OrderIssue[];
+  warnings: D365OrderIssue[];
+}

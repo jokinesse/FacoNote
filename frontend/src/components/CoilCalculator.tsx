@@ -8,7 +8,7 @@ import {
   RotateCcw,
   Trash2,
 } from 'lucide-react';
-import { MATERIAL_GROUPS, STANDARD_MATERIALS } from '../types';
+import { CoilEntry, MATERIAL_GROUPS, STANDARD_MATERIALS } from '../types';
 import { ApiError, CoilSummaryResponse, MetalFamily, optimizerApi } from '../api';
 import {
   BTN_DANGER,
@@ -29,21 +29,13 @@ import {
 // - /optimizer/coil-summary calcule le tableau (largeur × matière, totaux, chutes par matière).
 // Ce composant garde seulement la liste des saisies et gère l'affichage.
 
-interface CoilEntry {
-  id: string;
-  width: number; // largeur bobine en mm (0 = chute)
-  quantity: number;
-  unitLength: number; // m
-  totalLength: number; // m
-  material: string;
-  isChute: boolean;
-  time: string;
-}
-
 interface CoilCalculatorProps {
   activeMaterial: string;
   lengthUnit: 'm' | 'mm';
   onMaterialChange: (material: string) => void;
+  // Saisies bobine gardées dans FastEncoder (commande commune, sauvegardée)
+  entries: CoilEntry[];
+  setEntries: React.Dispatch<React.SetStateAction<CoilEntry[]>>;
 }
 
 // Badge matière, même rendu que dans le calculateur des pièces
@@ -93,8 +85,13 @@ const MaterialBadge: React.FC<{ material: string; family: MetalFamily }> = ({ ma
 const fmt = (value: number, decimals = 2) =>
   value.toLocaleString('fr-BE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 
-export const CoilCalculator: React.FC<CoilCalculatorProps> = ({ activeMaterial, lengthUnit, onMaterialChange }) => {
-  const [entries, setEntries] = useState<CoilEntry[]>([]);
+export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
+  activeMaterial,
+  lengthUnit,
+  onMaterialChange,
+  entries,
+  setEntries,
+}) => {
   const [inputWidth, setInputWidth] = useState<string>('');
   const [inputQuantity, setInputQuantity] = useState<string>('1');
   const [inputLength, setInputLength] = useState<string>('');

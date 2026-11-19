@@ -8,6 +8,18 @@ export interface IntervalRow {
   label?: string;
 }
 
+// Saisie du calculateur Bobine (liste gardée dans FastEncoder, commune à la commande)
+export interface CoilEntry {
+  id: string;
+  width: number; // largeur bobine en mm (0 = chute)
+  quantity: number;
+  unitLength: number; // m
+  totalLength: number; // m
+  material: string;
+  isChute: boolean;
+  time: string;
+}
+
 export interface EncodedEntry {
   id: string;
   rawInput: string;

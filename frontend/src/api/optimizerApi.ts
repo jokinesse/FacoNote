@@ -6,6 +6,8 @@ import {
   CoilEncodeResponse,
   CoilSummaryRequest,
   CoilSummaryResponse,
+  D365OrderRequest,
+  D365OrderResponse,
   PieceEncodeItem,
   PiecesEncodeResponse,
   PieceSummaryEntry,
@@ -84,6 +86,17 @@ export const optimizerApi = {
    */
   async coilSummary(request: CoilSummaryRequest): Promise<ApiResponse<CoilSummaryResponse>> {
     return apiRequest<CoilSummaryResponse>('/api/v1/optimizer/coil-summary', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  },
+
+  /**
+   * Commande complète (pièces + bobines) prête pour l'extension « Façonote → D365 » :
+   * groupes par matière, version du message, erreurs (envoi refusé) et avertissements.
+   */
+  async d365Order(request: D365OrderRequest): Promise<ApiResponse<D365OrderResponse>> {
+    return apiRequest<D365OrderResponse>('/api/v1/optimizer/d365-order', {
       method: 'POST',
       body: JSON.stringify(request),
     });

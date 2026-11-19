@@ -1,17 +1,9 @@
 // Liaison avec l'extension navigateur « Façonote → D365 » (postMessage dans la page).
 // L'extension range la commande dans le navigateur, puis pré-remplit D365 matière par matière.
-// Les valeurs envoyées viennent du backend (pieces-summary, reference) : aucun calcul ici.
-import { PiecesSummaryResponse, ReferenceResponse } from '../api';
-import { EncodedEntry } from '../types';
+// Les groupes envoyés sont rendus tels quels par le backend (route d365-order) : aucun calcul ici.
+import { CoilEntry, EncodedEntry } from '../types';
 
 export const D365_ORDER_RE = /^CC\d{11}$/;
-
-export interface D365Group {
-  material: string; // matière Façonote, ex. « Zinc ATZ 0.7 »
-  matiere: string; // champ D365 « Matières », ex. « ATZ »
-  epaisseur: string; // champ D365 « Epaisseur », ex. « 0.7 mm »
-  lengths: Record<string, number>; // borne (mm) -> longueur (m), toutes les bornes présentes
-}
 
 export interface ExtensionReply {
   source: 'faconote-ext';
@@ -23,39 +15,12 @@ export interface ExtensionReply {
   error?: string;
 }
 
-// Un groupe par matière, à partir du tableau des bornes calculé par le backend.
-export function buildD365Groups(
-  summary: PiecesSummaryResponse,
-  reference: ReferenceResponse
-): { groups: D365Group[]; unknown: string[] } {
-  // unknown : matières sans libellé D365 connu (l'envoi est alors refusé)
-  const groups: D365Group[] = [];
-  const unknown: string[] = [];
-  for (const m of summary.materials) {
-    const ref = reference.materials.find((r) => r.name === m.material);
-    if (!ref || !ref.d365_matiere) {
-      unknown.push(m.material);
-      continue;
-    }
-    const lengths: Record<string, number> = {};
-    for (const bound of reference.piece_bounds_mm) {
-      const row = summary.bound_rows.find(
-        (r) => r.bound === bound && r.material === m.material && !r.is_empty
-      );
-      lengths[String(bound)] = row ? row.length_m : 0;
-    }
-    groups.push({
-      material: m.material,
-      matiere: ref.d365_matiere,
-      epaisseur: ref.d365_epaisseur,
-      lengths,
-    });
-  }
-  return { groups, unknown };
-}
-
 // Envoie un message à l'extension et attend sa réponse (ACK ou ERROR).
-export function postToExtension(message: Record<string, unknown>, timeoutMs = 3000): Promise<ExtensionReply> {
+export function postToExtension(
+  message: Record<string, unknown>,
+  version = 1,
+  timeoutMs = 3000
+): Promise<ExtensionReply> {
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const origin = window.location.origin;
   return new Promise((resolve, reject) => {
@@ -76,18 +41,20 @@ export function postToExtension(message: Record<string, unknown>, timeoutMs = 30
       );
     }, timeoutMs);
     window.addEventListener('message', onMessage);
-    window.postMessage({ source: 'faconote', version: 1, requestId, ...message }, origin);
+    window.postMessage({ source: 'faconote', version, requestId, ...message }, origin);
   });
 }
 
-// --- Sauvegarde de la feuille en cours (survit à F5), effacée par « Vider » ---
+// --- Sauvegarde de la commande en cours (survit à F5), effacée par « Vider la commande » ---
 
-const SHEET_STORAGE_KEY = 'faconote_feuille_dev_piece_v1';
+const ORDER_STORAGE_KEY = 'faconote_commande_v2';
+const LEGACY_SHEET_KEY = 'faconote_feuille_dev_piece_v1';
 
-export interface SavedSheet {
+export interface SavedOrder {
   orderNumber: string;
   activeMaterial: string;
-  entries: EncodedEntry[];
+  pieces: EncodedEntry[];
+  coils: CoilEntry[];
 }
 
 const isEntry = (e: unknown): e is EncodedEntry => {
@@ -104,40 +71,105 @@ const isEntry = (e: unknown): e is EncodedEntry => {
   );
 };
 
-export function loadSavedSheet(): SavedSheet | null {
+const isCoilEntry = (e: unknown): e is CoilEntry => {
+  if (!e || typeof e !== 'object') return false;
+  const x = e as Record<string, unknown>;
+  return (
+    typeof x.id === 'string' &&
+    typeof x.width === 'number' &&
+    typeof x.quantity === 'number' &&
+    typeof x.unitLength === 'number' &&
+    typeof x.totalLength === 'number' &&
+    typeof x.material === 'string' &&
+    typeof x.isChute === 'boolean' &&
+    typeof x.time === 'string'
+  );
+};
+
+interface ParsedSave extends SavedOrder {
+  savedAtMs: number;
+}
+
+// Lit une sauvegarde (v1 : pièces dans « entries », v2 : pièces et bobines). null si absente ou illisible.
+function readSave(key: string, version: 1 | 2): ParsedSave | null {
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return null;
   try {
-    const raw = window.localStorage.getItem(SHEET_STORAGE_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw) as Partial<SavedSheet> & { version?: number };
-    if (data.version !== 1 || !Array.isArray(data.entries)) return null;
+    const data = JSON.parse(raw) as Record<string, unknown>;
+    const list = version === 1 ? data.entries : data.pieces;
+    if (data.version !== version || !Array.isArray(list)) return null;
+    const savedAtMs = typeof data.savedAt === 'string' ? Date.parse(data.savedAt) : NaN;
     return {
       orderNumber: typeof data.orderNumber === 'string' ? data.orderNumber : '',
       activeMaterial: typeof data.activeMaterial === 'string' ? data.activeMaterial : '',
-      entries: data.entries.filter(isEntry),
+      pieces: list.filter(isEntry),
+      coils: version === 2 && Array.isArray(data.coils) ? data.coils.filter(isCoilEntry) : [],
+      savedAtMs: Number.isNaN(savedAtMs) ? 0 : savedAtMs,
     };
   } catch {
     return null;
   }
 }
 
-export function saveSheet(sheet: SavedSheet): void {
+function writeSave(order: SavedOrder): boolean {
   try {
-    if (sheet.entries.length === 0 && !sheet.orderNumber) {
-      window.localStorage.removeItem(SHEET_STORAGE_KEY);
-    } else {
-      window.localStorage.setItem(
-        SHEET_STORAGE_KEY,
-        JSON.stringify({ version: 1, savedAt: new Date().toISOString(), ...sheet })
-      );
-    }
+    window.localStorage.setItem(
+      ORDER_STORAGE_KEY,
+      JSON.stringify({ version: 2, savedAt: new Date().toISOString(), ...order })
+    );
+    return true;
   } catch {
-    // Stockage indisponible (navigation privée, quota) : la feuille reste en mémoire
+    return false;
   }
 }
 
-export function clearSavedSheet(): void {
+// Lit la commande : v2, sinon migration de l'ancienne feuille v1 (sans perte).
+// Les deux présentes (un ancien onglet a réécrit v1) : la plus récente par savedAt gagne.
+export function loadSavedOrder(): SavedOrder | null {
   try {
-    window.localStorage.removeItem(SHEET_STORAGE_KEY);
+    const v2 = readSave(ORDER_STORAGE_KEY, 2);
+    const v1 = readSave(LEGACY_SHEET_KEY, 1);
+    if (!v1) return v2 ? strip(v2) : null;
+    let result: SavedOrder;
+    if (v2 && v2.savedAtMs >= v1.savedAtMs) {
+      result = strip(v2);
+    } else {
+      // v1 plus récente : ses pièces et son n° ; les bobines v2 seulement pour le même n°
+      result = {
+        orderNumber: v1.orderNumber,
+        activeMaterial: v1.activeMaterial,
+        pieces: v1.pieces,
+        coils: v2 && v2.orderNumber === v1.orderNumber ? v2.coils : [],
+      };
+    }
+    // v1 supprimée seulement si l'écriture v2 a réussi
+    if (writeSave(result)) window.localStorage.removeItem(LEGACY_SHEET_KEY);
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+function strip(p: ParsedSave): SavedOrder {
+  return { orderNumber: p.orderNumber, activeMaterial: p.activeMaterial, pieces: p.pieces, coils: p.coils };
+}
+
+export function saveOrder(order: SavedOrder): void {
+  try {
+    if (order.pieces.length === 0 && order.coils.length === 0 && !order.orderNumber) {
+      window.localStorage.removeItem(ORDER_STORAGE_KEY);
+    } else {
+      writeSave(order);
+    }
+  } catch {
+    // Stockage indisponible (navigation privée, quota) : la commande reste en mémoire
+  }
+}
+
+export function clearSavedOrder(): void {
+  try {
+    window.localStorage.removeItem(ORDER_STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_SHEET_KEY);
   } catch {
     // ignoré
   }

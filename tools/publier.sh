@@ -39,6 +39,18 @@ if sudo grep -rn "evaluateExpression" frontend/src --include=*.ts --include=*.ts
      | grep -vE 'frontend/src/(utils/mathEvaluator|components/WorkshopCalculator)'; then
   echo "Évaluation de formule dans le frontend hors calculette d'atelier : elle doit passer par le backend."; exit 1
 fi
+# Extension D365 : elle lit, compare et formate ; elle ne calcule aucune longueur ni quantité.
+# Interdit : somme (reduce), arrondis et fonctions Math de calcul, toFixed, parseFloat, opération (+ - * / %)
+# sur quantity_m, chute_m, length_m, width_mm ou lengths[...], multiplication ou modulo, division par un nombre.
+# Exceptions : lignes de commentaire ; formatD365 (common.js, format « 12,50 », seul toFixed permis).
+# Permis sans exception : comparaisons de bornes (< > <=), compteurs (++), tolérance de relecture Math.abs (valueMatches).
+EXT_FORBIDDEN='\.reduce\(|Math\.(round|floor|ceil|trunc|pow|sqrt|max|min|hypot)|toFixed\(|parseFloat|\b(quantity_m|chute_m|length_m|width_mm|lengths(\[[^]]*\])?)\s*[-+*/%]=?\s*[A-Za-z0-9_(]|[A-Za-z0-9_)\]]\s*[-+*/%]=?\s*([A-Za-z_]+\.)*(quantity_m|chute_m|length_m|width_mm)\b|[A-Za-z0-9_)\]]\s*[*%]\s*[A-Za-z0-9_(]|[A-Za-z0-9_)\]]\s*/\s*[0-9]'
+[ -d extension-d365 ] || { echo "Dossier extension-d365 introuvable : contrôle impossible."; exit 1; }
+EXT_ALLOWED="^extension-d365/common\.js:[0-9]+:\s*return Number\(n\)\.toFixed\(2\)\.replace\('\.', ','\);$"
+if sudo grep -rnE "$EXT_FORBIDDEN" extension-d365 --include=*.js \
+     | grep -vE '^[^:]+:[0-9]+:\s*//' | grep -vE "$EXT_ALLOWED"; then
+  echo "Calcul détecté dans l'extension D365 (lignes ci-dessus) : il doit passer par le backend."; exit 1
+fi
 echo "OK"
 
 cd frontend

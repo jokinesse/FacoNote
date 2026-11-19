@@ -11,6 +11,17 @@
   const VERIFY_DELAY_MS = 1000;
   const SCAN_DEBOUNCE_MS = 1000;
 
+  // Grille Nomenclature (fenêtre « Application mobile pour les pointages production »), relevée par le
+  // diagnostic 0.3.9 sur le vrai D365. Seule la ligne active a un champ Quantité modifiable.
+  const BOM_DIALOG_SEL = 'div[role="dialog"][data-dyn-form-name="FZAppMobileProdTracking"]';
+  const BOM_GRID_SEL = '[role="grid"][aria-label="Nomenclature de production"]';
+  const BOM_LIST_FORM_SEL = '[data-dyn-form-name="ProdTableListPage"]';
+  const QTY_INPUT_SEL = 'input[aria-label="Quantité"]';
+  const CODE_CELL_RE = /^(AR-?\d{1,8}|CHUTE|TEMPS_PROD)$/i;
+  const ACTIVATE_POLL_MS = 50;
+  const ACTIVATE_TRIES = 40; // 40 x 50 ms : 2 s au plus pour qu'une ligne devienne modifiable
+  const ACTIVATE_DELAY_TEXT = '2 s';
+
   // Les 21 champs du formulaire, dans l'ordre d'écriture
   const FIELDS = [
     { key: 'matiere', label: 'Matières', kind: 'text' },
@@ -142,6 +153,166 @@
     return { status: 'AMBIGU', orderNumber: null, where, all: found };
   }
 
+  // ---------- Grille Nomenclature (bobines) ----------
+
+  // Fenêtre Nomenclature ouverte avec sa grille visible, sinon null
+  function findBom() {
+    for (const dialog of document.querySelectorAll(BOM_DIALOG_SEL)) {
+      if (!isVisible(dialog)) continue;
+      const grid = [...dialog.querySelectorAll(BOM_GRID_SEL)].find(isVisible);
+      if (grid) return { dialog, grid };
+    }
+    return null;
+  }
+
+  // N° CC de la page derrière la fenêtre : libellé du formulaire « Ordres de fabrication (liste) »,
+  // puis champ « Commande vente ». Le contenu de la fenêtre elle-même n'est pas lu.
+  function detectBomOrder(dialog) {
+    const set = new Set();
+    let where = 'liste des OF';
+    for (const f of document.querySelectorAll(BOM_LIST_FORM_SEL)) {
+      if (dialog && dialog.contains(f)) continue;
+      for (const m of String(f.getAttribute('aria-label') || '').matchAll(ORDER_SCAN_RE)) set.add(m[0]);
+    }
+    if (!set.size) {
+      where = 'champ Commande vente';
+      for (const inp of findCandidates('Commande vente')) {
+        if (dialog && dialog.contains(inp)) continue;
+        for (const m of String(inp.value || '').matchAll(ORDER_SCAN_RE)) set.add(m[0]);
+      }
+    }
+    const found = [...set];
+    if (found.length === 1) return { status: 'OK', orderNumber: found[0], where, all: found };
+    if (found.length === 0) return { status: 'AUCUN', orderNumber: null, where, all: found };
+    return { status: 'AMBIGU', orderNumber: null, where, all: found };
+  }
+
+  function cellText(cell) {
+    const f = cell.querySelector('input, textarea, select');
+    if (f) return f.value;
+    return cell.innerText !== undefined ? cell.innerText : cell.textContent;
+  }
+
+  // Lignes de la grille : { row, code (AR00000000 / CHUTE / TEMPS_PROD), qty (champ Quantité ou null) }
+  function bomRows(grid) {
+    const out = [];
+    for (const row of grid.querySelectorAll('[role="row"]')) {
+      if (row.querySelector('[role="columnheader"]')) continue;
+      const qty = row.querySelector(QTY_INPUT_SEL);
+      let code = null;
+      for (const cell of row.querySelectorAll('[role="gridcell"]')) {
+        if (qty && cell.contains(qty)) continue;
+        const v = String(cellText(cell) || '').trim();
+        if (CODE_CELL_RE.test(v)) {
+          code = v.toUpperCase();
+          break;
+        }
+      }
+      if (!code) continue;
+      if (code !== 'CHUTE' && code !== 'TEMPS_PROD') code = FD.normalizeArCode(code);
+      if (code) out.push({ row, code, qty });
+    }
+    return out;
+  }
+
+  // Ligne unique de ce code dans la grille affichée maintenant (D365 redessine les lignes)
+  function currentRow(code) {
+    const bom = findBom();
+    if (!bom) return null;
+    const rows = bomRows(bom.grid).filter((r) => r.code === code);
+    return rows.length === 1 ? rows[0] : null;
+  }
+
+  function simulateClick(target) {
+    target.scrollIntoView({ block: 'nearest' });
+    const r = target.getBoundingClientRect();
+    const opts = { bubbles: true, cancelable: true, view: window, clientX: r.left + 4, clientY: r.top + 4, button: 0 };
+    target.dispatchEvent(new PointerEvent('pointerdown', opts));
+    target.dispatchEvent(new MouseEvent('mousedown', opts));
+    target.dispatchEvent(new PointerEvent('pointerup', opts));
+    target.dispatchEvent(new MouseEvent('mouseup', opts));
+    target.dispatchEvent(new MouseEvent('click', opts));
+  }
+
+  // Active la ligne (clic sur sa cellule Quantité) et attend que son champ Quantité soit modifiable
+  async function activateRow(code) {
+    const first = currentRow(code);
+    if (!first || !first.qty) return { error: `${code} : ligne ou champ Quantité introuvable.` };
+    if (isEditable(first.qty)) return { input: first.qty };
+    simulateClick(first.qty.closest('[role="gridcell"]') || first.qty);
+    for (let i = 0; i < ACTIVATE_TRIES; i++) {
+      await sleep(ACTIVATE_POLL_MS);
+      const r = currentRow(code);
+      if (r && r.qty && isEditable(r.qty)) return { input: r.qty };
+    }
+    return { error: `${code} : la ligne ne devient pas modifiable (attente ${ACTIVATE_DELAY_TEXT}). Cliquez sur la ligne, puis relancez.` };
+  }
+
+  // Quantité vide : rien, ou zéro affiché par D365
+  function isEmptyQuantity(shown) {
+    const t = String(shown || '').trim();
+    if (t === '') return true;
+    const n = parseNumber(t);
+    return Number.isFinite(n) && n === 0;
+  }
+
+  // Ce qui serait fait dans la fenêtre ouverte, sans rien écrire.
+  // { error } ou { bom, order, group, tasks, problems, ignored }
+  function planCoils() {
+    const bom = findBom();
+    if (!bom) return { error: 'Fenêtre Nomenclature non trouvée.' };
+    const d = detectBomOrder(bom.dialog);
+    state.detected = d;
+    if (d.status === 'AUCUN') return { error: 'Refusé : aucun n° de commande CC… trouvé sur la page derrière la fenêtre.' };
+    if (d.status === 'AMBIGU') return { error: `Refusé : plusieurs n° de commande derrière la fenêtre (${d.all.join(', ')}).` };
+    const order = state.orders[d.orderNumber];
+    if (!order) {
+      return { error: `Refusé : la commande ${d.orderNumber} (page derrière la fenêtre) n'est pas dans l'extension. Envoyez-la depuis Façonote.` };
+    }
+    const rows = bomRows(bom.grid);
+    const codes = new Set(rows.map((r) => r.code));
+    const gridArs = [...codes].filter((c) => FD.AR_RE.test(c));
+    const candidates = order.groups.filter((g) => g.all_articles.some((a) => codes.has(a)));
+    if (!candidates.length) {
+      return {
+        error: `Matière inconnue : les AR de la grille (${gridArs.join(', ') || 'aucun'}) ne sont pas dans la commande ${order.orderNumber}. Rien n'a été écrit.`,
+      };
+    }
+    if (candidates.length > 1) {
+      return {
+        error: `Plusieurs matières possibles pour cette grille : ${candidates.map((g) => g.material).join(', ')}. Rien n'a été écrit.`,
+      };
+    }
+    const group = candidates[0];
+    const tasks = [];
+    const problems = [];
+    const want = (code, label, value, absentText) => {
+      const found = rows.filter((r) => r.code === code);
+      if (!found.length) problems.push(absentText);
+      else if (found.length > 1) problems.push(`${label} : ${found.length} lignes dans la grille, impossible de choisir.`);
+      else if (!found[0].qty) problems.push(`${label} : champ Quantité non trouvé.`);
+      else tasks.push({ code, label, value });
+    };
+    for (const c of group.coils) {
+      const label = `${c.article} (bobine ${c.width_mm} mm, ${group.material})`;
+      want(c.article, label, c.quantity_m, `${label} absent : ajoutez-le avec + Nouveau, puis relancez.`);
+    }
+    if (group.chute_m > 0) {
+      want('CHUTE', 'CHUTE', group.chute_m, `CHUTE absente alors que Façonote a ${FD.formatD365(group.chute_m)} m de chute : ajoutez-la avec + Nouveau, puis relancez.`);
+    }
+    const taskCodes = new Set(tasks.map((t) => t.code));
+    const wanted = new Set([...group.coils.map((c) => c.article), ...(group.chute_m > 0 ? ['CHUTE'] : [])]);
+    const ignored = [];
+    for (const r of rows) {
+      if (taskCodes.has(r.code) || wanted.has(r.code)) continue;
+      if (r.code === 'TEMPS_PROD') ignored.push('TEMPS_PROD');
+      else if (r.code === 'CHUTE') ignored.push('CHUTE (pas de chute dans Façonote)');
+      else if (group.all_articles.includes(r.code)) ignored.push(`${r.code} (pas de bobine de cette largeur dans la commande)`);
+      else ignored.push(`${r.code} (inconnu de Façonote)`);
+    }
+    return { bom, order, group, tasks, problems, ignored };
+  }
+
   const nativeValueSetter = (el) => {
     const proto =
       el instanceof HTMLTextAreaElement
@@ -195,7 +366,13 @@
     busy: false,
     open: false,
     userPickedOrder: false,
+    bomMode: false, // fenêtre Nomenclature ouverte
+    coilSignals: {}, // « CC|matière » -> nombre de signalements du dernier pré-remplissage des bobines
   };
+
+  const hasCoilPart = (g) => g.coils.length > 0 || g.chute_m > 0;
+  // Parties à faire d'une commande : DEV (done) et bobines (coilsDone)
+  const remainingParts = (o) => o.groups.filter((g) => !g.done).length + o.groups.filter((g) => !g.coilsDone).length;
 
   // ---------- Panneau (Shadow DOM, sans innerHTML) ----------
 
@@ -295,7 +472,7 @@
 
   function updateFab() {
     const o = state.detected.orderNumber ? state.orders[state.detected.orderNumber] : null;
-    const remaining = o ? o.groups.filter((g) => !g.done).length : 0;
+    const remaining = o ? remainingParts(o) : 0;
     fab.classList.toggle('todo', remaining > 0);
     fab.textContent = remaining > 0 ? `Façonote · ${remaining} à faire` : 'Façonote';
   }
@@ -303,6 +480,12 @@
   function render() {
     updateFab();
     if (!state.open) return;
+    // Fenêtre Nomenclature : la commande et la matière sont celles reconnues dans la grille
+    const bomPlan = state.bomMode ? planCoils() : null;
+    if (bomPlan && !bomPlan.error && !state.userPickedOrder) {
+      state.selectedOrder = bomPlan.order.orderNumber;
+      state.selectedMaterial = bomPlan.group.material;
+    }
     pickDefaults();
     panel.replaceChildren();
 
@@ -335,7 +518,7 @@
       });
       for (const n of nums) {
         const o = state.orders[n];
-        const left = o.groups.filter((g) => !g.done).length;
+        const left = remainingParts(o);
         const opt = el('option', { value: n, text: `${n} — ${left ? `${left} à faire` : 'terminée'}` });
         if (n === state.selectedOrder) opt.selected = true;
         sel.appendChild(opt);
@@ -361,17 +544,30 @@
                 render();
               },
             },
-            [
-              el('span', { text: `${g.material} → ${g.matiere} / ${g.epaisseur}` }),
-              el('span', { class: `tag ${g.done ? 'done' : 'todo'}`, text: g.done ? 'fait ✓' : 'à faire' }),
-            ]
+            hasCoilPart(g)
+              ? [
+                  el('span', { text: g.has_pieces ? `${g.material} → ${g.matiere} / ${g.epaisseur}` : `${g.material} (bobines seules)` }),
+                  el('span', {}, [
+                    g.has_pieces
+                      ? el('span', { class: `tag ${g.done ? 'done' : 'todo'}`, text: `DEV : ${g.done ? 'fait ✓' : 'à faire'}` })
+                      : el('span', { class: 'tag', text: 'DEV : —' }),
+                    el('span', { text: ' · ' }),
+                    el('span', { class: `tag ${g.coilsDone ? 'done' : 'todo'}`, text: `Bobines : ${coilTagText(o, g)}` }),
+                  ]),
+                ]
+              : [
+                  el('span', { text: `${g.material} → ${g.matiere} / ${g.epaisseur}` }),
+                  el('span', { class: `tag ${g.done ? 'done' : 'todo'}`, text: g.done ? 'fait ✓' : 'à faire' }),
+                ]
           );
           ul.appendChild(li);
         }
         panel.appendChild(ul);
 
         const g = currentGroup();
-        if (g) {
+        if (g && !g.has_pieces) {
+          panel.appendChild(el('div', { class: 'muted', text: `${g.material} : pas de pièce, les DEV ne sont pas touchés.` }));
+        } else if (g) {
           const nonZero = FD.BOUNDS.filter((b) => g.lengths[String(b)] > 0);
           const table = el('table', {}, [
             el('tr', {}, [el('th', { text: 'Champ' }), el('th', { text: 'Longueur (m)' })]),
@@ -398,12 +594,28 @@
       }
     }
 
+    if (bomPlan) renderBom(bomPlan);
+
     const has = Boolean(currentGroup());
+    const cg = currentGroup();
+    const toggleCoils = Boolean(state.bomMode && cg && hasCoilPart(cg));
+    const toggleText = toggleCoils
+      ? cg.coilsDone ? 'Marquer bobines à faire' : 'Marquer bobines faites'
+      : cg && cg.done ? 'Marquer à faire' : 'Marquer fait';
     const buttons = el('div', { class: 'row' }, [
-      el('button', { class: 'b primary', text: 'Pré-remplir', onclick: onFill, ...(state.busy || !has ? { disabled: '' } : {}) }),
+      el('button', {
+        class: 'b primary',
+        text: 'Pré-remplir',
+        title: cg && !cg.has_pieces ? 'Pas de pièce dans cette matière' : 'Pré-remplir Matières, Epaisseur et les DEV',
+        onclick: onFill,
+        ...(state.busy || !has || !cg.has_pieces ? { disabled: '' } : {}),
+      }),
+      state.bomMode
+        ? el('button', { class: 'b primary', text: 'Pré-remplir les bobines', onclick: onFillCoils, ...(state.busy ? { disabled: '' } : {}) })
+        : null,
       el('button', {
         class: 'b',
-        text: currentGroup() && currentGroup().done ? 'Marquer à faire' : 'Marquer fait',
+        text: toggleText,
         onclick: onToggleDone,
         ...(state.busy || !has ? { disabled: '' } : {}),
       }),
@@ -420,6 +632,30 @@
 
     if (message) panel.appendChild(el('div', { class: `msg ${message.kind}`, text: message.text }));
     if (diagnostic) panel.appendChild(el('pre', { text: diagnostic }));
+  }
+
+  function coilTagText(o, g) {
+    if (g.coilsDone) return 'fait ✓';
+    const n = state.coilSignals[`${o.orderNumber}|${g.material}`];
+    return n ? `à faire (${n} signalement${n > 1 ? 's' : ''})` : 'à faire';
+  }
+
+  // Aperçu dans le panneau quand la fenêtre Nomenclature est ouverte (lecture seule)
+  function renderBom(p) {
+    const box = el('div', { class: 'msg warn' });
+    box.appendChild(el('div', { text: 'Fenêtre Nomenclature ouverte : mode Bobines.' }));
+    if (p.error) {
+      box.appendChild(el('div', { class: 'ko', text: p.error }));
+    } else {
+      box.appendChild(el('div', { text: `Commande ${p.order.orderNumber} · matière reconnue : ${p.group.material}` }));
+      const table = el('table', {}, [el('tr', {}, [el('th', { text: 'Ligne' }), el('th', { text: 'Quantité' })])]);
+      for (const t of p.tasks) table.appendChild(el('tr', {}, [el('td', { text: t.label }), el('td', { class: 'num', text: FD.formatD365(t.value) })]));
+      if (p.tasks.length) box.appendChild(table);
+      if (!p.tasks.length && !p.problems.length) box.appendChild(el('div', { text: 'Rien à saisir en bobines pour cette matière.' }));
+      for (const pr of p.problems) box.appendChild(el('div', { class: 'ko', text: pr }));
+      if (p.ignored.length) box.appendChild(el('div', { class: 'muted', text: `Ignorés : ${p.ignored.join(', ')}` }));
+    }
+    panel.appendChild(box);
   }
 
   // ---------- Actions ----------
@@ -441,6 +677,12 @@
     const g = currentGroup();
     if (!o || !g) return;
     try {
+      if (state.bomMode && hasCoilPart(g)) {
+        const coilsDone = !g.coilsDone;
+        await updateGroup(o.orderNumber, g.material, { coilsDone, coilsDoneAt: coilsDone ? new Date().toISOString() : null });
+        setMessage('ok', `${g.material} : bobines marquées ${coilsDone ? 'faites' : 'à faire'}.`);
+        return;
+      }
       const done = !g.done;
       await updateGroup(o.orderNumber, g.material, { done, doneAt: done ? new Date().toISOString() : null });
       setMessage('ok', `${g.material} marquée ${done ? 'faite' : 'à faire'}.`);
@@ -601,6 +843,90 @@
     }
   }
 
+  // Pré-remplissage de la colonne Quantité de la grille Nomenclature.
+  // Aucun clic sur Enregistrer, + Nouveau, Supprimer, ni sur la liste des OF.
+  async function onFillCoils() {
+    if (state.busy) return;
+    diagnostic = null;
+    const p = planCoils();
+    if (p.error) {
+      setMessage('ko', p.error);
+      return;
+    }
+    const { order, group } = p;
+    const key = `${order.orderNumber}|${group.material}`;
+    state.selectedOrder = order.orderNumber;
+    state.selectedMaterial = group.material;
+    state.userPickedOrder = true;
+    const ignoredText = p.ignored.length ? `\nIgnorés (pas touchés) : ${p.ignored.join(', ')}.` : '';
+    if (p.problems.length) {
+      state.coilSignals[key] = p.problems.length;
+      setMessage('ko', `Rien n'a été écrit (${group.material}).\n${p.problems.join('\n')}${ignoredText}`);
+      return;
+    }
+    if (!p.tasks.length) {
+      setMessage('warn', `Rien à saisir en bobines pour ${group.material}.${ignoredText}`);
+      return;
+    }
+
+    state.busy = true;
+    setMessage('warn', `Saisie des bobines de ${group.material} en cours… Ne touchez pas à la page.`);
+    const signals = [];
+    const writtenTasks = [];
+    let already = 0;
+    try {
+      for (const t of p.tasks) {
+        const bom = findBom();
+        if (!bom) throw new Error('la fenêtre Nomenclature s’est fermée pendant la saisie. Arrêt.');
+        const now = detectBomOrder(bom.dialog);
+        if (now.orderNumber !== order.orderNumber) throw new Error('la commande derrière la fenêtre a changé pendant la saisie. Arrêt.');
+        const act = await activateRow(t.code);
+        if (act.error) {
+          signals.push(act.error);
+          continue;
+        }
+        const shown = act.input.value;
+        if (!isEmptyQuantity(shown)) {
+          if (valueMatches({ kind: 'number' }, shown, t.value)) already++;
+          else signals.push(`${t.label} : lu « ${shown} », Façonote ${FD.formatD365(t.value)}, non écrasé.`);
+          continue;
+        }
+        await writeField(act.input, FD.formatD365(t.value));
+        const after = currentRow(t.code);
+        if (!after || !after.qty || !valueMatches({ kind: 'number' }, after.qty.value, t.value)) {
+          signals.push(`${t.label} : attendu « ${FD.formatD365(t.value)} », lu « ${after && after.qty ? after.qty.value : '—'} » après saisie.`);
+          continue;
+        }
+        writtenTasks.push(t);
+      }
+
+      // Relecture finale des lignes écrites
+      if (writtenTasks.length) await sleep(VERIFY_DELAY_MS);
+      for (const t of writtenTasks) {
+        const r = currentRow(t.code);
+        if (!r || !r.qty || !valueMatches({ kind: 'number' }, r.qty.value, t.value)) {
+          signals.push(`${t.label} : attendu « ${FD.formatD365(t.value)} », lu « ${r && r.qty ? r.qty.value : '—'} » à la relecture.`);
+        }
+      }
+
+      const n = writtenTasks.length;
+      const summary = `${n} ligne${n > 1 ? 's' : ''} écrite${n > 1 ? 's' : ''}, ${already} déjà juste${already > 1 ? 's' : ''}.`;
+      state.busy = false;
+      if (signals.length) {
+        state.coilSignals[key] = signals.length;
+        setMessage('ko', `Bobines de ${group.material} : « à faire ». ${summary}\n${signals.join('\n')}${ignoredText}\n\nVérifiez dans D365 avant d’enregistrer.`);
+        return;
+      }
+      delete state.coilSignals[key];
+      await updateGroup(order.orderNumber, group.material, { coilsDone: true, coilsDoneAt: new Date().toISOString() });
+      setMessage('ok', `Bobines de ${group.material} saisies et relues : OK. ${summary}${ignoredText}\nRien n’est enregistré : vérifiez puis cliquez vous-même sur Enregistrer dans D365.`);
+    } catch (err) {
+      state.busy = false;
+      state.coilSignals[key] = signals.length + 1;
+      setMessage('ko', `${errorText(err)}\nBobines de ${group.material} : « à faire ».${signals.length ? `\n${signals.join('\n')}` : ''}`);
+    }
+  }
+
   // ---------- Chargement, stockage, détection SPA ----------
 
   async function refreshOrders() {
@@ -623,8 +949,14 @@
       scanTimer = null;
       if (state.busy) return;
       const before = state.detected.orderNumber;
-      state.detected = detectOrder();
-      if (state.detected.orderNumber !== before) {
+      const beforeBom = state.bomMode;
+      const bom = findBom();
+      state.bomMode = Boolean(bom);
+      state.detected = bom ? detectBomOrder(bom.dialog) : detectOrder();
+      if (state.bomMode !== beforeBom) {
+        message = null;
+        render();
+      } else if (state.detected.orderNumber !== before) {
         state.userPickedOrder = false;
         render();
       } else {

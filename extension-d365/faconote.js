@@ -8,6 +8,8 @@
   const MAX_GROUPS = 30;
   const MAX_TEXT = 100;
   const MAX_LENGTH_M = 100000;
+  const MAX_COILS = 20;
+  const MAX_WIDTH_MM = 5000;
 
   function reply(payload) {
     window.postMessage({ source: 'faconote-ext', ...payload }, FD.FACONOTE_ORIGIN);
@@ -38,6 +40,64 @@
     return null;
   }
 
+  // Nombre fini dans les bornes, au plus 2 décimales (format D365). Contrôle de forme seulement.
+  const TWO_DECIMALS_RE = /^\d+(\.\d{1,2})?$/;
+  function isQuantity(v, allowZero) {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v > MAX_LENGTH_M) return false;
+    if (allowZero ? v < 0 : !(v > 0)) return false;
+    return TWO_DECIMALS_RE.test(String(v));
+  }
+
+  // Message version 2 : pièces (DEV) et bobines de la même matière. Renvoie un message d'erreur, ou null.
+  function checkGroupV2(g, i) {
+    const where = `Groupe ${i + 1}`;
+    if (!g || typeof g !== 'object') return `${where} : format invalide.`;
+    if (!isText(g.material)) return `${where} : « material » manquant.`;
+    const w = `${where} (${g.material})`;
+    if (typeof g.has_pieces !== 'boolean') return `${w} : « has_pieces » manquant.`;
+    if (g.has_pieces) {
+      if (!isText(g.matiere)) return `${w} : « matiere » manquante.`;
+      if (!isText(g.epaisseur)) return `${w} : « epaisseur » manquante.`;
+    } else {
+      if (g.matiere !== null && g.matiere !== undefined && !isText(g.matiere)) return `${w} : « matiere » invalide.`;
+      if (g.epaisseur !== null && g.epaisseur !== undefined && !isText(g.epaisseur)) return `${w} : « epaisseur » invalide.`;
+    }
+    // Longueurs DEV : mêmes contrôles qu'en version 1
+    const lengthsErr = checkGroup({ material: g.material, matiere: 'x', epaisseur: 'x', lengths: g.lengths }, i);
+    if (lengthsErr) return lengthsErr;
+    if (!g.has_pieces && FD.BOUNDS.some((b) => g.lengths[String(b)] !== 0)) {
+      return `${w} : longueurs DEV non nulles alors que la matière n'a pas de pièce.`;
+    }
+
+    if (!Array.isArray(g.coils) || g.coils.length > MAX_COILS) return `${w} : « coils » invalide (0 à ${MAX_COILS} lignes).`;
+    const coilArticles = new Set();
+    for (const [j, c] of g.coils.entries()) {
+      const wc = `${w}, bobine ${j + 1}`;
+      if (!c || typeof c !== 'object') return `${wc} : format invalide.`;
+      if (typeof c.article !== 'string' || !FD.AR_RE.test(c.article)) return `${wc} : code article invalide (attendu AR + 8 chiffres).`;
+      if (!Number.isInteger(c.width_mm) || c.width_mm < 1 || c.width_mm > MAX_WIDTH_MM) return `${wc} : largeur invalide.`;
+      if (!isQuantity(c.quantity_m, false)) return `${wc} : quantité invalide (plus de 0, au plus ${MAX_LENGTH_M} m, 2 décimales).`;
+      if (coilArticles.has(c.article)) return `${w} : code ${c.article} en double.`;
+      coilArticles.add(c.article);
+    }
+    if (!isQuantity(g.chute_m, true)) return `${w} : « chute_m » invalide (0 à ${MAX_LENGTH_M} m, 2 décimales).`;
+
+    if (!Array.isArray(g.all_articles) || g.all_articles.length > MAX_COILS) {
+      return `${w} : « all_articles » invalide (0 à ${MAX_COILS} codes).`;
+    }
+    const all = new Set();
+    for (const a of g.all_articles) {
+      if (typeof a !== 'string' || !FD.AR_RE.test(a)) return `${w} : code article invalide dans « all_articles ».`;
+      if (all.has(a)) return `${w} : code ${a} en double dans « all_articles ».`;
+      all.add(a);
+    }
+    for (const a of coilArticles) if (!all.has(a)) return `${w} : ${a} absent de « all_articles ».`;
+    const hasCoilPart = g.coils.length > 0 || g.chute_m > 0;
+    if (!all.size && hasCoilPart) return `${w} : bobines ou chute sans code article de la matière.`;
+    if (!g.has_pieces && !hasCoilPart) return `${w} : ni pièce, ni bobine, ni chute.`;
+    return null;
+  }
+
   async function handleSend(data) {
     if (!FD.ORDER_RE.test(String(data.orderNumber || ''))) {
       return { type: 'ERROR', error: 'N° de commande invalide (attendu : CC + 11 chiffres).' };
@@ -50,27 +110,47 @@
       return { type: 'ERROR', error: `Trop de matières (${groups.length}, maximum ${MAX_GROUPS}).` };
     }
     // Un seul groupe invalide = tout l'envoi est refusé
+    const v2 = data.version === 2;
     const seen = new Set();
+    const articleOwner = new Map(); // code AR -> matière : un code ne peut servir qu'à une matière
     for (let i = 0; i < groups.length; i++) {
-      const err = checkGroup(groups[i], i);
+      const err = v2 ? checkGroupV2(groups[i], i) : checkGroup(groups[i], i);
       if (err) return { type: 'ERROR', error: err };
       const key = groups[i].material.trim();
       if (seen.has(key)) return { type: 'ERROR', error: `Matière en double : ${key}.` };
       seen.add(key);
+      if (v2) {
+        for (const a of groups[i].all_articles) {
+          if (articleOwner.has(a)) return { type: 'ERROR', error: `Code ${a} en double : ${articleOwner.get(a)} et ${key}.` };
+          articleOwner.set(a, key);
+        }
+      }
     }
 
     const order = {
       orderNumber: data.orderNumber,
       sentAt: typeof data.sentAt === 'string' ? data.sentAt.slice(0, 40) : null,
       receivedAt: new Date().toISOString(),
-      groups: groups.map((g) => ({
-        material: g.material.trim(),
-        matiere: g.matiere.trim(),
-        epaisseur: g.epaisseur.trim(),
-        lengths: Object.fromEntries(FD.BOUNDS.map((b) => [String(b), g.lengths[String(b)]])),
-        done: false, // un renvoi remet toutes les matières « à faire »
-        doneAt: null,
-      })),
+      groups: groups.map((g) => {
+        const hasPieces = v2 ? g.has_pieces : true;
+        const coils = v2 ? g.coils.map((c) => ({ width_mm: c.width_mm, article: c.article, quantity_m: c.quantity_m })) : [];
+        const chute = v2 ? g.chute_m : 0;
+        return {
+          material: g.material.trim(),
+          matiere: typeof g.matiere === 'string' ? g.matiere.trim() : null,
+          epaisseur: typeof g.epaisseur === 'string' ? g.epaisseur.trim() : null,
+          lengths: Object.fromEntries(FD.BOUNDS.map((b) => [String(b), g.lengths[String(b)]])),
+          // un renvoi remet toutes les matières « à faire » ; sans pièce, la partie DEV n'a rien à faire
+          done: !hasPieces,
+          doneAt: null,
+          has_pieces: hasPieces,
+          coils,
+          all_articles: v2 ? [...g.all_articles] : [],
+          chute_m: chute,
+          coilsDone: coils.length === 0 && !(chute > 0),
+          coilsDoneAt: null,
+        };
+      }),
     };
     const orders = await FD.loadOrders();
     const replaced = Boolean(orders[order.orderNumber]);
@@ -81,7 +161,7 @@
       action: replaced ? 'REPLACED' : 'STORED',
       orderNumber: order.orderNumber,
       groups: order.groups.length,
-      message: `${replaced ? 'Commande remplacée' : 'Commande reçue'} : ${order.orderNumber} (${order.groups.length} matière${order.groups.length > 1 ? 's' : ''}).`,
+      message: `${replaced ? 'Commande remplacée' : 'Commande reçue'} : ${order.orderNumber} (${order.groups.length} matière${order.groups.length > 1 ? 's' : ''}${v2 ? ', avec bobines' : ''}).`,
     };
   }
 
@@ -110,7 +190,7 @@
     if (!data || typeof data !== 'object' || data.source !== 'faconote') return;
 
     const requestId = typeof data.requestId === 'string' ? data.requestId.slice(0, 80) : undefined;
-    if (data.version !== 1) {
+    if (data.version !== 1 && data.version !== 2) {
       reply({ type: 'ERROR', requestId, error: `Version de message non gérée : ${String(data.version)}.` });
       return;
     }

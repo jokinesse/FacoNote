@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { OrderLines, OrderLineDraft } from './OrderLines';
 import {
   Calculator,
   Download,
@@ -258,11 +259,46 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
     });
   };
 
-  // Matière d'une ligne d'historique (correction en cas d'erreur).
-  // Comme pour les pièces, la matière choisie devient la matière en cours.
-  const handleUpdateEntryMaterial = (id: string, material: string) => {
-    setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, material } : e)));
-    onMaterialChange(material);
+  // Correction d'une ligne sur place : le backend relit et recalcule la ligne, qui garde sa place.
+  const handleSaveEntry = async (id: string, draft: OrderLineDraft): Promise<string | null> => {
+    const qty = parseInt(draft.quantity, 10);
+    if (draft.main.trim() === '' || isNaN(qty) || qty < 1) {
+      return 'Largeur (0 = chute) et quantité (1 ou plus) obligatoires.';
+    }
+    try {
+      const res = await optimizerApi.coilEncode({
+        width: draft.main.trim(),
+        quantity: qty,
+        length: draft.unitLength.trim(),
+        length_unit: 'm',
+        material: draft.material,
+      });
+      const d = res.data;
+      setEntries((prev) =>
+        prev.map((e) =>
+          e.id === id
+            ? {
+                ...e,
+                width: d.width,
+                quantity: d.quantity,
+                unitLength: d.unit_length_m,
+                totalLength: d.total_length_m,
+                material: d.material,
+                isChute: d.is_chute,
+              }
+            : e
+        )
+      );
+      pendingSharedCheckRef.current = d.is_chute ? null : { width: d.width, material: d.material };
+      setFeedback({
+        success: true,
+        message: `Ligne corrigée : ${d.is_chute ? 'Chute' : `bobine ${d.width} mm`} · ${d.quantity} × ${fmt(d.unit_length_m, 3)} m = ${fmt(d.total_length_m, 3)} m [${d.material}]`+
+          (d.is_chute || d.is_standard ? '' : ' — largeur hors standard'),
+      });
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Correction refusée par le calcul.';
+    }
   };
 
   const handleApplyActiveMaterialToAll = () => {
@@ -552,6 +588,26 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
         </div>
       </div>
 
+      {/* Lignes de la commande : chaque ligne se corrige sur place */}
+      <OrderLines
+        mainHeader="Largeur (mm)"
+        mainHint="0 = chute"
+        lines={entries.map((item) => ({
+          id: item.id,
+          main: item.width,
+          mainLabel: item.isChute ? 'Chute' : undefined,
+          quantity: item.quantity,
+          unitLength: item.unitLength,
+          totalLength: item.totalLength,
+          material: item.material,
+          time: item.time,
+        }))}
+        activeMaterial={activeMaterial}
+        onSave={handleSaveEntry}
+        onDelete={handleDelete}
+        onApplyActiveMaterialToAll={handleApplyActiveMaterialToAll}
+      />
+
       {/* Tableau des bobines */}
       <div className="faco-card bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
         <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-[#f8fafc]">
@@ -809,69 +865,6 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
         </div>
       </div>
 
-      {/* Historique des saisies */}
-      {hasData && (
-        <div className="faco-card bg-white border border-slate-200 rounded-xl p-4 space-y-2.5 shadow-2xs">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[#00478a] flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-[#3ca7da]" />
-              <span>Historique des Saisies ({entries.length})</span>
-            </h3>
-            <button
-              type="button"
-              onClick={handleApplyActiveMaterialToAll}
-              className="px-2.5 py-1 text-[11px] font-medium text-[#00478a] bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer"
-            >
-              Tout passer en "{activeMaterial}"
-            </button>
-          </div>
-
-          <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto">
-            {entries.map((item) => (
-              <div
-                key={item.id}
-                className="py-1.5 flex items-center justify-between gap-2 text-xs hover:bg-slate-50 px-2 rounded transition-colors"
-              >
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[11px] text-slate-400 font-mono">{item.time}</span>
-                  <span
-                    className={`font-mono px-2 py-0.5 rounded border font-semibold ${
-                      item.isChute
-                        ? 'bg-amber-50 border-amber-200 text-amber-800'
-                        : 'bg-[#f8fafc] border-slate-200 text-[#00478a]'
-                    }`}
-                  >
-                    {item.isChute ? 'Chute' : `${item.width} mm`} · {item.quantity} × {item.unitLength}m
-                  </span>
-                  <select
-                    aria-label="Modifier la matière de cette ligne"
-                    value={STANDARD_MATERIALS.includes(item.material) ? item.material : 'custom'}
-                    onChange={(e) => {
-                      if (e.target.value !== 'custom') handleUpdateEntryMaterial(item.id, e.target.value);
-                    }}
-                    className="bg-white border border-slate-200 text-[11px] font-medium text-slate-700 rounded px-2 py-0.5 focus:outline-none focus:border-[#00478a]"
-                  >
-                    {MATERIAL_GROUPS.map((grp) => (
-                      <optgroup key={grp.group} label={grp.group}>
-                        {grp.items.map((m) => (
-                          <option key={m.value} value={m.value}>
-                            {m.value}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                    {!STANDARD_MATERIALS.includes(item.material) && <option value="custom">{item.material}</option>}
-                  </select>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-[#282828] tabular-nums font-bold">+{item.totalLength.toFixed(2)} m</span>
-                  <DeleteButton title="Supprimer cette saisie" onClick={() => handleDelete(item.id)} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

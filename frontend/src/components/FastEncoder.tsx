@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { OrderLines, OrderLineDraft } from './OrderLines';
 import {
   Calculator,
   Plus,
@@ -356,15 +357,48 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     }
   };
 
-  // Modify material on an individual history entry
-  const handleUpdateEntryMaterial = (entryId: string, newMat: string) => {
-    setEntriesHistory((prev) =>
-      prev.map((item) =>
-        item.id === entryId ? { ...item, material: newMat } : item
-      )
-    );
-    // Keep principle of last material: updates active material for upcoming entries
-    setActiveMaterial(newMat);
+  // Correction d'une ligne sur place : le backend relit et recalcule la ligne, qui garde sa place.
+  const handleSaveEntry = async (entryId: string, draft: OrderLineDraft): Promise<string | null> => {
+    const qty = parseInt(draft.quantity, 10);
+    if (!draft.main.trim() || isNaN(qty) || qty < 1) {
+      return 'Développé et quantité (1 ou plus) obligatoires.';
+    }
+    try {
+      const res = await optimizerApi.quickEncode({
+        dev_expr: draft.main.trim(),
+        quantity: qty,
+        length_expr: draft.unitLength.trim() || '2.0',
+        material: draft.material,
+        length_unit: 'm',
+      });
+      const e = res.data;
+      setEntriesHistory((prev) =>
+        prev.map((item) =>
+          item.id === entryId
+            ? {
+                ...item,
+                rawInput: e.raw_input,
+                dev: e.dev,
+                lengthExpression: `${e.quantity} × ${e.unit_length_m}m`,
+                unitLength: e.unit_length_m,
+                quantity: e.quantity,
+                evaluatedLength: e.total_length_m,
+                matchedBound: e.matched_bound,
+                material: e.material,
+              }
+            : item
+        )
+      );
+      pendingSharedCheckRef.current = { dev: e.dev, material: e.material };
+      setLastFeedback({
+        success: true,
+        message: `Ligne corrigée : Dév ${e.dev} mm · ${e.quantity} × ${e.unit_length_m} m = ${e.total_length_m} m [${e.material}]`,
+        boundMatched: e.matched_bound,
+      });
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Correction refusée par le calcul.';
+    }
   };
 
   // Batch apply a material to all existing history entries
@@ -1223,6 +1257,26 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
       </div>
 
+      {/* Lignes de la commande : chaque ligne se corrige sur place */}
+      {!isCoilMode && (
+        <OrderLines
+          mainHeader="Dév (mm)"
+          lines={entriesHistory.map((item) => ({
+            id: item.id,
+            main: item.dev,
+            quantity: item.quantity,
+            unitLength: item.unitLength,
+            totalLength: item.evaluatedLength,
+            material: item.material || activeMaterial,
+            time: item.timestamp,
+          }))}
+          activeMaterial={activeMaterial}
+          onSave={handleSaveEntry}
+          onDelete={handleDeleteHistoryEntry}
+          onApplyActiveMaterialToAll={() => handleApplyActiveMaterialToAll()}
+        />
+      )}
+
       {/* Main Table: Accumulated Intervals & Multi-Material Management */}
       <div className="faco-card bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
         {/* Table Top Controls Bar */}
@@ -1790,77 +1844,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
         currentDefaultMaterial={activeMaterial}
       />
 
-      {/* Compact History Log */}
-      {!isCoilMode && entriesHistory.length > 0 && (
-        <div className="faco-card bg-white border border-slate-200 rounded-xl p-4 space-y-2.5 shadow-2xs">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[#00478a] flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-[#3ca7da]" />
-              <span>Historique des Saisies ({entriesHistory.length})</span>
-            </h3>
-
-            <button
-              type="button"
-              onClick={() => handleApplyActiveMaterialToAll()}
-              className="px-2.5 py-1 text-[11px] font-medium text-[#00478a] bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer"
-            >
-              Tout passer en "{activeMaterial}"
-            </button>
-          </div>
-
-          <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto">
-            {entriesHistory.map((item) => {
-              const itemMat = item.material || activeMaterial;
-              return (
-                <div
-                  key={item.id}
-                  className="py-1.5 flex items-center justify-between gap-2 text-xs hover:bg-slate-50 px-2 rounded transition-colors"
-                >
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[11px] text-slate-400 font-mono">
-                      {item.timestamp}
-                    </span>
-                    <span className="font-mono bg-[#f8fafc] px-2 py-0.5 rounded border border-slate-200 text-[#00478a] font-semibold">
-                      {item.dev} mm · {item.quantity} × {item.unitLength}m
-                    </span>
-
-                    <select
-                      aria-label="Modifier la matière de cette ligne"
-                      value={STANDARD_MATERIALS.includes(itemMat) ? itemMat : 'custom'}
-                      onChange={(e) => {
-                        if (e.target.value !== 'custom') {
-                          handleUpdateEntryMaterial(item.id, e.target.value);
-                        }
-                      }}
-                      className="bg-white border border-slate-200 text-[11px] font-medium text-slate-700 rounded px-2 py-0.5 focus:outline-none focus:border-[#00478a]"
-                    >
-                      {MATERIAL_GROUPS.map((grp) => (
-                        <optgroup key={grp.group} label={grp.group}>
-                          {grp.items.map((m) => (
-                            <option key={m.value} value={m.value}>
-                              {m.value}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                      {!STANDARD_MATERIALS.includes(itemMat) && (
-                        <option value="custom">{itemMat}</option>
-                      )}
-                    </select>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-[#282828] tabular-nums font-bold">
-                      +{item.evaluatedLength.toFixed(2)} m
-                    </span>
-                    <DeleteButton title="Supprimer cette saisie" onClick={() => handleDeleteHistoryEntry(item.id)} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -65,22 +65,28 @@ def test_slit_yield_and_input_totals() -> None:
     assert resp.input_total_surface_m2 == round(0.333 * 12 + 0.175 * 6, 2)
 
 
-def test_ranking_sums_all_widths_per_material() -> None:
+
+def test_cumul_per_material_and_width() -> None:
     resp = run_nesting_optimization(OptimizationRequest(
-        material="Zinc Quartz 0.7",
+        material="Zinc Naturel 0.7",
         pieces=[
-            piece("a", 333, 2.0, 6, "Zinc Quartz 0.7"),
-            piece("c", 900, 1.5, 2, "Zinc Quartz 0.7"),
-            piece("b", 250, 3.0, 1, "Alu RAL 9005 0.7"),
+            piece("a", 333, 1.8, 6, "Zinc Naturel 0.7"),
+            piece("b", 900, 3.0, 1, "Zinc Naturel 0.7"),
+            piece("c", 500, 1.0, 3, "Zinc Naturel 0.7"),
+            piece("d", 333, 2.0, 2, "Zinc Naturel 0.8"),
         ],
     ))
-    ranking = resp.sheets_ranking
-    assert [r.rank for r in ranking] == list(range(1, len(resp.sheets_recap) + 1))
-    assert {r.material for r in ranking} == {m.material for m in resp.sheets_recap}
-    lengths = [r.total_length_m for r in ranking]
-    assert lengths == sorted(lengths, reverse=True)
-    for r in ranking:
-        mat = next(m for m in resp.sheets_recap if m.material == r.material)
-        expected = round(sum(f.mother_length * f.count for f in mat.formats), 2)
-        assert abs(r.total_length_m - expected) <= 0.01
-        assert r.total_sheets == sum(f.count for f in mat.formats)
+    for mat in resp.sheets_recap:
+        keys = [(f.mother_width, f.mother_length) for f in mat.formats]
+        assert keys == sorted(keys, reverse=True)
+    cumul = {c.material: c for c in resp.sheets_cumul}
+    assert set(cumul) == {"Zinc Naturel 0.7", "Zinc Naturel 0.8"}
+    for mat in resp.sheets_recap:
+        c = cumul[mat.material]
+        assert c.total_length_m == mat.total_length_m
+        widths = [w.mother_width for w in c.widths]
+        assert widths == sorted({f.mother_width for f in mat.formats}, reverse=True)
+        for w in c.widths:
+            fmts = [f for f in mat.formats if f.mother_width == w.mother_width]
+            assert abs(w.total_length_m - sum(f.mother_length * f.count for f in fmts)) <= 0.01
+            assert w.total_sheets == sum(f.count for f in fmts)

@@ -24,7 +24,7 @@ from app.models.optimizer import (
     SlitStripModel,
     WorkshopScrapProposalModel,
 )
-from app.services.sheets_recap import build_sheets_ranking, build_sheets_recap
+from app.services.sheets_recap import build_sheets_cumul, build_sheets_recap
 
 
 def split_to_max_sheet_length(length_m: float, max_length_m: float = MAX_SHEET_LENGTH_M) -> list[float]:
@@ -650,5 +650,5 @@ def run_nesting_optimization(request: OptimizationRequest) -> OptimizationRespon
         input_total_length_m=input_total_length_m,
         input_total_surface_m2=input_total_surface_m2,
         sheets_recap_totals=sheets_recap_totals,
-        sheets_ranking=build_sheets_ranking(sheets_recap),
+        sheets_cumul=build_sheets_cumul(sheets_recap),
     )

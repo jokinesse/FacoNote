@@ -200,15 +200,25 @@ class SheetsRecapMaterialModel(BaseModel):
     formats: list[SheetFormatRecapModel]
 
 
-class SheetsRankingModel(BaseModel):
-    """Cumul des longueurs de bobines mères à sortir pour une matière (toutes largeurs confondues)."""
+class SheetsCumulWidthModel(BaseModel):
+    """Cumul des longueurs à sortir pour une borne (largeur de bobine mère) d'une matière."""
     model_config = ConfigDict(extra="forbid")
 
-    rank: int
+    mother_width: int
+    total_length_m: float
+    total_sheets: int
+    total_weight_kg: float
+
+
+class SheetsCumulMaterialModel(BaseModel):
+    """Cumul des longueurs à sortir pour une matière, borne par borne (de la plus large à la plus étroite)."""
+    model_config = ConfigDict(extra="forbid")
+
     material: str
     total_length_m: float
     total_sheets: int
     total_weight_kg: float
+    widths: list[SheetsCumulWidthModel]
 
 
 class SheetsRecapTotalsModel(BaseModel):
@@ -249,6 +259,6 @@ class OptimizationResponse(BaseModel):
     sheets_recap_totals: SheetsRecapTotalsModel = Field(
         default_factory=SheetsRecapTotalsModel, description="Totaux des feuilles mères à sortir"
     )
-    sheets_ranking: list[SheetsRankingModel] = Field(
-        default_factory=list, description="Classement des matières par métrage cumulé à sortir, du plus long au plus court"
+    sheets_cumul: list[SheetsCumulMaterialModel] = Field(
+        default_factory=list, description="Cumul des longueurs à sortir par matière puis par borne (largeur)"
     )

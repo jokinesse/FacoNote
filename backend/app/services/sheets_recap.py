@@ -8,7 +8,8 @@ from app.core.constants import calculate_surface_m2, resolve_material_spec, roun
 from app.models.optimizer import (
     SheetFormatRecapModel,
     SheetPieceCountModel,
-    SheetsRankingModel,
+    SheetsCumulMaterialModel,
+    SheetsCumulWidthModel,
     SheetsRecapMaterialModel,
     SheetsRecapTotalsModel,
     SlitNestResultModel,
@@ -30,7 +31,8 @@ def build_sheets_recap(
     for material, formats in by_material.items():
         density = resolve_material_spec(material).surface_density_kg_m2
         format_models: list[SheetFormatRecapModel] = []
-        for (width, length), sheets in formats.items():
+        # Du plus grand au plus petit : largeur, puis longueur
+        for (width, length), sheets in sorted(formats.items(), key=lambda kv: (-kv[0][0], -kv[0][1])):
             count = len(sheets)
             total_length = round_meters(length * count)
             surface = calculate_surface_m2(float(width), total_length)
@@ -74,16 +76,30 @@ def build_sheets_recap(
     return materials, totals
 
 
-def build_sheets_ranking(materials: list[SheetsRecapMaterialModel]) -> list[SheetsRankingModel]:
-    """Classe les matières par métrage cumulé (toutes largeurs), du plus long au plus court."""
-    ordered = sorted(materials, key=lambda m: (-m.total_length_m, m.material))
-    return [
-        SheetsRankingModel(
-            rank=i,
-            material=m.material,
-            total_length_m=m.total_length_m,
-            total_sheets=m.total_sheets,
-            total_weight_kg=m.total_weight_kg,
+
+def build_sheets_cumul(materials: list[SheetsRecapMaterialModel]) -> list[SheetsCumulMaterialModel]:
+    """Cumule les longueurs de toutes les feuilles par matière puis par borne, de la plus large à la plus étroite."""
+    result: list[SheetsCumulMaterialModel] = []
+    for mat in materials:
+        by_width: dict[int, list[SheetFormatRecapModel]] = {}
+        for fmt in mat.formats:
+            by_width.setdefault(fmt.mother_width, []).append(fmt)
+        widths = [
+            SheetsCumulWidthModel(
+                mother_width=width,
+                total_length_m=round_meters(sum(f.total_length_m for f in fmts)),
+                total_sheets=sum(f.count for f in fmts),
+                total_weight_kg=round(sum(f.total_weight_kg for f in fmts), 2),
+            )
+            for width, fmts in sorted(by_width.items(), key=lambda kv: -kv[0])
+        ]
+        result.append(
+            SheetsCumulMaterialModel(
+                material=mat.material,
+                total_length_m=mat.total_length_m,
+                total_sheets=mat.total_sheets,
+                total_weight_kg=mat.total_weight_kg,
+                widths=widths,
+            )
         )
-        for i, m in enumerate(ordered, start=1)
-    ]
+    return result

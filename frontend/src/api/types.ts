@@ -373,7 +373,7 @@ export interface OptimizationResponse {
   input_total_length_m?: number;
   input_total_surface_m2?: number;
   sheets_recap_totals?: SheetsRecapTotals;
-  sheets_ranking?: SheetsRanking[];
+  sheets_cumul?: SheetsCumulMaterial[];
 }
 
 // Feuilles / bobines mères neuves à sortir (calculé par le moteur d'imbrication)
@@ -395,13 +395,18 @@ export interface SheetsRecapMaterial {
   }[];
 }
 
-// Cumul des longueurs à sortir par matière, classé du plus long au plus court (backend)
-export interface SheetsRanking {
-  rank: number;
+// Cumul des longueurs à sortir par matière puis par borne (calculé par le backend)
+export interface SheetsCumulMaterial {
   material: string;
   total_length_m: number;
   total_sheets: number;
   total_weight_kg: number;
+  widths: {
+    mother_width: number;
+    total_length_m: number;
+    total_sheets: number;
+    total_weight_kg: number;
+  }[];
 }
 
 export interface SheetsRecapTotals {

@@ -12,7 +12,8 @@ interface OrderBarProps {
   onClearOrder: () => void;
   isSending: boolean;
   canClear: boolean;
-  coilCount: number; // saisies bobine qui partiront avec la commande
+  coilCount: number; // lignes bobine envoyées (compte du backend)
+  chuteCount: number; // chutes envoyées (compte du backend)
   inputRef: React.RefObject<HTMLInputElement | null>;
 }
 
@@ -24,6 +25,7 @@ export const OrderBar: React.FC<OrderBarProps> = ({
   isSending,
   canClear,
   coilCount,
+  chuteCount,
   inputRef,
 }) => (
   <>
@@ -58,9 +60,15 @@ export const OrderBar: React.FC<OrderBarProps> = ({
       <Send className="w-3.5 h-3.5" />
       <span>{isSending ? 'Envoi…' : "Envoyer vers l'extension"}</span>
     </button>
-    {coilCount > 0 && (
+    {coilCount + chuteCount > 0 && (
       <span className="text-xs font-medium text-amber-800">
-        {coilCount === 1 ? '1 saisie bobine sera envoyée aussi' : `${coilCount} saisies bobine seront envoyées aussi`}
+        {[
+          coilCount === 1 ? '1 bobine sera envoyée' : coilCount > 1 ? `${coilCount} bobines seront envoyées` : '',
+          chuteCount === 1 ? '1 chute' : chuteCount > 1 ? `${chuteCount} chutes` : '',
+        ]
+          .filter(Boolean)
+          .join(' et ')}{' '}
+        aussi
       </span>
     )}
     <button

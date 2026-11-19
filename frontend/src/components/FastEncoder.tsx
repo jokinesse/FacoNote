@@ -76,6 +76,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
   const [isSendingToExt, setIsSendingToExt] = useState<boolean>(false);
   const [extStatus, setExtStatus] = useState<{ kind: 'success' | 'error' | 'warning'; message: string } | null>(null);
   const orderInputRef = useRef<HTMLInputElement>(null);
+  const [coilSendCounts, setCoilSendCounts] = useState<{ coils: number; chutes: number }>({ coils: 0, chutes: 0 });
   const coilOrderInputRef = useRef<HTMLInputElement>(null);
   const notify = useNotify();
   const [isCustomMaterial, setIsCustomMaterial] = useState<boolean>(false);
@@ -1130,7 +1131,8 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
               onClearOrder={handleClearOrder}
               isSending={isSendingToExt}
               canClear={entriesHistory.length > 0 || coilEntries.length > 0 || !!orderNumber}
-              coilCount={coilEntries.length}
+              coilCount={coilEntries.length === 0 ? 0 : coilSendCounts.coils}
+              chuteCount={coilEntries.length === 0 ? 0 : coilSendCounts.chutes}
               inputRef={coilOrderInputRef}
             />
           </div>
@@ -1146,6 +1148,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
           onMaterialChange={setActiveMaterial}
           entries={coilEntries}
           setEntries={setCoilEntries}
+          onSendCounts={(coils, chutes) => setCoilSendCounts({ coils, chutes })}
         />
       </div>
 
@@ -1289,7 +1292,8 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
               onClearOrder={handleClearOrder}
               isSending={isSendingToExt}
               canClear={entriesHistory.length > 0 || coilEntries.length > 0 || !!orderNumber}
-              coilCount={coilEntries.length}
+              coilCount={coilEntries.length === 0 ? 0 : coilSendCounts.coils}
+              chuteCount={coilEntries.length === 0 ? 0 : coilSendCounts.chutes}
               inputRef={orderInputRef}
             />
 

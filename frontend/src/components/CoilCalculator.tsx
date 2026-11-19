@@ -9,7 +9,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { CoilEntry, MATERIAL_GROUPS, STANDARD_MATERIALS } from '../types';
-import { ApiError, CoilSummaryResponse, MetalFamily, optimizerApi } from '../api';
+import { ApiError, CoilSummaryResponse, MetalFamily, optimizerApi, useReference } from '../api';
 import {
   BTN_DANGER,
   BTN_SECONDARY,
@@ -36,6 +36,8 @@ interface CoilCalculatorProps {
   // Saisies bobine gardées dans FastEncoder (commande commune, sauvegardée)
   entries: CoilEntry[];
   setEntries: React.Dispatch<React.SetStateAction<CoilEntry[]>>;
+  // Comptes rendus par le backend : bobines et chutes qui partiront vers D365
+  onSendCounts: (coils: number, chutes: number) => void;
 }
 
 // Badge matière, même rendu que dans le calculateur des pièces
@@ -91,7 +93,9 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
   onMaterialChange,
   entries,
   setEntries,
+  onSendCounts,
 }) => {
+  const reference = useReference();
   const [inputWidth, setInputWidth] = useState<string>('');
   const [inputQuantity, setInputQuantity] = useState<string>('1');
   const [inputLength, setInputLength] = useState<string>('');
@@ -282,7 +286,9 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
     optimizerApi
       .coilSummary(payload)
       .then((res) => {
-        if (requestId === summaryRequestRef.current) setSummary(res.data);
+        if (requestId !== summaryRequestRef.current) return;
+        setSummary(res.data);
+        onSendCounts(res.data.d365_coils_to_send ?? 0, res.data.d365_chutes_to_send ?? 0);
       })
       .catch((err) => {
         if (requestId !== summaryRequestRef.current) return;
@@ -378,7 +384,10 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
             Matière en cours : <span className="font-semibold text-[#282828]">{activeMaterial}</span>
           </span>
           <div className="flex items-center gap-1 flex-wrap ml-auto">
-            {(summary?.standard_widths ?? []).map((w) => (
+            {(reference?.materials.find((m) => m.name === activeMaterial)?.coil_widths_mm ??
+              summary?.standard_widths ??
+              []
+            ).map((w) => (
               <button
                 key={w}
                 type="button"

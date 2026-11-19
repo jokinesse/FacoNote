@@ -129,6 +129,8 @@ export interface CoilSummaryResponse {
   zinc: CoilFamilyTotals;
   materials: CoilMaterialTotals[];
   standard_widths: number[];
+  d365_coils_to_send?: number; // lignes bobine envoyées vers D365
+  d365_chutes_to_send?: number; // matières dont la chute est envoyée
 }
 
 export interface CoilMaterialTotals {
@@ -499,7 +501,7 @@ export interface D365OrderGroup {
 
 export interface D365OrderIssue {
   material: string | null;
-  code: 'NO_MATIERE_LABEL' | 'EMPTY' | 'NO_COIL_ARTICLE' | 'SHEET_NOT_COIL';
+  code: 'NO_MATIERE_LABEL' | 'EMPTY' | 'NO_COIL_ARTICLE' | 'SHEET_NOT_COIL' | 'ROUNDS_TO_ZERO' | 'QUANTITY_TOO_LARGE';
   message: string;
 }
 

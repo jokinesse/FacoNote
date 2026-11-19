@@ -248,17 +248,6 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
     });
   };
 
-  // Vider tout le tableau
-  const handleClear = () => {
-    if (entries.length === 0) return;
-    deleteAction('toutes les saisies Bobine', () => {
-      setEntries([]);
-      setFeedback(null);
-      setSharedWarning(null);
-      focus(widthRef);
-    });
-  };
-
   // Correction d'une ligne sur place : le backend relit et recalcule la ligne, qui garde sa place.
   const handleSaveEntry = async (id: string, draft: OrderLineDraft): Promise<string | null> => {
     const qty = parseInt(draft.quantity, 10);
@@ -633,15 +622,6 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
             >
               <Download className="w-3.5 h-3.5" />
               <span>CSV</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleClear}
-              disabled={!hasData}
-              className={BTN_DANGER}
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Vider</span>
             </button>
           </div>
         </div>

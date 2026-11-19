@@ -78,7 +78,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
   const [extStatus, setExtStatus] = useState<{ kind: 'success' | 'error' | 'warning'; message: string } | null>(null);
   const orderInputRef = useRef<HTMLInputElement>(null);
   const [coilSendCounts, setCoilSendCounts] = useState<{ coils: number; chutes: number }>({ coils: 0, chutes: 0 });
-  const coilOrderInputRef = useRef<HTMLInputElement>(null);
   const notify = useNotify();
   const [isCustomMaterial, setIsCustomMaterial] = useState<boolean>(false);
 
@@ -445,6 +444,12 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     });
   };
 
+  // Vider les bobines seulement (les pièces et le n° restent)
+  const handleClearCoils = () => {
+    if (coilEntries.length === 0) return;
+    deleteAction('toutes les saisies Bobine', () => setCoilEntries([]));
+  };
+
   // Vider la commande : pièces, bobines, n°, sauvegarde. Avec un n° valide, la commande est aussi retirée de l'extension.
   const handleClearOrder = () => {
     if (entriesHistory.length === 0 && coilEntries.length === 0 && !orderNumber) return;
@@ -476,7 +481,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
   // Envoi vers l'extension : la commande est assemblée par le backend (groupes, version, erreurs)
   const handleSendToExtension = async () => {
-    const focusOrder = () => (isCoilMode ? coilOrderInputRef : orderInputRef).current?.focus();
+    const focusOrder = () => orderInputRef.current?.focus();
     const order = orderNumber.trim();
     if (!D365_ORDER_RE.test(order)) {
       setExtStatus({ kind: 'error', message: 'N° de commande D365 invalide : CC suivi de 11 chiffres (ex. CC26000236736).' });
@@ -898,6 +903,28 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
   return (
     <div className="space-y-4">
+      <OrderBar
+        orderNumber={orderNumber}
+        onOrderChange={setOrderNumber}
+        inputRef={orderInputRef}
+        pieceLines={entriesHistory.length}
+        coilLines={coilEntries.length}
+        coilCount={coilEntries.length === 0 ? 0 : coilSendCounts.coils}
+        chuteCount={coilEntries.length === 0 ? 0 : coilSendCounts.chutes}
+        isSending={isSendingToExt}
+        onSend={handleSendToExtension}
+        onOptimize={handleTransfer}
+        onPrint={handlePrintBounds}
+        isPrinting={isPrinting}
+        onClearPieces={handleClearPieces}
+        onClearCoils={handleClearCoils}
+        onClearOrder={handleClearOrder}
+      >
+        {extStatus && (
+          <Notice kind={extStatus.kind} message={extStatus.message} onClose={() => setExtStatus(null)} />
+        )}
+      </OrderBar>
+
       {/* Compact Input & Controls Card */}
       <div className="faco-card bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-3.5">
         {/* Top Toolbar: Material + Mode + Unit + Scan */}
@@ -1156,26 +1183,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
       {/* Calculateur Bobine (séparé du tableau des pièces) */}
       <div className={isCoilMode ? '' : 'hidden'}>
-        <div className="bg-white border border-slate-200 rounded-xl shadow-2xs mb-4">
-          <div className="px-4 py-2 flex items-center gap-2 flex-wrap">
-            <OrderBar
-              orderNumber={orderNumber}
-              onOrderChange={setOrderNumber}
-              onSend={handleSendToExtension}
-              onClearOrder={handleClearOrder}
-              isSending={isSendingToExt}
-              canClear={entriesHistory.length > 0 || coilEntries.length > 0 || !!orderNumber}
-              coilCount={coilEntries.length === 0 ? 0 : coilSendCounts.coils}
-              chuteCount={coilEntries.length === 0 ? 0 : coilSendCounts.chutes}
-              inputRef={coilOrderInputRef}
-            />
-          </div>
-          {extStatus && (
-            <div className="px-4 py-2 border-t border-slate-200">
-              <Notice kind={extStatus.kind} message={extStatus.message} onClose={() => setExtStatus(null)} />
-            </div>
-          )}
-        </div>
         <CoilCalculator
           activeMaterial={activeMaterial}
           lengthUnit={lengthUnit}
@@ -1328,56 +1335,9 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Annuler</span>
             </button>
-            <button
-              type="button"
-              onClick={handlePrintBounds}
-              disabled={isPrinting}
-              className="px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white hover:bg-slate-100 disabled:opacity-40 border border-slate-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-              title="Feuille A4 des pièces par borne, à imprimer ou enregistrer en PDF"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>{isPrinting ? 'Préparation…' : 'PDF / Imprimer'}</span>
-            </button>
-
-            <OrderBar
-              orderNumber={orderNumber}
-              onOrderChange={setOrderNumber}
-              onSend={handleSendToExtension}
-              onClearOrder={handleClearOrder}
-              isSending={isSendingToExt}
-              canClear={entriesHistory.length > 0 || coilEntries.length > 0 || !!orderNumber}
-              coilCount={coilEntries.length === 0 ? 0 : coilSendCounts.coils}
-              chuteCount={coilEntries.length === 0 ? 0 : coilSendCounts.chutes}
-              inputRef={orderInputRef}
-            />
-
-            <button
-              type="button"
-              onClick={handleClearPieces}
-              disabled={entriesHistory.length === 0}
-              className={BTN_DANGER}
-              title="Vide seulement les pièces de cet onglet"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Vider</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleTransfer}
-              className="px-3.5 py-1.5 bg-[#00478a] hover:bg-[#003566] text-white font-semibold rounded-lg text-xs flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
-            >
-              <span>Optimiser le Débit</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
 
-        {extStatus && (
-          <div className="px-4 py-2 border-b border-slate-200">
-            <Notice kind={extStatus.kind} message={extStatus.message} onClose={() => setExtStatus(null)} />
-          </div>
-        )}
 
         {/* Multi-Material Filter & Distribution Toolbar */}
         {materialsSummary.length > 0 && (

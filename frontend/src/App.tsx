@@ -2,7 +2,7 @@ import { IS_PREVIEW } from './utils/preview';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Header, AppTab } from './components/Header';
 import { FastEncoder } from './components/FastEncoder';
-import { OptimizerTab } from './components/OptimizerTab';
+import { OptimizerTab, CutResult } from './components/OptimizerTab';
 import { MobileScannerApp } from './components/MobileScannerApp';
 import { AdminAuthModal } from './components/AdminAuthModal';
 import { ADMIN_TOKEN_STORAGE_KEY, adminApi } from './api';
@@ -118,6 +118,7 @@ export default function App() {
 
   // Étape 2 depuis l'en-tête : le Calculateur envoie d'abord ses pièces (si elles ont changé)
   const goToCutRef = useRef<(() => void) | null>(null);
+  const [cutResult, setCutResult] = useState<CutResult | null>(null);
   const handleStep = (tab: AppTab, direct = false) => {
     if (!direct && tab === 'optimizer' && activeTab !== 'optimizer' && goToCutRef.current) {
       goToCutRef.current();
@@ -159,6 +160,7 @@ export default function App() {
         <div className={activeTab === 'calculator' || activeTab === 'send' ? 'block' : 'hidden'}>
           <FastEncoder
             view={activeTab === 'send' ? 'send' : 'input'}
+            cutResult={cutResult}
             onTransferToOptimizer={handleTransferToOptimizer}
             onStep={handleStep}
             registerGoToCut={(fn) => {
@@ -168,7 +170,7 @@ export default function App() {
         </div>
 
         <div className={activeTab === 'optimizer' ? 'block' : 'hidden'}>
-          <OptimizerTab initialPieces={transferredPieces} onStep={handleStep} />
+          <OptimizerTab initialPieces={transferredPieces} onStep={handleStep} onCutResult={setCutResult} />
         </div>
 
         {adminToken && (

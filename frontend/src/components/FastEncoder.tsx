@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { OrderSnapshot, useOrderHistory } from '../utils/useOrderHistory';
 import { OrderLines, OrderLineDraft } from './OrderLines';
 import { SendStep } from './SendStep';
+import type { CutResult } from './OptimizerTab';
 import { AppTab, NextStep, StepIntro } from './Header';
 import type { D365OrderResponse } from '../api';
 import {
@@ -62,12 +63,13 @@ import {
 
 interface FastEncoderProps {
   view: 'input' | 'send';
+  cutResult: CutResult | null;
   onTransferToOptimizer: (pieces: ShapedPiece[]) => void;
   onStep: (tab: AppTab, direct?: boolean) => void;
   registerGoToCut: (fn: () => void) => void;
 }
 
-export const FastEncoder: React.FC<FastEncoderProps> = ({ view, onTransferToOptimizer, onStep, registerGoToCut }) => {
+export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTransferToOptimizer, onStep, registerGoToCut }) => {
   const [preset, setPreset] = useState<SheetPreset>('DEV_PIECE');
   // Feuille en cours sauvegardée dans le navigateur (survit à F5), effacée par « Vider »
   const [savedSheet] = useState(() => loadSavedOrder());
@@ -527,7 +529,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, onTransferToOpti
       focusOrder();
       return;
     }
-    if (entriesHistory.filter((e) => !e.isChute && e.dev > 0).length === 0 && coilEntries.length === 0) {
+    if (entriesHistory.filter((e) => !e.isChute && e.dev > 0).length === 0 && coilEntries.length === 0 && !cutCoilsToSend()) {
       setExtStatus({ kind: 'error', message: 'Rien à envoyer : encodez d’abord des pièces ou des bobines.' });
       return;
     }
@@ -537,13 +539,16 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, onTransferToOpti
       const res = await optimizerApi.d365Order({
         order_number: order,
         pieces: buildSummaryPayload().entries,
-        coils: [...coilEntries].reverse().map((e) => ({
-          id: e.id,
-          width: e.width,
-          quantity: e.quantity,
-          unit_length_m: e.unitLength,
-          material: e.material,
-        })),
+        // Aucune bobine saisie : les bobines de la découpe, si elle a été faite sur ces mêmes pièces
+        coils: cutCoilsToSend()
+          ? cutResult!.coils
+          : [...coilEntries].reverse().map((e) => ({
+              id: e.id,
+              width: e.width,
+              quantity: e.quantity,
+              unit_length_m: e.unitLength,
+              material: e.material,
+            })),
       });
       // Envoi direct : l'extension remplace la commande qu'elle a déjà pour ce n°
       await sendPrepared(res.data);
@@ -694,6 +699,13 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, onTransferToOpti
   // Étape 2 : les pièces partent vers la découpe seulement si elles ont changé depuis le dernier passage
   // (sinon les choix faits dans la découpe, comme les chutes, sont gardés)
   const lastTransferredRef = useRef<EncodedEntry[] | null>(null);
+  // Bobines de la découpe envoyées seulement si : aucune bobine saisie, découpe faite, pièces inchangées depuis
+  const cutCoilsToSend = () =>
+    coilEntries.length === 0 &&
+    cutResult !== null &&
+    cutResult.coils.length > 0 &&
+    lastTransferredRef.current !== null &&
+    lastTransferredRef.current === entriesHistory;
   const goToCut = () => {
     const hasPieces = entriesHistory.some((e) => !e.isChute && e.dev > 0);
     if (!hasPieces || lastTransferredRef.current === entriesHistory) {
@@ -974,6 +986,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, onTransferToOpti
           isSending={isSendingToExt}
           onSend={handleSendToExtension}
           onBack={() => onStep('calculator')}
+          cutSheets={cutCoilsToSend() ? cutResult!.totalSheets : 0}
         >
           {extStatus && (
             <Notice kind={extStatus.kind} message={extStatus.message} onClose={() => setExtStatus(null)} />

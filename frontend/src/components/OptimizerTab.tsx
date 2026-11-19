@@ -39,6 +39,7 @@ import {
   SheetsRecapMaterial,
   SheetsRecapTotals,
   SheetsCumulMaterial,
+  CoilSummaryEntry,
 } from '../api';
 import { CuttingPlan2D } from './CuttingPlan2D';
 import { AppTab, NextStep, StepIntro } from './Header';
@@ -47,9 +48,16 @@ import { BTN_DANGER, DeleteButton, KpiStrip, useDeleteAction } from './ui';
 interface OptimizerTabProps {
   initialPieces?: ShapedPiece[];
   onStep?: (tab: AppTab) => void;
+  // Bobines à sortir calculées par la découpe (envoyées vers D365 s'il n'y a pas de bobine saisie)
+  onCutResult?: (r: CutResult | null) => void;
 }
 
-export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], onStep }) => {
+export interface CutResult {
+  coils: CoilSummaryEntry[];
+  totalSheets: number;
+}
+
+export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], onStep, onCutResult }) => {
   // Visual Pre-Encoder Modal State
   const [isVisualModalOpen, setIsVisualModalOpen] = useState<boolean>(false);
 
@@ -403,6 +411,28 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], 
     cumul: SheetsCumulMaterial[];
   } | null>(null);
   const sheetsCumul = optimizationResult ? sheetsRecap?.cumul ?? [] : [];
+
+  // Feuilles mères neuves du résultat (backend), au format des bobines de la commande
+  useEffect(() => {
+    if (!onCutResult) return;
+    const mats = optimizationResult && pieces.length > 0 ? sheetsRecap?.materials ?? [] : [];
+    if (mats.length === 0) {
+      onCutResult(null);
+      return;
+    }
+    onCutResult({
+      coils: mats.flatMap((m) =>
+        m.formats.map((f, i) => ({
+          id: `cut-${m.material}-${f.mother_width}-${f.mother_length}-${i}`,
+          width: f.mother_width,
+          quantity: f.count,
+          unit_length_m: f.mother_length,
+          material: m.material,
+        }))
+      ),
+      totalSheets: sheetsRecap?.totals.total_sheets ?? 0,
+    });
+  }, [optimizationResult, sheetsRecap, pieces.length, onCutResult]);
 
   const sheetsRecapByMaterial = (optimizationResult ? sheetsRecap?.materials ?? [] : []).map((m) => ({
     material: m.material,

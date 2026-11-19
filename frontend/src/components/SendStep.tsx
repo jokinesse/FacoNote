@@ -15,6 +15,7 @@ interface SendStepProps {
   isSending: boolean;
   onSend: () => void;
   onBack: () => void;
+  cutSheets?: number; // feuilles de la découpe envoyées comme bobines (backend)
   children?: React.ReactNode; // message de retour de l'extension
 }
 
@@ -31,6 +32,7 @@ export const SendStep: React.FC<SendStepProps> = ({
   isSending,
   onSend,
   onBack,
+  cutSheets = 0,
   children,
 }) => {
   const isEmpty = pieceLines === 0 && coilLines === 0;
@@ -79,6 +81,12 @@ export const SendStep: React.FC<SendStepProps> = ({
             ) : (
               <>
                 À envoyer : <strong>{plural(pieceLines, 'ligne pièce', 'lignes pièce')}</strong>
+                {cutSheets > 0 && (
+                  <>
+                    {' '}et{' '}
+                    <strong>les bobines de la découpe ({plural(cutSheets, 'feuille', 'feuilles')})</strong>
+                  </>
+                )}
                 {coilCount + chuteCount > 0 && (
                   <>
                     {' '}et{' '}

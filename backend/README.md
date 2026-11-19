@@ -29,6 +29,7 @@ Tout nouveau calcul va dans `backend/app/services/`, avec ses tests pytest et un
 | | `POST /optimizer/pieces-summary` | Tableau des pièces : totaux, surfaces, poids |
 | | `POST /optimizer/coil-encode` | Encodage d'une saisie bobine |
 | | `POST /optimizer/coil-summary` | Tableau bobines : totaux |
+| | `POST /optimizer/d365-order` | Contenu envoyé à l'extension D365, par matière : DEV des pièces, bobines (codes AR, m), chute |
 | | `POST /optimizer/print-sheet` | Fiche de débit A4 |
 | mobile | `POST /mobile/session`, `POST /mobile/upload`, `GET /mobile/status/{id}`, `POST /mobile/reset/{id}` | Envoi de photos depuis le téléphone (sessions en mémoire, 45 min) |
 | ai | `POST /ai/parse-document`, `POST /ai/process-image` | Lecture de croquis (Gemini, avec repli) |
@@ -61,7 +62,8 @@ backend/tests/              # tests pytest
 ## Largeurs de bobines validées (atelier)
 | Matière | Largeurs (mm) |
 |---|---|
-| Zinc Naturel, ATZ, Quartz 0.7 et 0.8 | 600, 670, 750, 1000, 1100 |
+| Zinc Naturel 0.8 | 600, 670, 750, 1000, 1100 |
+| Zinc Naturel 0.7, ATZ et Quartz 0.7 et 0.8 | 600, 670, 750, 1000 |
 | Zinc Pigmento Rouge (0.8 uniquement) | 670, 1000 |
 | Zinc Perforée 1.0 | 1000 |
 | Alu RAL 9005 et RAL 7039 (0.7) | 650, 1000 |
@@ -70,6 +72,8 @@ backend/tests/              # tests pytest
 
 Longueur max d'une feuille : 6 m (`MAX_SHEET_LENGTH_M`). L'Optimiseur coupe une pièce plus longue
 en parts égales de 6 m au plus (8 m → 2 × 4 m), sans marge.
+
+Codes article D365 des bobines (AR + 8 chiffres) : `D365_COIL_ARTICLES` dans `core/constants.py`.
 
 Pour les changer : `services/reference_service.py` / `core/constants.py`, puis tests et publication.
 

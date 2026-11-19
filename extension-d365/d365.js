@@ -21,6 +21,8 @@
   const ACTIVATE_POLL_MS = 50;
   const ACTIVATE_TRIES = 40; // 40 x 50 ms : 2 s au plus pour qu'une ligne devienne modifiable
   const ACTIVATE_DELAY_TEXT = '2 s';
+  const SCROLL_PAUSE_MS = 150; // grille virtualisée : temps laissé à D365 pour dessiner les lignes après défilement
+  const MAX_SCROLL_STEPS = 60;
 
   // Les 21 champs du formulaire, dans l'ordre d'écriture
   const FIELDS = [
@@ -193,7 +195,30 @@
     return cell.innerText !== undefined ? cell.innerText : cell.textContent;
   }
 
-  // Lignes de la grille : { row, code (AR00000000 / CHUTE / TEMPS_PROD), qty (champ Quantité ou null) }
+  // Identifiant stable d'une ligne (la grille virtualisée recrée les éléments) :
+  // aria-rowindex, sinon le n° de ligne de la cellule « GridCell-<ligne>-… », sinon le code.
+  function rowKey(row, qty, code) {
+    const idx = row.getAttribute('aria-rowindex');
+    if (idx) return `i${idx}`;
+    const cell = qty && qty.closest('[role="gridcell"]');
+    const m = cell && /^GridCell-(\d+)-/.exec(cell.id || '');
+    if (m) return `c${m[1]}`;
+    return `k${code}`;
+  }
+
+  function headerRowCount(grid) {
+    return [...grid.querySelectorAll('[role="row"]')].filter((r) => r.querySelector('[role="columnheader"]')).length;
+  }
+
+  // Conteneur qui fait défiler la grille : la grille, un élément dedans, ou un parent dans la fenêtre. Sinon null.
+  function scrollBox(grid, dialog) {
+    const scrolls = (n) => n.scrollHeight > n.clientHeight && /(auto|scroll)/.test(getComputedStyle(n).overflowY);
+    for (const n of [grid, ...grid.querySelectorAll('*')]) if (scrolls(n)) return n;
+    for (let n = grid.parentElement; n && n !== dialog && n !== document.body; n = n.parentElement) if (scrolls(n)) return n;
+    return null;
+  }
+
+  // Lignes dessinées maintenant : { row, key, code (AR00000000 / CHUTE / TEMPS_PROD), qty (champ Quantité ou null) }
   function bomRows(grid) {
     const out = [];
     for (const row of grid.querySelectorAll('[role="row"]')) {
@@ -210,9 +235,85 @@
       }
       if (!code) continue;
       if (code !== 'CHUTE' && code !== 'TEMPS_PROD') code = FD.normalizeArCode(code);
-      if (code) out.push({ row, code, qty });
+      if (code) out.push({ row, key: rowKey(row, qty, code), code, qty });
     }
     return out;
+  }
+
+  // Toutes les lignes sont-elles lues ? aria-rowcount (lignes d'en-tête comprises) s'il est donné,
+  // sinon : grille sans défilement.
+  function isComplete(grid, seenCount, headerCount, reachedEnd) {
+    const total = Number(grid.getAttribute('aria-rowcount'));
+    if (Number.isInteger(total) && total > 0) return seenCount + headerCount >= total;
+    return reachedEnd;
+  }
+
+  // Relevé immédiat, sans défilement (aperçu du panneau)
+  function snapshotGrid() {
+    const bom = findBom();
+    if (!bom) return null;
+    const rows = bomRows(bom.grid);
+    const keys = new Map();
+    for (const r of rows) if (!keys.has(r.key)) keys.set(r.key, r.code);
+    const box = scrollBox(bom.grid, bom.dialog);
+    return { codes: [...keys.values()], complete: isComplete(bom.grid, keys.size, headerRowCount(bom.grid), !box), scrolled: false };
+  }
+
+  // Relevé complet : fait défiler la grille du haut en bas pour lire les lignes hors écran,
+  // puis remet le défilement où il était.
+  async function scanGrid() {
+    const bom = findBom();
+    if (!bom) return null;
+    const box = scrollBox(bom.grid, bom.dialog);
+    if (!box) return snapshotGrid();
+    const seen = new Map();
+    let headers = 0;
+    const collect = () => {
+      const b = findBom();
+      if (!b) return;
+      const h = headerRowCount(b.grid);
+      if (h > headers) headers = h;
+      for (const r of bomRows(b.grid)) if (!seen.has(r.key)) seen.set(r.key, r.code);
+    };
+    const start = box.scrollTop;
+    let reachedEnd = false;
+    box.scrollTop = 0;
+    await sleep(SCROLL_PAUSE_MS);
+    collect();
+    for (let i = 0; i < MAX_SCROLL_STEPS; i++) {
+      const before = box.scrollTop;
+      box.scrollTop = before + box.clientHeight;
+      await sleep(SCROLL_PAUSE_MS);
+      collect();
+      if (box.scrollTop === before) {
+        reachedEnd = true;
+        break;
+      }
+    }
+    box.scrollTop = start;
+    await sleep(SCROLL_PAUSE_MS);
+    const now = findBom();
+    return { codes: [...seen.values()], complete: Boolean(now) && isComplete(now.grid, seen.size, headers, reachedEnd), scrolled: true };
+  }
+
+  // Ligne du code, en faisant défiler la grille si elle n'est pas dessinée
+  async function revealRow(code) {
+    let r = currentRow(code);
+    if (r) return r;
+    const bom = findBom();
+    const box = bom && scrollBox(bom.grid, bom.dialog);
+    if (!box) return null;
+    box.scrollTop = 0;
+    await sleep(SCROLL_PAUSE_MS);
+    for (let i = 0; i < MAX_SCROLL_STEPS; i++) {
+      r = currentRow(code);
+      if (r) return r;
+      const before = box.scrollTop;
+      box.scrollTop = before + box.clientHeight;
+      await sleep(SCROLL_PAUSE_MS);
+      if (box.scrollTop === before) break;
+    }
+    return currentRow(code);
   }
 
   // Ligne unique de ce code dans la grille affichée maintenant (D365 redessine les lignes)
@@ -236,7 +337,7 @@
 
   // Active la ligne (clic sur sa cellule Quantité) et attend que son champ Quantité soit modifiable
   async function activateRow(code) {
-    const first = currentRow(code);
+    const first = await revealRow(code);
     if (!first || !first.qty) return { error: `${code} : ligne ou champ Quantité introuvable.` };
     if (isEditable(first.qty)) return { input: first.qty };
     simulateClick(first.qty.closest('[role="gridcell"]') || first.qty);
@@ -248,19 +349,17 @@
     return { error: `${code} : la ligne ne devient pas modifiable (attente ${ACTIVATE_DELAY_TEXT}). Cliquez sur la ligne, puis relancez.` };
   }
 
-  // Quantité vide : rien, ou zéro affiché par D365
+  // Seule une case vide est remplie : toute valeur, même « 0 » ou « 0,00 », est signalée et gardée.
   function isEmptyQuantity(shown) {
-    const t = String(shown || '').trim();
-    if (t === '') return true;
-    const n = parseNumber(t);
-    return Number.isFinite(n) && n === 0;
+    return String(shown || '').trim() === '';
   }
 
   // Ce qui serait fait dans la fenêtre ouverte, sans rien écrire.
+  // grid : relevé { codes, complete, scrolled } (snapshotGrid ou scanGrid).
   // { error } ou { bom, order, group, tasks, problems, ignored }
-  function planCoils() {
+  function planCoils(grid) {
     const bom = findBom();
-    if (!bom) return { error: 'Fenêtre Nomenclature non trouvée.' };
+    if (!bom || !grid) return { error: 'Fenêtre Nomenclature non trouvée.' };
     const d = detectBomOrder(bom.dialog);
     state.detected = d;
     if (d.status === 'AUCUN') return { error: 'Refusé : aucun n° de commande CC… trouvé sur la page derrière la fenêtre.' };
@@ -269,8 +368,8 @@
     if (!order) {
       return { error: `Refusé : la commande ${d.orderNumber} (page derrière la fenêtre) n'est pas dans l'extension. Envoyez-la depuis Façonote.` };
     }
-    const rows = bomRows(bom.grid);
-    const codes = new Set(rows.map((r) => r.code));
+    const rows = grid.codes.map((code) => ({ code }));
+    const codes = new Set(grid.codes);
     const gridArs = [...codes].filter((c) => FD.AR_RE.test(c));
     const candidates = order.groups.filter((g) => g.all_articles.some((a) => codes.has(a)));
     if (!candidates.length) {
@@ -286,11 +385,16 @@
     const group = candidates[0];
     const tasks = [];
     const problems = [];
+    // Grille lue en entier : une ligne manquante est absente. Sinon, on ne peut pas le dire (grille virtualisée).
+    const notSeen = grid.complete
+      ? null
+      : grid.scrolled
+      ? 'non trouvé dans la partie lue de la grille : faites défiler la grille jusqu’en bas, puis relancez.'
+      : 'pas encore visible (grille en partie affichée) : elle sera parcourue au pré-remplissage.';
     const want = (code, label, value, absentText) => {
       const found = rows.filter((r) => r.code === code);
-      if (!found.length) problems.push(absentText);
+      if (!found.length) problems.push(notSeen ? `${label} ${notSeen}` : absentText);
       else if (found.length > 1) problems.push(`${label} : ${found.length} lignes dans la grille, impossible de choisir.`);
-      else if (!found[0].qty) problems.push(`${label} : champ Quantité non trouvé.`);
       else tasks.push({ code, label, value });
     };
     for (const c of group.coils) {
@@ -481,7 +585,7 @@
     updateFab();
     if (!state.open) return;
     // Fenêtre Nomenclature : la commande et la matière sont celles reconnues dans la grille
-    const bomPlan = state.bomMode ? planCoils() : null;
+    const bomPlan = state.bomMode ? planCoils(snapshotGrid()) : null;
     if (bomPlan && !bomPlan.error && !state.userPickedOrder) {
       state.selectedOrder = bomPlan.order.orderNumber;
       state.selectedMaterial = bomPlan.group.material;
@@ -598,10 +702,12 @@
 
     const has = Boolean(currentGroup());
     const cg = currentGroup();
-    const toggleCoils = Boolean(state.bomMode && cg && hasCoilPart(cg));
-    const toggleText = toggleCoils
-      ? cg.coilsDone ? 'Marquer bobines à faire' : 'Marquer bobines faites'
+    // Fenêtre Nomenclature : « Marquer » vise les bobines de la matière reconnue dans la grille
+    const coilTarget = bomPlan && !bomPlan.error && hasCoilPart(bomPlan.group) ? bomPlan.group : null;
+    const toggleText = coilTarget
+      ? coilTarget.coilsDone ? 'Marquer bobines à faire' : 'Marquer bobines faites'
       : cg && cg.done ? 'Marquer à faire' : 'Marquer fait';
+    const toggleOff = state.busy || (!coilTarget && (!has || !cg.has_pieces));
     const buttons = el('div', { class: 'row' }, [
       el('button', {
         class: 'b primary',
@@ -616,8 +722,9 @@
       el('button', {
         class: 'b',
         text: toggleText,
+        title: !coilTarget && cg && !cg.has_pieces ? 'Pas de pièce dans cette matière' : '',
         onclick: onToggleDone,
-        ...(state.busy || !has ? { disabled: '' } : {}),
+        ...(toggleOff ? { disabled: '' } : {}),
       }),
       el('button', { class: 'b', text: 'Lire l’écran', onclick: onReadScreen, ...(state.busy ? { disabled: '' } : {}) }),
       el('button', {
@@ -673,16 +780,19 @@
   }
 
   async function onToggleDone() {
-    const o = currentOrder();
-    const g = currentGroup();
-    if (!o || !g) return;
     try {
-      if (state.bomMode && hasCoilPart(g)) {
-        const coilsDone = !g.coilsDone;
-        await updateGroup(o.orderNumber, g.material, { coilsDone, coilsDoneAt: coilsDone ? new Date().toISOString() : null });
-        setMessage('ok', `${g.material} : bobines marquées ${coilsDone ? 'faites' : 'à faire'}.`);
-        return;
+      if (state.bomMode) {
+        const p = planCoils(snapshotGrid());
+        if (!p.error && hasCoilPart(p.group)) {
+          const coilsDone = !p.group.coilsDone;
+          await updateGroup(p.order.orderNumber, p.group.material, { coilsDone, coilsDoneAt: coilsDone ? new Date().toISOString() : null });
+          setMessage('ok', `${p.group.material} : bobines marquées ${coilsDone ? 'faites' : 'à faire'}.`);
+          return;
+        }
       }
+      const o = currentOrder();
+      const g = currentGroup();
+      if (!o || !g || !g.has_pieces) return;
       const done = !g.done;
       await updateGroup(o.orderNumber, g.material, { done, doneAt: done ? new Date().toISOString() : null });
       setMessage('ok', `${g.material} marquée ${done ? 'faite' : 'à faire'}.`);
@@ -848,7 +958,15 @@
   async function onFillCoils() {
     if (state.busy) return;
     diagnostic = null;
-    const p = planCoils();
+    state.busy = true;
+    setMessage('warn', 'Lecture de la grille (défilement si besoin)… Ne touchez pas à la page.');
+    let p;
+    try {
+      p = planCoils(await scanGrid());
+    } catch (err) {
+      p = { error: errorText(err) };
+    }
+    state.busy = false;
     if (p.error) {
       setMessage('ko', p.error);
       return;
@@ -873,7 +991,8 @@
     setMessage('warn', `Saisie des bobines de ${group.material} en cours… Ne touchez pas à la page.`);
     const signals = [];
     const writtenTasks = [];
-    let already = 0;
+    const alreadyCodes = [];
+    const notWritten = []; // « code (raison) »
     try {
       for (const t of p.tasks) {
         const bom = findBom();
@@ -883,18 +1002,24 @@
         const act = await activateRow(t.code);
         if (act.error) {
           signals.push(act.error);
+          notWritten.push(`${t.code} (ligne non modifiable)`);
           continue;
         }
         const shown = act.input.value;
         if (!isEmptyQuantity(shown)) {
-          if (valueMatches({ kind: 'number' }, shown, t.value)) already++;
-          else signals.push(`${t.label} : lu « ${shown} », Façonote ${FD.formatD365(t.value)}, non écrasé.`);
+          if (valueMatches({ kind: 'number' }, shown, t.value)) {
+            alreadyCodes.push(t.code);
+          } else {
+            signals.push(`${t.label} : lu « ${shown} », Façonote ${FD.formatD365(t.value)}, non écrasé.`);
+            notWritten.push(`${t.code} (valeur déjà présente « ${shown} »)`);
+          }
           continue;
         }
         await writeField(act.input, FD.formatD365(t.value));
         const after = currentRow(t.code);
         if (!after || !after.qty || !valueMatches({ kind: 'number' }, after.qty.value, t.value)) {
           signals.push(`${t.label} : attendu « ${FD.formatD365(t.value)} », lu « ${after && after.qty ? after.qty.value : '—'} » après saisie.`);
+          notWritten.push(`${t.code} (refusé par D365 ou valeur différente)`);
           continue;
         }
         writtenTasks.push(t);
@@ -903,14 +1028,18 @@
       // Relecture finale des lignes écrites
       if (writtenTasks.length) await sleep(VERIFY_DELAY_MS);
       for (const t of writtenTasks) {
-        const r = currentRow(t.code);
+        const r = await revealRow(t.code);
         if (!r || !r.qty || !valueMatches({ kind: 'number' }, r.qty.value, t.value)) {
           signals.push(`${t.label} : attendu « ${FD.formatD365(t.value)} », lu « ${r && r.qty ? r.qty.value : '—'} » à la relecture.`);
         }
       }
 
       const n = writtenTasks.length;
-      const summary = `${n} ligne${n > 1 ? 's' : ''} écrite${n > 1 ? 's' : ''}, ${already} déjà juste${already > 1 ? 's' : ''}.`;
+      const summary =
+        `${n} ligne${n > 1 ? 's' : ''} écrite${n > 1 ? 's' : ''}, ${alreadyCodes.length} déjà juste${alreadyCodes.length > 1 ? 's' : ''}.` +
+        `\nÉcrits : ${writtenTasks.map((t) => t.code).join(', ') || 'aucun'}.` +
+        (alreadyCodes.length ? `\nDéjà justes (pas réécrits) : ${alreadyCodes.join(', ')}.` : '') +
+        (notWritten.length ? `\nNon écrits : ${notWritten.join(', ')}.` : '');
       state.busy = false;
       if (signals.length) {
         state.coilSignals[key] = signals.length;
@@ -923,7 +1052,8 @@
     } catch (err) {
       state.busy = false;
       state.coilSignals[key] = signals.length + 1;
-      setMessage('ko', `${errorText(err)}\nBobines de ${group.material} : « à faire ».${signals.length ? `\n${signals.join('\n')}` : ''}`);
+      const doneCodes = writtenTasks.map((t) => t.code).join(', ') || 'aucun';
+      setMessage('ko', `${errorText(err)}\nBobines de ${group.material} : « à faire ». Écrits avant l’arrêt : ${doneCodes}.${signals.length ? `\n${signals.join('\n')}` : ''}`);
     }
   }
 
@@ -955,6 +1085,7 @@
       state.detected = bom ? detectBomOrder(bom.dialog) : detectOrder();
       if (state.bomMode !== beforeBom) {
         message = null;
+        state.userPickedOrder = false;
         render();
       } else if (state.detected.orderNumber !== before) {
         state.userPickedOrder = false;

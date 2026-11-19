@@ -19,8 +19,11 @@
   const QTY_INPUT_SEL = 'input[aria-label="Quantité"]';
   const CODE_CELL_RE = /^(AR-?\d{1,8}|CHUTE|TEMPS_PROD)$/i;
   const ACTIVATE_POLL_MS = 50;
-  const ACTIVATE_TRIES = 40; // 40 x 50 ms : 2 s au plus pour qu'une ligne devienne modifiable
-  const ACTIVATE_DELAY_TEXT = '2 s';
+  const ACTIVATE_TRIES = 30; // 30 x 50 ms : 1,5 s au plus par méthode pour qu'une ligne devienne modifiable
+  const ACTIVATE_DELAY_TEXT = '1,5 s par méthode';
+  const MAX_KEY_STEPS = 40; // flèches clavier : nombre de pas au plus
+  // Méthodes d'activation d'une ligne, essayées dans cet ordre (la dernière qui a marché passe en premier)
+  const ACTIVATION_METHODS = ['souris sur Quantité', 'souris sur la ligne', 'clavier'];
   const SCROLL_PAUSE_MS = 150; // grille virtualisée : temps laissé à D365 pour dessiner les lignes après défilement
   const MAX_SCROLL_STEPS = 60;
 
@@ -265,7 +268,7 @@
     const bom = findBom();
     if (!bom) return null;
     const box = scrollBox(bom.grid, bom.dialog);
-    if (!box) return snapshotGrid();
+    if (!box) return { ...snapshotGrid(), scrolled: true };
     const seen = new Map();
     let headers = 0;
     const collect = () => {
@@ -324,29 +327,122 @@
     return rows.length === 1 ? rows[0] : null;
   }
 
-  function simulateClick(target) {
-    target.scrollIntoView({ block: 'nearest' });
-    const r = target.getBoundingClientRect();
-    const opts = { bubbles: true, cancelable: true, view: window, clientX: r.left + 4, clientY: r.top + 4, button: 0 };
-    target.dispatchEvent(new PointerEvent('pointerdown', opts));
-    target.dispatchEvent(new MouseEvent('mousedown', opts));
-    target.dispatchEvent(new PointerEvent('pointerup', opts));
-    target.dispatchEvent(new MouseEvent('mouseup', opts));
-    target.dispatchEvent(new MouseEvent('click', opts));
+  // N° de ligne : aria-rowindex, sinon celui de l'id « GridCell-<ligne>-… » de la cellule Quantité
+  function rowIndex(r) {
+    const idx = Number(r.row.getAttribute('aria-rowindex'));
+    if (Number.isInteger(idx) && idx > 0) return idx;
+    const cell = r.qty && r.qty.closest('[role="gridcell"]');
+    const m = cell && /^GridCell-(\d+)-/.exec(cell.id || '');
+    return m ? Number(m[1]) : null;
   }
 
-  // Active la ligne (clic sur sa cellule Quantité) et attend que son champ Quantité soit modifiable
+  // Lignes dont le champ Quantité est modifiable (normalement une seule : la ligne active)
+  function editableRows() {
+    const bom = findBom();
+    return bom ? bomRows(bom.grid).filter((r) => r.qty && isEditable(r.qty)) : [];
+  }
+
+  // La ligne active est la ligne cible, et elle seule
+  function targetIsActive(code) {
+    const act = editableRows();
+    return act.length === 1 && act[0].code === code ? act[0] : null;
+  }
+
+  async function waitActive(code) {
+    for (let i = 0; i < ACTIVATE_TRIES; i++) {
+      await sleep(ACTIVATE_POLL_MS);
+      const r = targetIsActive(code);
+      if (r) return r;
+    }
+    return null;
+  }
+
+  const center = (r) => ({ x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 });
+
+  // Séquence souris complète au centre de l'élément, envoyée à l'élément le plus profond à ce point
+  // (le panneau Façonote est caché le temps de le trouver, pour ne pas être touché lui-même).
+  function mouseSequence(el) {
+    el.scrollIntoView({ block: 'nearest' });
+    const { x, y } = center(el.getBoundingClientRect());
+    const vis = host.style.visibility;
+    host.style.visibility = 'hidden';
+    let target = document.elementFromPoint(x, y);
+    host.style.visibility = vis;
+    if (!target || !el.closest('[role="row"]').contains(target)) target = el;
+    const base = { bubbles: true, cancelable: true, composed: true, view: window, clientX: x, clientY: y, screenX: x, screenY: y };
+    const ptr = { pointerId: 1, pointerType: 'mouse', isPrimary: true };
+    const down = { ...base, button: 0, buttons: 1 };
+    const up = { ...base, button: 0, buttons: 0 };
+    target.dispatchEvent(new PointerEvent('pointerover', { ...base, ...ptr }));
+    target.dispatchEvent(new MouseEvent('mouseover', base));
+    target.dispatchEvent(new PointerEvent('pointerdown', { ...down, ...ptr }));
+    target.dispatchEvent(new MouseEvent('mousedown', down));
+    target.dispatchEvent(new PointerEvent('pointerup', { ...up, ...ptr }));
+    target.dispatchEvent(new MouseEvent('mouseup', up));
+    target.dispatchEvent(new MouseEvent('click', up));
+  }
+
+  function pressKey(el, down) {
+    const k = down ? { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40 } : { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38, which: 38 };
+    const opts = { ...k, bubbles: true, cancelable: true, composed: true, view: window };
+    el.dispatchEvent(new KeyboardEvent('keydown', opts));
+    el.dispatchEvent(new KeyboardEvent('keyup', opts));
+  }
+
+  // Une méthode d'activation ; renvoie la ligne cible devenue active, ou null
+  async function tryActivation(method, code) {
+    const r = await revealRow(code);
+    if (!r || !r.qty) return null;
+    if (method === 'souris sur Quantité') {
+      mouseSequence(r.qty.closest('[role="gridcell"]') || r.qty);
+      return waitActive(code);
+    }
+    if (method === 'souris sur la ligne') {
+      const cell = [...r.row.querySelectorAll('[role="gridcell"]')].find((c) => !c.contains(r.qty));
+      if (!cell) return null;
+      mouseSequence(cell);
+      return waitActive(code);
+    }
+    // Clavier : depuis le champ de la ligne active, flèche bas ou haut, un pas à la fois
+    const target = rowIndex(r);
+    if (target === null) return null;
+    for (let i = 0; i < MAX_KEY_STEPS; i++) {
+      const act = editableRows();
+      if (act.length !== 1) return null;
+      if (act[0].code === code) return act[0];
+      const from = rowIndex(act[0]);
+      if (from === null || from === target) return null;
+      act[0].qty.focus();
+      pressKey(act[0].qty, from < target);
+      let moved = false;
+      for (let j = 0; j < ACTIVATE_TRIES && !moved; j++) {
+        await sleep(ACTIVATE_POLL_MS);
+        const now = editableRows();
+        moved = now.length === 1 && rowIndex(now[0]) !== from;
+      }
+      if (!moved) return null;
+    }
+    return targetIsActive(code);
+  }
+
+  // Active la ligne du code et attend que son champ Quantité, et lui seul, soit modifiable.
+  // { input, method } ou { error }
   async function activateRow(code) {
     const first = await revealRow(code);
     if (!first || !first.qty) return { error: `${code} : ligne ou champ Quantité introuvable.` };
-    if (isEditable(first.qty)) return { input: first.qty };
-    simulateClick(first.qty.closest('[role="gridcell"]') || first.qty);
-    for (let i = 0; i < ACTIVATE_TRIES; i++) {
-      await sleep(ACTIVATE_POLL_MS);
-      const r = currentRow(code);
-      if (r && r.qty && isEditable(r.qty)) return { input: r.qty };
+    const already = targetIsActive(code);
+    if (already) return { input: already.qty, method: 'ligne déjà active' };
+    const order = state.activationMethod
+      ? [state.activationMethod, ...ACTIVATION_METHODS.filter((m) => m !== state.activationMethod)]
+      : ACTIVATION_METHODS;
+    for (const method of order) {
+      const r = await tryActivation(method, code);
+      if (r) {
+        state.activationMethod = method;
+        return { input: r.qty, method };
+      }
     }
-    return { error: `${code} : la ligne ne devient pas modifiable (attente ${ACTIVATE_DELAY_TEXT}). Cliquez sur la ligne, puis relancez.` };
+    return { error: `${code} : la ligne ne devient pas modifiable (souris et clavier essayés, attente ${ACTIVATE_DELAY_TEXT}). Cliquez sur la ligne, puis relancez.` };
   }
 
   // Seule une case vide est remplie : toute valeur, même « 0 » ou « 0,00 », est signalée et gardée.
@@ -472,6 +568,7 @@
     userPickedOrder: false,
     bomMode: false, // fenêtre Nomenclature ouverte
     coilSignals: {}, // « CC|matière » -> nombre de signalements du dernier pré-remplissage des bobines
+    activationMethod: null, // méthode d'activation de ligne qui a marché (essayée en premier ensuite)
   };
 
   const hasCoilPart = (g) => g.coils.length > 0 || g.chute_m > 0;
@@ -709,13 +806,16 @@
       : cg && cg.done ? 'Marquer à faire' : 'Marquer fait';
     const toggleOff = state.busy || (!coilTarget && (!has || !cg.has_pieces));
     const buttons = el('div', { class: 'row' }, [
-      el('button', {
-        class: 'b primary',
-        text: 'Pré-remplir',
-        title: cg && !cg.has_pieces ? 'Pas de pièce dans cette matière' : 'Pré-remplir Matières, Epaisseur et les DEV',
-        onclick: onFill,
-        ...(state.busy || !has || !cg.has_pieces ? { disabled: '' } : {}),
-      }),
+      // Fenêtre Nomenclature : pas de DEV à remplir, le bouton des DEV est masqué
+      state.bomMode
+        ? null
+        : el('button', {
+            class: 'b primary',
+            text: 'Pré-remplir',
+            title: cg && !cg.has_pieces ? 'Pas de pièce dans cette matière' : 'Pré-remplir Matières, Epaisseur et les DEV',
+            onclick: onFill,
+            ...(state.busy || !has || !cg.has_pieces ? { disabled: '' } : {}),
+          }),
       state.bomMode
         ? el('button', { class: 'b primary', text: 'Pré-remplir les bobines', onclick: onFillCoils, ...(state.busy ? { disabled: '' } : {}) })
         : null,
@@ -992,6 +1092,7 @@
     const signals = [];
     const writtenTasks = [];
     const alreadyCodes = [];
+    const methodsUsed = new Set();
     const notWritten = []; // « code (raison) »
     try {
       for (const t of p.tasks) {
@@ -1005,7 +1106,15 @@
           notWritten.push(`${t.code} (ligne non modifiable)`);
           continue;
         }
-        const shown = act.input.value;
+        if (act.method !== 'ligne déjà active') methodsUsed.add(act.method);
+        // Jamais d'écriture ailleurs que sur la ligne cible : elle doit être la seule ligne active
+        const target = targetIsActive(t.code);
+        if (!target) {
+          signals.push(`${t.label} : la ligne active n'est pas ${t.code} au moment d'écrire, rien écrit.`);
+          notWritten.push(`${t.code} (ligne active différente)`);
+          continue;
+        }
+        const shown = target.qty.value;
         if (!isEmptyQuantity(shown)) {
           if (valueMatches({ kind: 'number' }, shown, t.value)) {
             alreadyCodes.push(t.code);
@@ -1015,7 +1124,8 @@
           }
           continue;
         }
-        await writeField(act.input, FD.formatD365(t.value));
+        // Même saisie que les DEV : focus, valeur, input, change, puis blur (la ligne n'est pas laissée en édition)
+        await writeField(target.qty, FD.formatD365(t.value));
         const after = currentRow(t.code);
         if (!after || !after.qty || !valueMatches({ kind: 'number' }, after.qty.value, t.value)) {
           signals.push(`${t.label} : attendu « ${FD.formatD365(t.value)} », lu « ${after && after.qty ? after.qty.value : '—'} » après saisie.`);
@@ -1039,7 +1149,8 @@
         `${n} ligne${n > 1 ? 's' : ''} écrite${n > 1 ? 's' : ''}, ${alreadyCodes.length} déjà juste${alreadyCodes.length > 1 ? 's' : ''}.` +
         `\nÉcrits : ${writtenTasks.map((t) => t.code).join(', ') || 'aucun'}.` +
         (alreadyCodes.length ? `\nDéjà justes (pas réécrits) : ${alreadyCodes.join(', ')}.` : '') +
-        (notWritten.length ? `\nNon écrits : ${notWritten.join(', ')}.` : '');
+        (notWritten.length ? `\nNon écrits : ${notWritten.join(', ')}.` : '') +
+        (methodsUsed.size ? `\nActivation : ${[...methodsUsed].join(', ')}.` : '');
       state.busy = false;
       if (signals.length) {
         state.coilSignals[key] = signals.length;

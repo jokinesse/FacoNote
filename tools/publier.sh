@@ -46,12 +46,13 @@ fi
 # division par un nombre.
 # Exceptions : lignes de commentaire (// … , /* … , * …) ; formatD365 (common.js, format « 12,50 », seul
 # toFixed permis) ; tolérance de relecture Math.abs(n - expected) de valueMatches (d365.js, comparaison) ;
-# dernier élément d'une liste used[used.length - 1] de lastBound (d365.js, index, code de 0.2.2).
+# dernier élément d'une liste used[used.length - 1] de lastBound (d365.js, index, code de 0.2.2) ;
+# centre d'une cellule pour le clic simulé, center() (d365.js, position à l'écran).
 # Permis : comparaisons de bornes (< > <=), compteurs (++), position du clic simulé (r.left + 4).
 EXT_FORBIDDEN='\.reduce\(|Math\.(round|floor|ceil|trunc|pow|sqrt|max|min|hypot)|toFixed\(|parseFloat|\*\*|[-+]=\s*[^'"'"'"`[:space:]]|\b(quantity_m|chute_m|length_m|width_mm|lengths(\[[^]]*\])?)\s*[-+*/%]=?\s*[A-Za-z0-9_(]|[]A-Za-z0-9_)]\s*[-+*/%]=?\s*([A-Za-z_]+\.)*(quantity_m|chute_m|length_m|width_mm|lengths)\b|[]A-Za-z0-9_)]\s+-\s+[A-Za-z0-9_(]|[]A-Za-z0-9_)]\s*[*%]\s*[A-Za-z0-9_(]|[]A-Za-z0-9_)]\s*/\s*[0-9]'
 [ -d extension-d365 ] || { echo "Dossier extension-d365 introuvable : contrôle impossible."; exit 1; }
 EXT_COMMENT='^[^:]+:[0-9]+:\s*(//|/\*|\*)'
-EXT_ALLOWED="^extension-d365/common\.js:[0-9]+:\s*return Number\(n\)\.toFixed\(2\)\.replace\('\.', ','\);$|^extension-d365/d365\.js:[0-9]+:\s*return Number\.isFinite\(n\) && Math\.abs\(n - expected\) < 0\.005;$|^extension-d365/d365\.js:[0-9]+:\s*return used\.length \? used\[used\.length - 1\] : null;$"
+EXT_ALLOWED="^extension-d365/common\.js:[0-9]+:\s*return Number\(n\)\.toFixed\(2\)\.replace\('\.', ','\);$|^extension-d365/d365\.js:[0-9]+:\s*return Number\.isFinite\(n\) && Math\.abs\(n - expected\) < 0\.005;$|^extension-d365/d365\.js:[0-9]+:\s*return used\.length \? used\[used\.length - 1\] : null;$|^extension-d365/d365\.js:[0-9]+:\s*const center = \(r\) => \(\{ x: \(r\.left \+ r\.right\) / 2, y: \(r\.top \+ r\.bottom\) / 2 \}\);$"
 if sudo grep -rnE "$EXT_FORBIDDEN" extension-d365 --include=*.js \
      | grep -vE "$EXT_COMMENT" | grep -vE "$EXT_ALLOWED"; then
   echo "Calcul détecté dans l'extension D365 (lignes ci-dessus) : il doit passer par le backend."; exit 1

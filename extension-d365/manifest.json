@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Façonote → D365",
   "short_name": "Façonote D365",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Reçoit les envois de Façonote et pré-remplit D365 F&O : DEV de la commande et quantités de bobines de la nomenclature.",
   "permissions": ["storage"],
   "content_scripts": [

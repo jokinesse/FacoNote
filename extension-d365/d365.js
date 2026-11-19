@@ -444,9 +444,14 @@
     return { error: 'pas modifiable : cliquez sur la ligne, puis relancez' };
   }
 
-  // Seule une case vide est remplie : toute valeur, même « 0 » ou « 0,00 », est signalée et gardée.
+  // Case vide (D365 n'affiche pas de 0 pour une ligne bobine)
   function isEmptyQuantity(shown) {
     return String(shown || '').trim() === '';
+  }
+
+  // Ligne vidée : case vide ou 0
+  function isCleared(shown) {
+    return isEmptyQuantity(shown) || parseNumber(shown) === 0;
   }
 
   // Ce qui serait fait dans la fenêtre ouverte, sans rien écrire.
@@ -496,8 +501,16 @@
     if (group.chute_m > 0) {
       want('CHUTE', 'Chute', group.chute_m, 'Chute absente : ajoutez-la (+ Nouveau)');
     }
-    const taskCodes = new Set(tasks.map((t) => t.code));
     const wanted = new Set([...group.coils.map((c) => c.article), ...(group.chute_m > 0 ? ['CHUTE'] : [])]);
+    // Remplacement complet : une ligne de cette matière (AR connu ou CHUTE) absente du nouvel envoi est vidée.
+    // Une ligne déjà vide n'est pas touchée (vérifié au moment de la saisie).
+    for (const code of new Set(rows.map((r) => r.code))) {
+      if (wanted.has(code)) continue;
+      if (code !== 'CHUTE' && !group.all_articles.includes(code)) continue;
+      if (rows.filter((r) => r.code === code).length > 1) continue;
+      tasks.push({ code, label: code === 'CHUTE' ? 'Chute' : code, value: null });
+    }
+    const taskCodes = new Set(tasks.map((t) => t.code));
     const ignored = [];
     for (const r of rows) {
       if (taskCodes.has(r.code) || wanted.has(r.code)) continue;
@@ -870,11 +883,19 @@
     } else {
       box.appendChild(el('div', { class: 'head', text: `Bobines · ${p.group.material}` }));
       const table = el('table', {}, [el('tr', {}, [el('th', { text: 'Ligne' }), el('th', { text: 'm' })])]);
-      for (const t of p.tasks) {
+      const fills = p.tasks.filter((t) => t.value !== null);
+      const clears = p.tasks.filter((t) => t.value === null);
+      for (const t of fills) {
         const first = el('td', { title: t.code }, [el('span', { text: t.label }), t.code !== 'CHUTE' ? el('span', { class: 'code', text: t.code }) : null]);
         table.appendChild(el('tr', {}, [first, el('td', { class: 'num', text: FD.formatD365(t.value) })]));
       }
-      if (p.tasks.length) box.appendChild(table);
+      if (fills.length) box.appendChild(table);
+      if (clears.length) {
+        box.appendChild(detailsBox({
+          summary: `${clears.length} autre${clears.length > 1 ? 's' : ''} ligne${clears.length > 1 ? 's' : ''} vidée${clears.length > 1 ? 's' : ''} si remplie${clears.length > 1 ? 's' : ''}`,
+          lines: clears.map((t) => t.code),
+        }));
+      }
       if (!p.tasks.length && !p.problems.length) box.appendChild(el('div', { text: 'Rien à saisir.' }));
       for (const pr of p.problems) box.appendChild(el('div', { class: 'line ko', text: pr.text, title: pr.title }));
       const ig = ignoredDetails(p.ignored);
@@ -997,6 +1018,13 @@
 
     // 2. Les champs à saisir doivent exister, être visibles et modifiables AVANT toute écriture
     const toFill = fieldsToFill(g);
+    // Remplacement complet : un DEV après la dernière borne qui contient encore une valeur est remis à 0
+    for (const f of FIELDS) {
+      if (toFill.includes(f)) continue;
+      const r = inspectField(f);
+      const n = r.el ? parseNumber(r.el.value) : NaN;
+      if (Number.isFinite(n) && n !== 0) toFill.push(f);
+    }
     const problems = [];
     for (const f of toFill) {
       const r = inspectField(f);
@@ -1038,7 +1066,7 @@
           mismatches.push(`${f.label} : lu « ${shown === undefined ? '—' : shown} », attendu « ${f.kind === 'number' ? FD.formatD365(expected) : expected} »`);
         }
       }
-      // DEV après la dernière borne : simple lecture. Une valeur non nulle déjà présente est signalée.
+      // DEV après la dernière borne : relecture (une valeur non nulle a été remise à 0 plus haut)
       for (const f of FIELDS) {
         if (toFill.includes(f)) continue;
         const r = inspectField(f);
@@ -1115,6 +1143,11 @@
         if (!bom) throw new Error('fenêtre fermée pendant la saisie, arrêt');
         const now = detectBomOrder(bom.dialog);
         if (now.orderNumber !== order.orderNumber) throw new Error('CC changé pendant la saisie, arrêt');
+        // Ligne à vider déjà vide : on n'y touche pas (pas d'activation)
+        if (t.value === null) {
+          const pre = await revealRow(t.code);
+          if (pre && pre.qty && isCleared(pre.qty.value)) continue;
+        }
         const act = await activateRow(t.code);
         if (act.error) {
           signals.push({ text: `${t.label} : ${act.error}`, title: t.code });
@@ -1130,13 +1163,22 @@
           continue;
         }
         const shown = target.qty.value;
-        if (!isEmptyQuantity(shown)) {
-          if (valueMatches({ kind: 'number' }, shown, t.value)) {
-            alreadyCodes.push(t.code);
-          } else {
-            signals.push({ text: `${t.label} : déjà ${shown}, pas changé (Façonote ${FD.formatD365(t.value)})`, title: t.code });
-            notWritten.push(`${t.label} ${t.code} (déjà ${shown})`);
+        // Ligne absente du nouvel envoi : vidée (rien à faire si déjà vide ou à 0)
+        if (t.value === null) {
+          if (isCleared(shown)) continue;
+          await writeField(target.qty, '');
+          const afterClear = currentRow(t.code);
+          if (!afterClear || !afterClear.qty || !isCleared(afterClear.qty.value)) {
+            signals.push({ text: `${t.label} : pas vidé (lu ${afterClear && afterClear.qty ? afterClear.qty.value || '—' : '—'})`, title: t.code });
+            notWritten.push(`${t.label} (pas vidé)`);
+            continue;
           }
+          writtenTasks.push(t);
+          continue;
+        }
+        // Remplacement : une valeur différente déjà présente est écrasée par la nouvelle
+        if (!isEmptyQuantity(shown) && valueMatches({ kind: 'number' }, shown, t.value)) {
+          alreadyCodes.push(t.code);
           continue;
         }
         // Même saisie que les DEV : focus, valeur, input, change, puis blur (la ligne n'est pas laissée en édition)
@@ -1154,6 +1196,12 @@
       if (writtenTasks.length) await sleep(VERIFY_DELAY_MS);
       for (const t of writtenTasks) {
         const r = await revealRow(t.code);
+        if (t.value === null) {
+          if (!r || !r.qty || !isCleared(r.qty.value)) {
+            signals.push({ text: `${t.label} : relu ${r && r.qty ? r.qty.value || '—' : '—'} au lieu de vide`, title: t.code });
+          }
+          continue;
+        }
         if (!r || !r.qty || !valueMatches({ kind: 'number' }, r.qty.value, t.value)) {
           signals.push({ text: `${t.label} : relu ${r && r.qty ? r.qty.value || '—' : '—'} au lieu de ${FD.formatD365(t.value)}`, title: t.code });
         }
@@ -1164,7 +1212,7 @@
       const count = `${n} écrite${n > 1 ? 's' : ''}, ${a} déjà juste${a > 1 ? 's' : ''}`;
       // Détail replié : codes écrits / non écrits, méthode d'activation (aussi dans la console)
       const detailLines = [
-        `Écrits : ${writtenTasks.map((t) => `${t.label} ${t.code}`).join(', ') || 'aucun'}`,
+        `Écrits : ${writtenTasks.map((t) => (t.value === null ? `${t.code} (vidé)` : `${t.label} ${t.code}`)).join(', ') || 'aucun'}`,
         ...(a ? [`Déjà justes : ${alreadyCodes.join(', ')}`] : []),
         ...(notWritten.length ? [`Non écrits : ${notWritten.join(', ')}`] : []),
         ...(methodsUsed.size ? [`Activation : ${[...methodsUsed].join(', ')}`] : []),

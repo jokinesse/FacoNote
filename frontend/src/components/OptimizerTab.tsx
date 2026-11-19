@@ -42,7 +42,7 @@ import {
 } from '../api';
 import { CuttingPlan2D } from './CuttingPlan2D';
 import { AppTab, NextStep, StepIntro } from './Header';
-import { AiScanButton, BTN_DANGER, DeleteButton, useDeleteAction } from './ui';
+import { BTN_DANGER, DeleteButton, KpiStrip, useDeleteAction } from './ui';
 
 interface OptimizerTabProps {
   initialPieces?: ShapedPiece[];
@@ -271,7 +271,7 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], 
         setNewMat(cleaned[0].material);
       }
 
-      setActionNotice(`${cleaned.length} pièce(s) transférée(s) avec succès depuis le Calculateur.`);
+      setActionNotice(`${cleaned.length > 1 ? `${cleaned.length} lignes reprises` : "1 ligne reprise"} de la saisie.`);
     }
   }, [initialPieces]);
 
@@ -1112,53 +1112,36 @@ Sois direct, pro et concis en français.`;
       {optimizationResult && (
         <div className="space-y-4">
           {/* L'essentiel en une ligne (valeurs du backend) */}
-          <div className="bg-white border border-slate-200 rounded-xl shadow-xs grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-slate-100">
-            <div className="px-4 py-3">
-              <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">À sortir du stock</div>
-              <div className="mt-0.5 font-mono">
-                <span className="text-xl font-bold text-[#00478a]">{grandTotalSheets}</span>{' '}
-                <span className="text-xs text-slate-500">{grandTotalSheets > 1 ? 'feuilles' : 'feuille'}</span>
-              </div>
-              <div className="text-[11px] font-mono text-slate-500">
-                {grandTotalMeters.toFixed(2)} m · {grandTotalWeight} kg brut
-              </div>
-            </div>
-            <div className="px-4 py-3">
-              <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Rendement matière</div>
-              <div className="mt-0.5 font-mono">
-                <span className="text-xl font-bold text-[#282828]">
-                  {optimizationResult.materialEfficiencyRate.toFixed(1)}
-                </span>{' '}
-                <span className="text-xs text-slate-500">%</span>
-              </div>
-              <div className="text-[11px] font-mono text-slate-500">
-                {optimizationResult.totalNetSurfaceM2.toFixed(2)} m² utiles sur {optimizationResult.totalGrossSurfaceM2.toFixed(2)} m²
-              </div>
-            </div>
-            <div className="px-4 py-3">
-              <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Chutes à ranger (≥ 100 mm)</div>
-              <div className="mt-0.5 font-mono">
-                <span className="text-xl font-bold text-emerald-700">
-                  {optimizationResult.newReusableScrapsCreated.length}
-                </span>{' '}
-                <span className="text-xs text-slate-500">
-                  {optimizationResult.newReusableScrapsCreated.length > 1 ? 'bandes' : 'bande'}
-                </span>
-              </div>
-              <div className="text-[11px] font-mono text-slate-500">
-                {optimizationResult.reusableScrapSurfaceM2.toFixed(2)} m²
-              </div>
-            </div>
-            <div className="px-4 py-3">
-              <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Perte (&lt; 100 mm)</div>
-              <div className="mt-0.5 font-mono">
-                <span className="text-xl font-bold text-slate-600">
-                  {optimizationResult.netLossSurfaceM2.toFixed(2)}
-                </span>{' '}
-                <span className="text-xs text-slate-500">m²</span>
-              </div>
-            </div>
-          </div>
+          <KpiStrip
+            items={[
+              {
+                label: 'À sortir du stock',
+                value: String(grandTotalSheets),
+                unit: grandTotalSheets > 1 ? 'feuilles' : 'feuille',
+                sub: `${grandTotalMeters.toFixed(2)} m · ${grandTotalWeight} kg brut`,
+                tone: 'blue',
+              },
+              {
+                label: 'Rendement matière',
+                value: optimizationResult.materialEfficiencyRate.toFixed(1),
+                unit: '%',
+                sub: `${optimizationResult.totalNetSurfaceM2.toFixed(2)} m² utiles sur ${optimizationResult.totalGrossSurfaceM2.toFixed(2)} m²`,
+              },
+              {
+                label: 'Chutes à ranger (≥ 100 mm)',
+                value: String(optimizationResult.newReusableScrapsCreated.length),
+                unit: optimizationResult.newReusableScrapsCreated.length > 1 ? 'bandes' : 'bande',
+                sub: `${optimizationResult.reusableScrapSurfaceM2.toFixed(2)} m²`,
+                tone: 'green',
+              },
+              {
+                label: 'Perte (< 100 mm)',
+                value: optimizationResult.netLossSurfaceM2.toFixed(2),
+                unit: 'm²',
+                tone: 'muted',
+              },
+            ]}
+          />
 
           {/* Pièces prises dans les chutes de l'atelier */}
           {optimizationResult.appliedWorkshopScraps && optimizationResult.appliedWorkshopScraps.length > 0 && (

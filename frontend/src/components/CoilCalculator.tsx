@@ -20,6 +20,7 @@ import {
   Notice,
   ROW_SHARED,
   SharedBadge,
+  KpiStrip,
   useDeleteAction,
 } from './ui';
 
@@ -393,11 +394,11 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
       {/* Saisie */}
       <div className="faco-card bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold text-[#00478a]">Calcul bobines</span>
-          <span className="text-[11px] text-slate-500">
-            Matière en cours : <span className="font-semibold text-[#282828]">{activeMaterial}</span>
+          <span className="text-sm font-bold text-[#282828]">
+            Bobines en <span className="text-[#00478a]">{activeMaterial}</span>
           </span>
           <div className="flex items-center gap-1 flex-wrap ml-auto">
+            <span className="text-[11px] text-slate-500 mr-1">Largeur rapide :</span>
             {(reference?.materials.find((m) => m.name === activeMaterial)?.coil_widths_mm ??
               summary?.standard_widths ??
               []
@@ -532,39 +533,20 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
         )}
       </div>
 
-      {/* Totaux */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="faco-card bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Métrage Total</span>
-          <div className="mt-0.5 flex items-baseline gap-1">
-            <span className="text-xl font-bold font-mono text-[#00478a] tabular-nums">{totals.length_m.toFixed(2)}</span>
-            <span className="text-xs text-slate-500">m</span>
-          </div>
-        </div>
-        <div className="faco-card bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Feuilles</span>
-          <div className="mt-0.5 flex items-baseline gap-1">
-            <span className="text-xl font-bold font-mono text-[#282828] tabular-nums">{totals.quantity}</span>
-            <span className="text-xs text-slate-500">pcs</span>
-          </div>
-        </div>
-        <div className="faco-card bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Surface & Poids</span>
-          <div className="mt-0.5 flex items-baseline gap-2">
-            <span className="text-xl font-bold font-mono text-[#282828] tabular-nums">
-              {totals.surface_m2.toFixed(2)} <span className="text-xs font-normal text-slate-500">m²</span>
-            </span>
-            <span className="text-xs font-mono font-semibold text-[#3ca7da]">· {totals.weight_kg.toFixed(1)} kg</span>
-          </div>
-        </div>
-        <div className="faco-card bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Chutes (hors totaux)</span>
-          <div className="mt-0.5 flex items-baseline gap-1">
-            <span className="text-xl font-bold font-mono text-[#e7511f] tabular-nums">{totals.chutes_length_m.toFixed(2)}</span>
-            <span className="text-xs text-slate-500">m</span>
-          </div>
-        </div>
-      </div>
+      {/* Chiffres clés (backend) */}
+      <KpiStrip
+        items={[
+          { label: 'Métrage total', value: totals.length_m.toFixed(2), unit: 'm', tone: 'blue' },
+          { label: 'Feuilles', value: String(totals.quantity), unit: 'pcs' },
+          {
+            label: 'Surface et poids',
+            value: totals.surface_m2.toFixed(2),
+            unit: 'm²',
+            sub: `${totals.weight_kg.toFixed(1)} kg`,
+          },
+          { label: 'Chutes (hors totaux)', value: totals.chutes_length_m.toFixed(2), unit: 'm', tone: 'orange' },
+        ]}
+      />
 
       {/* Lignes de la commande : chaque ligne se corrige sur place */}
       <OrderLines
@@ -591,7 +573,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
         <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-[#f8fafc]">
           <div className="flex items-center gap-2">
             <Calculator className="w-4 h-4 text-[#00478a]" />
-            <h2 className="text-xs font-bold text-[#00478a] uppercase tracking-wider">Récapitulatif des bobines</h2>
+            <h2 className="text-sm font-bold text-[#282828]">Récapitulatif des bobines</h2>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button

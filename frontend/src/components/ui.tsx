@@ -275,3 +275,37 @@ export const MaterialFilterButtons: React.FC<{
     })}
   </>
 );
+
+// Chiffres clés sur une seule bande (même rendu dans Saisir et Découper). Valeurs déjà calculées par le backend.
+export interface KpiItem {
+  label: string;
+  value: string;
+  unit?: string;
+  sub?: string;
+  tone?: 'blue' | 'dark' | 'green' | 'orange' | 'muted';
+}
+const KPI_TONE: Record<NonNullable<KpiItem['tone']>, string> = {
+  blue: 'text-[#00478a]',
+  dark: 'text-[#282828]',
+  green: 'text-emerald-700',
+  orange: 'text-[#e7511f]',
+  muted: 'text-slate-600',
+};
+export const KpiStrip: React.FC<{ items: KpiItem[] }> = ({ items }) => (
+  <div
+    className={`bg-white border border-slate-200 rounded-xl shadow-xs grid grid-cols-2 ${
+      items.length >= 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'
+    } divide-x divide-slate-100`}
+  >
+    {items.map((k) => (
+      <div key={k.label} className="px-4 py-3 min-w-0">
+        <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">{k.label}</div>
+        <div className="mt-0.5 font-mono">
+          <span className={`text-xl font-bold ${KPI_TONE[k.tone ?? 'dark']}`}>{k.value}</span>
+          {k.unit && <span className="text-xs text-slate-500"> {k.unit}</span>}
+        </div>
+        {k.sub && <div className="text-[11px] font-mono text-slate-500 truncate">{k.sub}</div>}
+      </div>
+    ))}
+  </div>
+);

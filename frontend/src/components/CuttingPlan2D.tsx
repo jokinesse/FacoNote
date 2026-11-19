@@ -70,8 +70,8 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
       <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
         <div className="flex items-center gap-2">
           <Scissors className="w-4 h-4 text-[#00478a]" />
-          <h3 className="text-xs font-bold text-[#00478a] uppercase tracking-wider">
-            Plan de Coupe 2D ({motherItems.length} tôle{motherItems.length > 1 ? 's' : ''})
+          <h3 className="text-sm font-bold text-[#282828]">
+            Plan de coupe 2D ({motherItems.length} tôle{motherItems.length > 1 ? 's' : ''})
           </h3>
         </div>
 

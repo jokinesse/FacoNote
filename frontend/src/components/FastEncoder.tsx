@@ -55,6 +55,7 @@ import {
   Notice,
   ROW_SHARED,
   SharedBadge,
+  KpiStrip,
   useDeleteAction,
   useNotify,
 } from './ui';
@@ -124,7 +125,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, onTransferToOpti
   // Multi-material & view mode states
   const [selectedMaterialFilter, setSelectedMaterialFilter] = useState<string>('ALL');
   const [tableViewMode, setTableViewMode] = useState<'DEV' | 'BOUNDS'>('BOUNDS');
-  const [hideEmptyBounds, setHideEmptyBounds] = useState<boolean>(false);
+  const [hideEmptyBounds, setHideEmptyBounds] = useState<boolean>(true);
 
   // Refs for smooth Tab/Enter navigation between the 3 boxes
   const devRef = useRef<HTMLInputElement>(null);
@@ -1014,12 +1015,41 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, onTransferToOpti
 
       {/* Compact Input & Controls Card */}
       <div className="faco-card bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-3.5">
-        {/* Top Toolbar: Material + Mode + Unit + Scan */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+        {/* Ce qu'on saisit : pièces ou bobines (choix principal de l'écran) */}
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-semibold text-slate-700">Je saisis</span>
+          <div className="inline-flex rounded-lg border border-slate-300 overflow-hidden" role="group" aria-label="Type de saisie">
+            <button
+              type="button"
+              onClick={() => handlePresetChange('DEV_PIECE')}
+              aria-pressed={!isCoilMode}
+              className={`px-4 py-1.5 text-sm font-semibold transition-colors cursor-pointer ${
+                !isCoilMode ? 'bg-[#00478a] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              des pièces
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePresetChange('DEV_BOBINE')}
+              aria-pressed={isCoilMode}
+              className={`px-4 py-1.5 text-sm font-semibold border-l border-slate-300 transition-colors cursor-pointer ${
+                isCoilMode ? 'bg-[#00478a] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              des bobines
+            </button>
+          </div>
+          <span className="text-xs text-slate-400 hidden md:inline">
+            {isCoilMode ? 'Largeur de bobine, quantité, longueur' : 'Développé, quantité, longueur'}
+          </span>
+        </div>
+
+        {/* Matière et unité */}
+        <div className={`flex flex-wrap items-center justify-between gap-3 ${isCoilMode ? '' : 'pb-3 border-b border-slate-100'}`}>
           <div className="flex items-center gap-2.5 flex-wrap">
             <span className="text-xs font-bold text-[#00478a] flex items-center gap-1.5">
-              <Layers className="w-4 h-4 text-[#3ca7da]" />
-              <span>Matière :</span>
+              <span>Matière</span>
             </span>
 
             {/* Quick access pills for the most common workshop nuances */}
@@ -1127,33 +1157,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, onTransferToOpti
               </button>
             </div>
 
-            {/* Preset switch */}
-            <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
-              <button
-                type="button"
-                onClick={() => handlePresetChange('DEV_PIECE')}
-                className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
-                  preset === 'DEV_PIECE'
-                    ? 'bg-[#00478a] text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-[#282828]'
-                }`}
-              >
-                Pièce
-              </button>
-              <button
-                type="button"
-                onClick={() => handlePresetChange('DEV_BOBINE')}
-                className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
-                  preset === 'DEV_BOBINE'
-                    ? 'bg-[#00478a] text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-[#282828]'
-                }`}
-              >
-                Bobine
-              </button>
-            </div>
 
-            <AiScanButton onClick={() => setIsVisualModalOpen(true)} />
           </div>
         </div>
 
@@ -1305,51 +1309,19 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, onTransferToOpti
         </div>
       )}
 
-      {/* Compact KPI Row */}
-      <div
-        className={`grid grid-cols-2 ${
-          preset === 'DEV_BOBINE' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'
-        } gap-3`}
-      >
-        <div className="faco-card bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-            Métrage Total
-          </span>
-          <div className="mt-0.5 flex items-baseline gap-1">
-            <span className="text-xl font-bold font-mono text-[#00478a] tabular-nums">
-              {totalLengthM.toFixed(2)}
-            </span>
-            <span className="text-xs text-slate-500">m</span>
-          </div>
-        </div>
-
-        <div className="faco-card bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-            Pièces
-          </span>
-          <div className="mt-0.5 flex items-baseline gap-1">
-            <span className="text-xl font-bold font-mono text-[#282828] tabular-nums">
-              {totalCount}
-            </span>
-            <span className="text-xs text-slate-500">pcs</span>
-          </div>
-        </div>
-
-        <div className="faco-card bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs col-span-2 lg:col-span-1">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-            Surface & Poids
-          </span>
-          <div className="mt-0.5 flex items-baseline gap-2">
-            <span className="text-xl font-bold font-mono text-[#282828] tabular-nums">
-              {totalSurfaceM2.toFixed(2)} <span className="text-xs font-normal text-slate-500">m²</span>
-            </span>
-            <span className="text-xs font-mono font-semibold text-[#3ca7da]">
-              · {Math.round(totalWeightEstKg * 10) / 10} kg
-            </span>
-          </div>
-        </div>
-
-      </div>
+      {/* Chiffres clés (backend) */}
+      <KpiStrip
+        items={[
+          { label: 'Métrage total', value: totalLengthM.toFixed(2), unit: 'm', tone: 'blue' },
+          { label: 'Pièces', value: String(totalCount), unit: 'pcs' },
+          {
+            label: 'Surface et poids',
+            value: totalSurfaceM2.toFixed(2),
+            unit: 'm²',
+            sub: `${totalWeightEstKg.toFixed(1)} kg`,
+          },
+        ]}
+      />
 
       {/* Lignes de la commande : chaque ligne se corrige sur place */}
       {!isCoilMode && (
@@ -1378,7 +1350,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, onTransferToOpti
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2">
               <Calculator className="w-4 h-4 text-[#00478a]" />
-              <h2 className="text-xs font-bold text-[#00478a] uppercase tracking-wider">
+              <h2 className="text-sm font-bold text-[#282828]">
                 Récapitulatif par borne
               </h2>
             </div>
@@ -1844,7 +1816,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, onTransferToOpti
                 </td>
                 <td className="py-2.5 px-4 text-right font-mono tabular-nums text-slate-500">100%</td>
                 <td className="py-2.5 px-4 text-right font-mono tabular-nums text-[#00478a]">
-                  {Math.round(totalWeightEstKg * 10) / 10} kg
+                  {totalWeightEstKg.toFixed(1)} kg
                 </td>
                 <td className="py-2.5 px-4 w-12"></td>
               </tr>

@@ -29,6 +29,8 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
   const [history, setHistory] = useState<{ expr: string; res: number }[]>([]);
   const [copied, setCopied] = useState<boolean>(false);
   const [isFocused, setIsFocused] = useState<boolean>(false);
+  // Repliée par défaut : ouverte seulement quand on en a besoin
+  const [isOpen, setIsOpen] = useState<boolean>(false);
   const [activeFlashedKey, setActiveFlashedKey] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -84,7 +86,10 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Calculatrice repliée : aucun raccourci. Un bouton ou un lien garde sa touche Entrée.
+      if (!isOpen) return;
       const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'BUTTON' || activeEl.tagName === 'A')) return;
       const isAnotherInput =
         activeEl &&
         (activeEl.tagName === 'INPUT' ||
@@ -123,7 +128,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [appendToken, handleBackspace, handleClear, handleCommitCalculation, flashKey]);
+  }, [isOpen, appendToken, handleBackspace, handleClear, handleCommitCalculation, flashKey]);
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === '=') {
@@ -186,24 +191,29 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
     <div
       ref={containerRef}
       tabIndex={0}
-      onClick={() => inputRef.current?.focus()}
+      onClick={() => isOpen && inputRef.current?.focus()}
       className={`faco-card bg-white border rounded-xl p-4 shadow-2xs transition-all outline-none ${
         isFocused ? 'border-[#3ca7da] ring-1 ring-[#3ca7da]/30' : 'border-slate-200'
       }`}
     >
-      <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
-        <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen((o) => !o);
+        }}
+        aria-expanded={isOpen}
+        className={`w-full flex items-center justify-between gap-3 cursor-pointer ${isOpen ? 'pb-3 border-b border-slate-100' : ''}`}
+      >
+        <span className="flex items-center gap-2">
           <CalcIcon className="w-4 h-4 text-[#00478a]" />
-          <h3 className="text-xs font-bold text-[#00478a] uppercase tracking-wider">
-            Calculatrice de Cotes
-          </h3>
-        </div>
-        <span className="text-[11px] text-slate-400">
-          Pavé numérique actif
+          <span className="text-sm font-bold text-[#282828]">Calculatrice de cotes</span>
+          <span className="text-xs text-slate-400 font-normal hidden sm:inline">pour additionner des cotes (ex. 15+120+35)</span>
         </span>
-      </div>
+        <span className="text-xs text-[#00478a] font-semibold">{isOpen ? 'Replier' : 'Ouvrir'}</span>
+      </button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mt-3 items-start">
+      <div className={`${isOpen ? 'grid' : 'hidden'} grid-cols-1 lg:grid-cols-12 gap-4 mt-3 items-start`}>
         {/* Left: Screen & Keypad */}
         <div className="lg:col-span-7 space-y-2.5">
           <div

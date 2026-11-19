@@ -117,8 +117,8 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
   return (
     <div className="faco-card bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-[#00478a] flex items-center gap-1.5">
-          <ListOrdered className="w-3.5 h-3.5 text-[#3ca7da]" />
+        <h3 className="text-sm font-bold text-[#282828] flex items-center gap-2">
+          <ListOrdered className="w-4 h-4 text-[#00478a]" />
           <span>
             {title} ({lines.length})
           </span>

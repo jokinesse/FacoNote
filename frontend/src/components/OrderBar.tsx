@@ -85,7 +85,7 @@ export const OrderBar: React.FC<OrderBarProps> = ({
   ].filter(Boolean);
 
   return (
-    <div className="no-print sticky top-[var(--faco-header-h,61px)] z-20 faco-card bg-white border border-slate-200 rounded-xl shadow-xs">
+    <div className="no-print sticky top-[var(--faco-header-h,57px)] z-20 faco-card bg-white border border-slate-200 rounded-xl shadow-xs">
       <div className="px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* Commande : n° et contenu */}
         <div className="flex items-center gap-2.5 min-w-0">
@@ -164,16 +164,6 @@ export const OrderBar: React.FC<OrderBarProps> = ({
           >
             <Printer className="w-3.5 h-3.5" />
             <span>{isPrinting ? 'Préparation…' : 'PDF / Imprimer'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={onOptimize}
-            disabled={pieceLines === 0}
-            className={BTN_SECONDARY}
-            title="Ouvrir les pièces dans l'onglet Optimisation & Coupe"
-          >
-            <span>Optimiser le débit</span>
-            <ArrowRight className="w-3.5 h-3.5" />
           </button>
 
           {/* Action principale */}

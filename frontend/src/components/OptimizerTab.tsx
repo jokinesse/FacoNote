@@ -41,13 +41,15 @@ import {
   SheetsCumulMaterial,
 } from '../api';
 import { CuttingPlan2D } from './CuttingPlan2D';
+import { AppTab, NextStep, StepIntro } from './Header';
 import { AiScanButton, BTN_DANGER, DeleteButton, useDeleteAction } from './ui';
 
 interface OptimizerTabProps {
   initialPieces?: ShapedPiece[];
+  onStep?: (tab: AppTab) => void;
 }
 
-export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }) => {
+export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], onStep }) => {
   // Visual Pre-Encoder Modal State
   const [isVisualModalOpen, setIsVisualModalOpen] = useState<boolean>(false);
 
@@ -736,11 +738,15 @@ Sois direct, pro et concis en français.`;
         </div>
       )}
 
+      <StepIntro
+        step={2}
+        title="Découper"
+        hint="Les feuilles à sortir du stock et le plan de coupe sont calculés automatiquement. Étape facultative."
+      />
+
       {/* 1. Réglages : largeurs de bobine, réemploi des chutes, impression */}
       <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-xs flex flex-wrap items-center gap-x-6 gap-y-3">
         <div className="flex items-center gap-2">
-          <Scissors className="w-4 h-4 text-[#00478a]" />
-          <h2 className="text-sm font-bold text-[#282828]">Optimisation &amp; Coupe</h2>
           {isCalculating && (
             <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
               <RefreshCw className="w-3 h-3 animate-spin text-[#00478a]" />
@@ -1395,6 +1401,21 @@ Sois direct, pro et concis en français.`;
         targetMode="optimizer"
         currentDefaultMaterial={selectedMaterial}
       />
+      {onStep && (
+        <NextStep
+          label="Suivant : envoyer vers D365"
+          onClick={() => onStep('send')}
+          secondary={
+            <button
+              type="button"
+              onClick={() => onStep('calculator')}
+              className="text-sm text-slate-600 hover:text-[#00478a] cursor-pointer"
+            >
+              ← Revenir à la saisie
+            </button>
+          }
+        />
+      )}
     </div>
   );
 };

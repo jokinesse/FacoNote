@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { OrderSnapshot, useOrderHistory } from '../utils/useOrderHistory';
 import { OrderLines, OrderLineDraft } from './OrderLines';
+import { SendStep } from './SendStep';
+import { AppTab, NextStep, StepIntro } from './Header';
 import type { D365OrderResponse } from '../api';
 import {
   Calculator,
@@ -58,10 +60,13 @@ import {
 } from './ui';
 
 interface FastEncoderProps {
+  view: 'input' | 'send';
   onTransferToOptimizer: (pieces: ShapedPiece[]) => void;
+  onStep: (tab: AppTab, direct?: boolean) => void;
+  registerGoToCut: (fn: () => void) => void;
 }
 
-export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer }) => {
+export const FastEncoder: React.FC<FastEncoderProps> = ({ view, onTransferToOptimizer, onStep, registerGoToCut }) => {
   const [preset, setPreset] = useState<SheetPreset>('DEV_PIECE');
   // Feuille en cours sauvegardée dans le navigateur (survit à F5), effacée par « Vider »
   const [savedSheet] = useState(() => loadSavedOrder());
@@ -79,6 +84,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
   const [isSendingToExt, setIsSendingToExt] = useState<boolean>(false);
   const [extStatus, setExtStatus] = useState<{ kind: 'success' | 'error' | 'warning'; message: string } | null>(null);
   const orderInputRef = useRef<HTMLInputElement>(null);
+  const sendOrderInputRef = useRef<HTMLInputElement>(null);
   const [coilSendCounts, setCoilSendCounts] = useState<{ coils: number; chutes: number }>({ coils: 0, chutes: 0 });
   const notify = useNotify();
   const [isCustomMaterial, setIsCustomMaterial] = useState<boolean>(false);
@@ -318,7 +324,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
         setLastFeedback({
           success: true,
-          message: `⚡ Métrage de ${totalMeters}m auto-calepiné (${breakdownResp.executionTimeMs}ms) : ${breakdown.quantity} pièces de ${breakdown.length}m (${breakdown.reason})`,
+          message: `⚡ Métrage de ${totalMeters}m découpé automatiquement : ${breakdown.quantity} pièces de ${breakdown.length}m (${breakdown.reason})`,
           executionTimeMs: breakdownResp.executionTimeMs,
         });
 
@@ -347,7 +353,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
       setLastFeedback({
         success: true,
-        message: `Saisie validée (${apiResult.executionTimeMs}ms) : Dév ${entry.dev}mm (${entry.quantity} pcs × ${entry.unit_length_m}m = ${entry.total_length_m}m) [${entry.material}] → Borne ≤ ${entry.matched_bound}mm · ${entry.surface_net_m2} m² · ${entry.weight_net_kg} kg`,
+        message: `Ajouté : Dév ${entry.dev} mm · ${entry.quantity} × ${entry.unit_length_m} m = ${entry.total_length_m} m [${entry.material}] → borne ${entry.matched_bound} mm · ${entry.weight_net_kg} kg`,
         boundMatched: entry.matched_bound,
         executionTimeMs: apiResult.executionTimeMs,
       });
@@ -513,7 +519,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
   // Envoi vers l'extension : la commande est assemblée par le backend (groupes, version, erreurs)
   const handleSendToExtension = async () => {
-    const focusOrder = () => orderInputRef.current?.focus();
+    const focusOrder = () => (view === 'send' ? sendOrderInputRef : orderInputRef).current?.focus();
     const order = orderNumber.trim();
     if (!D365_ORDER_RE.test(order)) {
       setExtStatus({ kind: 'error', message: 'N° de commande D365 invalide : CC suivi de 11 chiffres (ex. CC26000236736).' });
@@ -684,6 +690,20 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
     onTransferToOptimizer(activePieces);
   };
+  // Étape 2 : les pièces partent vers la découpe seulement si elles ont changé depuis le dernier passage
+  // (sinon les choix faits dans la découpe, comme les chutes, sont gardés)
+  const lastTransferredRef = useRef<EncodedEntry[] | null>(null);
+  const goToCut = () => {
+    const hasPieces = entriesHistory.some((e) => !e.isChute && e.dev > 0);
+    if (!hasPieces || lastTransferredRef.current === entriesHistory) {
+      onStep('optimizer', true);
+      return;
+    }
+    lastTransferredRef.current = entriesHistory;
+    handleTransfer();
+  };
+  registerGoToCut(goToCut);
+
 
   // Tableau recalculé par le backend (pieces-summary) à chaque changement des saisies.
   // On ignore les réponses d'une requête dépassée par une plus récente.
@@ -941,6 +961,30 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
 
   return (
     <div ref={rootRef} className="space-y-4">
+      {view === 'send' && (
+        <SendStep
+          orderNumber={orderNumber}
+          onOrderChange={setOrderNumber}
+          inputRef={sendOrderInputRef}
+          pieceLines={entriesHistory.length}
+          coilLines={coilEntries.length}
+          coilCount={coilEntries.length === 0 ? 0 : coilSendCounts.coils}
+          chuteCount={coilEntries.length === 0 ? 0 : coilSendCounts.chutes}
+          isSending={isSendingToExt}
+          onSend={handleSendToExtension}
+          onBack={() => onStep('calculator')}
+        >
+          {extStatus && (
+            <Notice kind={extStatus.kind} message={extStatus.message} onClose={() => setExtStatus(null)} />
+          )}
+        </SendStep>
+      )}
+      <div className={view === 'send' ? 'hidden' : 'space-y-4'}>
+      <StepIntro
+        step={1}
+        title="Saisir la commande"
+        hint="Encodez les pièces et les bobines. Cliquez sur une ligne pour la corriger."
+      />
       <OrderBar
         orderNumber={orderNumber}
         onOrderChange={setOrderNumber}
@@ -951,7 +995,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
         chuteCount={coilEntries.length === 0 ? 0 : coilSendCounts.chutes}
         isSending={isSendingToExt}
         onSend={handleSendToExtension}
-        onOptimize={handleTransfer}
+        onOptimize={goToCut}
         onPrint={handlePrintBounds}
         isPrinting={isPrinting}
         onClearPieces={handleClearPieces}
@@ -1335,7 +1379,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
             <div className="flex items-center gap-2">
               <Calculator className="w-4 h-4 text-[#00478a]" />
               <h2 className="text-xs font-bold text-[#00478a] uppercase tracking-wider">
-                Tableau de Calcul & Débits
+                Récapitulatif par borne
               </h2>
             </div>
 
@@ -1351,7 +1395,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                 }`}
                 title="Afficher par développement réel saisi (ex: 150 mm Alu, 150 mm Zinc...)"
               >
-                Vue Dév & Pièces
+                Par développé
               </button>
               <button
                 type="button"
@@ -1363,7 +1407,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
                 }`}
                 title="Afficher selon les bornes standards d'atelier (100, 125, 166...)"
               >
-                Grille Bornes Atelier
+                Par borne
               </button>
             </div>
           </div>
@@ -1838,6 +1882,23 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
         currentDefaultMaterial={activeMaterial}
       />
 
+      <NextStep
+        label="Suivant : découper"
+        onClick={goToCut}
+        secondary={
+          <button
+            type="button"
+            onClick={() => {
+              onStep('send');
+            }}
+            className="text-sm text-slate-600 hover:text-[#00478a] cursor-pointer"
+            title="La découpe est facultative"
+          >
+            Passer directement à l'envoi
+          </button>
+        }
+      />
+      </div>
     </div>
   );
 };

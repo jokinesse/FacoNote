@@ -194,8 +194,8 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
       setFeedback({
         success: true,
         message: d.is_chute
-          ? `Chute notée (${res.executionTimeMs}ms) : ${d.quantity} × ${fmt(d.unit_length_m, 3)} m = ${fmt(d.total_length_m, 3)} m [${d.material}]`
-          : `Ajouté (${res.executionTimeMs}ms) : bobine ${d.width} mm · ${d.quantity} × ${fmt(d.unit_length_m, 3)} m = ${fmt(d.total_length_m, 3)} m [${d.material}]` +
+          ? `Chute notée : ${d.quantity} × ${fmt(d.unit_length_m, 3)} m = ${fmt(d.total_length_m, 3)} m [${d.material}]`
+          : `Ajouté : bobine ${d.width} mm · ${d.quantity} × ${fmt(d.unit_length_m, 3)} m = ${fmt(d.total_length_m, 3)} m [${d.material}]` +
             (d.is_standard ? '' : ' — largeur hors standard'),
       });
 
@@ -591,7 +591,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
         <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-[#f8fafc]">
           <div className="flex items-center gap-2">
             <Calculator className="w-4 h-4 text-[#00478a]" />
-            <h2 className="text-xs font-bold text-[#00478a] uppercase tracking-wider">Tableau des Bobines & Feuilles Sorties</h2>
+            <h2 className="text-xs font-bold text-[#00478a] uppercase tracking-wider">Récapitulatif des bobines</h2>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button

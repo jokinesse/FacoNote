@@ -1,5 +1,5 @@
 import { IS_PREVIEW } from './utils/preview';
-import React, { Suspense, useCallback, useEffect, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Header, AppTab } from './components/Header';
 import { FastEncoder } from './components/FastEncoder';
 import { OptimizerTab } from './components/OptimizerTab';
@@ -116,6 +116,17 @@ export default function App() {
     setActiveTab('optimizer');
   };
 
+  // Étape 2 depuis l'en-tête : le Calculateur envoie d'abord ses pièces (si elles ont changé)
+  const goToCutRef = useRef<(() => void) | null>(null);
+  const handleStep = (tab: AppTab, direct = false) => {
+    if (!direct && tab === 'optimizer' && activeTab !== 'optimizer' && goToCutRef.current) {
+      goToCutRef.current();
+      return;
+    }
+    setActiveTab(tab);
+    window.scrollTo({ top: 0 });
+  };
+
   if (isMobileMode) {
     const urlParams = new URLSearchParams(window.location.search);
     const initialSession = urlParams.get('session') || '';
@@ -139,18 +150,25 @@ export default function App() {
       )}
       <Header
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        onStep={handleStep}
         isAdminUnlocked={Boolean(adminToken)}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
         {/* Persistent tab views: preserving state when switching between pages */}
-        <div className={activeTab === 'calculator' ? 'block' : 'hidden'}>
-          <FastEncoder onTransferToOptimizer={handleTransferToOptimizer} />
+        <div className={activeTab === 'calculator' || activeTab === 'send' ? 'block' : 'hidden'}>
+          <FastEncoder
+            view={activeTab === 'send' ? 'send' : 'input'}
+            onTransferToOptimizer={handleTransferToOptimizer}
+            onStep={handleStep}
+            registerGoToCut={(fn) => {
+              goToCutRef.current = fn;
+            }}
+          />
         </div>
 
         <div className={activeTab === 'optimizer' ? 'block' : 'hidden'}>
-          <OptimizerTab initialPieces={transferredPieces} />
+          <OptimizerTab initialPieces={transferredPieces} onStep={handleStep} />
         </div>
 
         {adminToken && (

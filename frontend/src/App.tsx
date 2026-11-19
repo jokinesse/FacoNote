@@ -1,3 +1,4 @@
+import { IS_PREVIEW } from './utils/preview';
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { Header, AppTab } from './components/Header';
 import { FastEncoder } from './components/FastEncoder';
@@ -131,6 +132,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f3f4f6] text-[#282828] flex flex-col font-sans">
+      {IS_PREVIEW && (
+        <div className="bg-[#e7511f] text-white text-xs font-semibold text-center px-4 py-1.5">
+          Préversion de la nouvelle interface : pour essayer seulement. L'envoi vers D365 est désactivé.
+        </div>
+      )}
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}

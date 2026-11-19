@@ -1,3 +1,4 @@
+import { storageKey } from '../utils/preview';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
@@ -36,7 +37,7 @@ import {
 // Constantes & helpers
 // ---------------------------------------------------------------------------
 
-const HISTORY_KEY = 'faconote.stresslab.history';
+const HISTORY_KEY = storageKey('faconote.stresslab.history');
 
 /**
  * Calcule dynamiquement l'URL directe du backend FastAPI sur le port 8000

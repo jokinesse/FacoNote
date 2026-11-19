@@ -1,4 +1,5 @@
 // Liaison avec l'extension navigateur « Façonote → D365 » (postMessage dans la page).
+import { IS_PREVIEW, PREVIEW_SEND_DISABLED, storageKey } from './preview';
 // L'extension range la commande dans le navigateur, puis pré-remplit D365 matière par matière.
 // Les groupes envoyés sont rendus tels quels par le backend (route d365-order) : aucun calcul ici.
 import { CoilEntry, EncodedEntry } from '../types';
@@ -21,6 +22,7 @@ export function postToExtension(
   version = 1,
   timeoutMs = 3000
 ): Promise<ExtensionReply> {
+  if (IS_PREVIEW) return Promise.reject(new Error(PREVIEW_SEND_DISABLED));
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const origin = window.location.origin;
   return new Promise((resolve, reject) => {
@@ -47,8 +49,8 @@ export function postToExtension(
 
 // --- Sauvegarde de la commande en cours (survit à F5), effacée par « Vider la commande » ---
 
-const ORDER_STORAGE_KEY = 'faconote_commande_v2';
-const LEGACY_SHEET_KEY = 'faconote_feuille_dev_piece_v1';
+const ORDER_STORAGE_KEY = storageKey('faconote_commande_v2');
+const LEGACY_SHEET_KEY = storageKey('faconote_feuille_dev_piece_v1');
 
 export interface SavedOrder {
   orderNumber: string;

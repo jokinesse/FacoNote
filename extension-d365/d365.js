@@ -20,7 +20,6 @@
   const CODE_CELL_RE = /^(AR-?\d{1,8}|CHUTE|TEMPS_PROD)$/i;
   const ACTIVATE_POLL_MS = 50;
   const ACTIVATE_TRIES = 30; // 30 x 50 ms : 1,5 s au plus par méthode pour qu'une ligne devienne modifiable
-  const ACTIVATE_DELAY_TEXT = '1,5 s par méthode';
   const MAX_KEY_STEPS = 40; // flèches clavier : nombre de pas au plus
   // Méthodes d'activation d'une ligne, essayées dans cet ordre (la dernière qui a marché passe en premier)
   const ACTIVATION_METHODS = ['souris sur Quantité', 'souris sur la ligne', 'clavier'];
@@ -429,7 +428,7 @@
   // { input, method } ou { error }
   async function activateRow(code) {
     const first = await revealRow(code);
-    if (!first || !first.qty) return { error: `${code} : ligne ou champ Quantité introuvable.` };
+    if (!first || !first.qty) return { error: 'ligne introuvable' };
     const already = targetIsActive(code);
     if (already) return { input: already.qty, method: 'ligne déjà active' };
     const order = state.activationMethod
@@ -442,7 +441,7 @@
         return { input: r.qty, method };
       }
     }
-    return { error: `${code} : la ligne ne devient pas modifiable (souris et clavier essayés, attente ${ACTIVATE_DELAY_TEXT}). Cliquez sur la ligne, puis relancez.` };
+    return { error: 'pas modifiable : cliquez sur la ligne, puis relancez' };
   }
 
   // Seule une case vide est remplie : toute valeur, même « 0 » ou « 0,00 », est signalée et gardée.
@@ -458,25 +457,21 @@
     if (!bom || !grid) return { error: 'Fenêtre Nomenclature non trouvée.' };
     const d = detectBomOrder(bom.dialog);
     state.detected = d;
-    if (d.status === 'AUCUN') return { error: 'Refusé : aucun n° de commande CC… trouvé sur la page derrière la fenêtre.' };
-    if (d.status === 'AMBIGU') return { error: `Refusé : plusieurs n° de commande derrière la fenêtre (${d.all.join(', ')}).` };
+    if (d.status === 'AUCUN') return { error: 'Aucun n° CC derrière la fenêtre.' };
+    if (d.status === 'AMBIGU') return { error: `Plusieurs n° CC : ${d.all.join(', ')}.` };
     const order = state.orders[d.orderNumber];
     if (!order) {
-      return { error: `Refusé : la commande ${d.orderNumber} (page derrière la fenêtre) n'est pas dans l'extension. Envoyez-la depuis Façonote.` };
+      return { error: `${d.orderNumber} absente de l'extension : envoyez-la depuis Façonote.` };
     }
     const rows = grid.codes.map((code) => ({ code }));
     const codes = new Set(grid.codes);
     const gridArs = [...codes].filter((c) => FD.AR_RE.test(c));
     const candidates = order.groups.filter((g) => g.all_articles.some((a) => codes.has(a)));
     if (!candidates.length) {
-      return {
-        error: `Matière inconnue : les AR de la grille (${gridArs.join(', ') || 'aucun'}) ne sont pas dans la commande ${order.orderNumber}. Rien n'a été écrit.`,
-      };
+      return { error: `Matière inconnue pour ${order.orderNumber}.`, errorDetail: { summary: 'AR de la grille', lines: gridArs.length ? gridArs : ['aucun'] } };
     }
     if (candidates.length > 1) {
-      return {
-        error: `Plusieurs matières possibles pour cette grille : ${candidates.map((g) => g.material).join(', ')}. Rien n'a été écrit.`,
-      };
+      return { error: `Plusieurs matières possibles : ${candidates.map((g) => g.material).join(', ')}.` };
     }
     const group = candidates[0];
     const tasks = [];
@@ -485,20 +480,21 @@
     const notSeen = grid.complete
       ? null
       : grid.scrolled
-      ? 'non trouvé dans la partie lue de la grille : faites défiler la grille jusqu’en bas, puis relancez.'
-      : 'pas encore visible (grille en partie affichée) : elle sera parcourue au pré-remplissage.';
+      ? 'non trouvé : faites défiler la grille, puis relancez'
+      : 'hors écran, lu au pré-remplissage';
+    // label : largeur (ou « Chute ») ; le code article reste au survol (title) ou en petit
     const want = (code, label, value, absentText) => {
       const found = rows.filter((r) => r.code === code);
-      if (!found.length) problems.push(notSeen ? `${label} ${notSeen}` : absentText);
-      else if (found.length > 1) problems.push(`${label} : ${found.length} lignes dans la grille, impossible de choisir.`);
+      if (!found.length) problems.push({ text: notSeen ? `${label} ${notSeen}` : absentText, title: code });
+      else if (found.length > 1) problems.push({ text: `${label} : ${found.length} lignes, impossible de choisir`, title: code });
       else tasks.push({ code, label, value });
     };
     for (const c of group.coils) {
-      const label = `${c.article} (bobine ${c.width_mm} mm, ${group.material})`;
-      want(c.article, label, c.quantity_m, `${label} absent : ajoutez-le avec + Nouveau, puis relancez.`);
+      const label = `${c.width_mm} mm`;
+      want(c.article, label, c.quantity_m, `${label} absent : ajoutez-le (+ Nouveau)`);
     }
     if (group.chute_m > 0) {
-      want('CHUTE', 'CHUTE', group.chute_m, `CHUTE absente alors que Façonote a ${FD.formatD365(group.chute_m)} m de chute : ajoutez-la avec + Nouveau, puis relancez.`);
+      want('CHUTE', 'Chute', group.chute_m, 'Chute absente : ajoutez-la (+ Nouveau)');
     }
     const taskCodes = new Set(tasks.map((t) => t.code));
     const wanted = new Set([...group.coils.map((c) => c.article), ...(group.chute_m > 0 ? ['CHUTE'] : [])]);
@@ -506,9 +502,9 @@
     for (const r of rows) {
       if (taskCodes.has(r.code) || wanted.has(r.code)) continue;
       if (r.code === 'TEMPS_PROD') ignored.push('TEMPS_PROD');
-      else if (r.code === 'CHUTE') ignored.push('CHUTE (pas de chute dans Façonote)');
-      else if (group.all_articles.includes(r.code)) ignored.push(`${r.code} (pas de bobine de cette largeur dans la commande)`);
-      else ignored.push(`${r.code} (inconnu de Façonote)`);
+      else if (r.code === 'CHUTE') ignored.push('CHUTE (pas de chute)');
+      else if (group.all_articles.includes(r.code)) ignored.push(`${r.code} (pas commandé)`);
+      else ignored.push(`${r.code} (inconnu)`);
     }
     return { bom, order, group, tasks, problems, ignored };
   }
@@ -610,8 +606,14 @@
     table { border-collapse: collapse; width: 100%; margin-top: 4px; }
     td, th { border-bottom: 1px solid #eee; padding: 2px 4px; text-align: left; }
     td.num { text-align: right; font-family: Consolas, monospace; }
-    .msg { margin-top: 8px; padding: 6px; border-radius: 4px; white-space: pre-wrap; }
+    .msg { margin-top: 8px; padding: 6px; border-radius: 4px; }
     .msg.ok { background: #e8f5e9; } .msg.ko { background: #ffebee; } .msg.warn { background: #fff8e1; }
+    .small { font-size: 11px; color: #666; }
+    .code { font-size: 10px; color: #888; font-family: Consolas, monospace; margin-left: 4px; }
+    .msg .head { font-weight: 700; }
+    .msg .line { margin-top: 2px; }
+    details { margin-top: 4px; } summary { cursor: pointer; color: #666; font-size: 11px; }
+    details div { font-size: 11px; color: #555; }
     pre { margin: 6px 0 0; padding: 6px; background: #f5f5f5; border-radius: 4px; white-space: pre-wrap;
           font-family: Consolas, monospace; font-size: 11px; max-height: 260px; overflow: auto; }
   `;
@@ -638,13 +640,33 @@
     if (state.open) render();
   });
 
-  let message = null; // { kind: 'ok'|'ko'|'warn', text }
+  // Message : une ligne de tête, puis des lignes courtes (signalements), un texte en petit,
+  // et des détails repliés (lignes ignorées, méthode d'activation…).
+  // { kind: 'ok'|'ko'|'warn', text, lines: [{ text, title }], small, details: [{ summary, lines }] }
+  let message = null;
   let diagnostic = null; // texte de « Lire l'écran »
 
-  function setMessage(kind, text) {
-    message = { kind, text };
+  function setMessage(kind, text, extra = {}) {
+    message = { kind, text, lines: extra.lines || [], small: extra.small || null, details: (extra.details || []).filter(Boolean) };
     render();
   }
+
+  const asLine = (l) => (typeof l === 'string' ? { text: l } : l);
+
+  function renderMessage(m) {
+    const box = el('div', { class: `msg ${m.kind}` }, [el('div', { class: 'head', text: m.text })]);
+    for (const l of m.lines.map(asLine)) box.appendChild(el('div', { class: 'line', text: l.text, ...(l.title ? { title: l.title } : {}) }));
+    if (m.small) for (const t of String(m.small).split('\n')) box.appendChild(el('div', { class: 'small', text: t }));
+    for (const d of m.details) box.appendChild(detailsBox(d));
+    return box;
+  }
+
+  function detailsBox(d) {
+    return el('details', {}, [el('summary', { text: d.summary }), ...d.lines.map((t) => el('div', { text: t }))]);
+  }
+
+  const ignoredDetails = (ignored) =>
+    ignored.length ? { summary: `${ignored.length} ligne${ignored.length > 1 ? 's' : ''} ignorée${ignored.length > 1 ? 's' : ''}`, lines: ignored } : null;
 
   const currentOrder = () => (state.selectedOrder ? state.orders[state.selectedOrder] : null);
   const currentGroup = () => {
@@ -695,10 +717,10 @@
     const d = state.detected;
     const detLine =
       d.status === 'OK'
-        ? el('div', { class: 'ok', text: `Commande affichée : ${d.orderNumber}` })
+        ? el('div', { class: 'ok', text: `À l’écran : ${d.orderNumber}` })
         : d.status === 'AMBIGU'
-        ? el('div', { class: 'warn', text: `Commande affichée ambiguë : ${d.all.join(', ')}` })
-        : el('div', { class: 'muted', text: 'Aucune commande CC… détectée à l’écran.' });
+        ? el('div', { class: 'warn', text: `Plusieurs CC à l’écran : ${d.all.join(', ')}` })
+        : el('div', { class: 'muted', text: 'Aucun CC à l’écran.' });
     panel.appendChild(detLine);
 
     const nums = Object.keys(state.orders).sort((a, b) =>
@@ -706,7 +728,7 @@
     );
     if (!nums.length) {
       panel.appendChild(
-        el('p', { class: 'muted', text: 'Aucune commande reçue. Dans Façonote : saisir le n° de commande puis « Envoyer vers l’extension ».' })
+        el('p', { class: 'muted', text: 'Aucune commande. Envoyez-la depuis Façonote.' })
       );
     } else {
       const sel = el('select', {
@@ -729,9 +751,9 @@
       const o = currentOrder();
       if (o) {
         const when = o.sentAt ? new Date(o.sentAt).toLocaleString('fr-BE') : '?';
-        panel.appendChild(el('div', { class: 'muted', text: `Envoyée depuis Façonote le ${when}` }));
+        panel.appendChild(el('div', { class: 'small', text: `Envoyée le ${when}` }));
         if (d.status === 'OK' && d.orderNumber !== o.orderNumber) {
-          panel.appendChild(el('div', { class: 'warn', text: 'Attention : ce n° n’est pas la commande affichée dans D365.' }));
+          panel.appendChild(el('div', { class: 'warn', text: 'Pas la commande à l’écran.' }));
         }
 
         const ul = el('ul');
@@ -767,35 +789,26 @@
 
         const g = currentGroup();
         if (g && !g.has_pieces) {
-          panel.appendChild(el('div', { class: 'muted', text: `${g.material} : pas de pièce, les DEV ne sont pas touchés.` }));
+          panel.appendChild(el('div', { class: 'muted', text: 'Pas de pièce.' }));
         } else if (g) {
           const nonZero = FD.BOUNDS.filter((b) => g.lengths[String(b)] > 0);
           const table = el('table', {}, [
-            el('tr', {}, [el('th', { text: 'Champ' }), el('th', { text: 'Longueur (m)' })]),
+            el('tr', {}, [el('th', { text: 'DEV' }), el('th', { text: 'm' })]),
           ]);
           if (!nonZero.length) {
-            table.appendChild(el('tr', {}, [el('td', { text: 'Toutes les longueurs sont à 0.' }), el('td')]));
+            table.appendChild(el('tr', {}, [el('td', { text: 'Tous à 0' }), el('td')]));
           }
           for (const b of nonZero) {
             table.appendChild(
-              el('tr', {}, [el('td', { text: `DEV${b}` }), el('td', { class: 'num', text: FD.formatD365(g.lengths[String(b)]) })])
+              el('tr', {}, [el('td', { text: String(b) }), el('td', { class: 'num', text: FD.formatD365(g.lengths[String(b)]) })])
             );
           }
           panel.appendChild(table);
-          const last = lastBound(g);
-          panel.appendChild(
-            el('div', {
-              class: 'muted',
-              text: last
-                ? `Saisie de Matières, Epaisseur et DEV100 à DEV${last} (les DEV à 0 jusque-là sont mis à 0,00). Les DEV suivants ne sont pas touchés.`
-                : 'Saisie de Matières et Epaisseur seulement.',
-            })
-          );
         }
       }
     }
 
-    if (bomPlan) renderBom(bomPlan);
+    if (bomPlan && !message) renderBom(bomPlan);
 
     const has = Boolean(currentGroup());
     const cg = currentGroup();
@@ -837,30 +850,35 @@
     ]);
     panel.appendChild(buttons);
 
-    if (message) panel.appendChild(el('div', { class: `msg ${message.kind}`, text: message.text }));
+    if (message) panel.appendChild(renderMessage(message));
     if (diagnostic) panel.appendChild(el('pre', { text: diagnostic }));
   }
 
   function coilTagText(o, g) {
     if (g.coilsDone) return 'fait ✓';
     const n = state.coilSignals[`${o.orderNumber}|${g.material}`];
-    return n ? `à faire (${n} signalement${n > 1 ? 's' : ''})` : 'à faire';
+    return n ? `à faire (${n} ⚠)` : 'à faire';
   }
 
   // Aperçu dans le panneau quand la fenêtre Nomenclature est ouverte (lecture seule)
+  // Aperçu quand la fenêtre Nomenclature est ouverte (lecture seule). Remplacé par le résultat après une saisie.
   function renderBom(p) {
     const box = el('div', { class: 'msg warn' });
-    box.appendChild(el('div', { text: 'Fenêtre Nomenclature ouverte : mode Bobines.' }));
     if (p.error) {
-      box.appendChild(el('div', { class: 'ko', text: p.error }));
+      box.appendChild(el('div', { class: 'head ko', text: p.error }));
+      if (p.errorDetail) box.appendChild(detailsBox(p.errorDetail));
     } else {
-      box.appendChild(el('div', { text: `Commande ${p.order.orderNumber} · matière reconnue : ${p.group.material}` }));
-      const table = el('table', {}, [el('tr', {}, [el('th', { text: 'Ligne' }), el('th', { text: 'Quantité' })])]);
-      for (const t of p.tasks) table.appendChild(el('tr', {}, [el('td', { text: t.label }), el('td', { class: 'num', text: FD.formatD365(t.value) })]));
+      box.appendChild(el('div', { class: 'head', text: `Bobines · ${p.group.material}` }));
+      const table = el('table', {}, [el('tr', {}, [el('th', { text: 'Ligne' }), el('th', { text: 'm' })])]);
+      for (const t of p.tasks) {
+        const first = el('td', { title: t.code }, [el('span', { text: t.label }), t.code !== 'CHUTE' ? el('span', { class: 'code', text: t.code }) : null]);
+        table.appendChild(el('tr', {}, [first, el('td', { class: 'num', text: FD.formatD365(t.value) })]));
+      }
       if (p.tasks.length) box.appendChild(table);
-      if (!p.tasks.length && !p.problems.length) box.appendChild(el('div', { text: 'Rien à saisir en bobines pour cette matière.' }));
-      for (const pr of p.problems) box.appendChild(el('div', { class: 'ko', text: pr }));
-      if (p.ignored.length) box.appendChild(el('div', { class: 'muted', text: `Ignorés : ${p.ignored.join(', ')}` }));
+      if (!p.tasks.length && !p.problems.length) box.appendChild(el('div', { text: 'Rien à saisir.' }));
+      for (const pr of p.problems) box.appendChild(el('div', { class: 'line ko', text: pr.text, title: pr.title }));
+      const ig = ignoredDetails(p.ignored);
+      if (ig) box.appendChild(detailsBox(ig));
     }
     panel.appendChild(box);
   }
@@ -968,12 +986,12 @@
     state.detected = d;
     if (d.status !== 'OK') {
       setMessage('ko', d.status === 'AMBIGU'
-        ? `Refusé : plusieurs n° de commande à l’écran (${d.all.join(', ')}). Ouvrez la commande ${o.orderNumber} seule.`
-        : `Refusé : aucun n° de commande détecté à l’écran. Ouvrez la commande ${o.orderNumber}.`);
+        ? `Plusieurs CC à l’écran : ${d.all.join(', ')}.`
+        : `Aucun CC à l’écran : ouvrez ${o.orderNumber}.`);
       return;
     }
     if (d.orderNumber !== o.orderNumber) {
-      setMessage('ko', `Refusé : D365 affiche ${d.orderNumber}, mais la commande choisie est ${o.orderNumber}.`);
+      setMessage('ko', `D365 affiche ${d.orderNumber}, pas ${o.orderNumber}.`);
       return;
     }
 
@@ -985,26 +1003,24 @@
       if (r.state !== 'OK') problems.push(`${f.label} : ${r.state}`);
     }
     if (problems.length) {
-      setMessage(
-        'ko',
-        `Rien n’a été écrit. Champs non prêts :\n${problems.join('\n')}\n\n` +
-          'Ouvrez la section qui contient « Matières », « Epaisseur » et les longueurs DEV, ' +
-          'passez la commande en mode Modifier, puis réessayez. « Lire l’écran » donne le détail.'
-      );
+      setMessage('ko', 'Rien écrit : champs non prêts.', {
+        lines: problems,
+        small: 'Passez en mode Modifier, puis réessayez (détail : « Lire l’écran »).',
+      });
       return;
     }
 
     state.busy = true;
-    setMessage('warn', `Saisie de ${g.material} en cours… Ne touchez pas à la page.`);
+    setMessage('warn', `${g.material} : saisie en cours…`, { small: 'Ne touchez pas à la page.' });
     try {
       // 3. Écriture champ par champ, en re-cherchant chaque champ (D365 redessine le DOM)
       // Un champ qui affiche déjà la bonne valeur n'est pas réécrit (pas de pause).
       let written = 0;
       for (const f of toFill) {
         const now = detectOrder();
-        if (now.orderNumber !== o.orderNumber) throw new Error('la commande affichée a changé pendant la saisie. Arrêt.');
+        if (now.orderNumber !== o.orderNumber) throw new Error('commande changée pendant la saisie, arrêt');
         const r = inspectField(f);
-        if (r.state !== 'OK') throw new Error(`${f.label} n’est plus modifiable (${r.state}). Arrêt.`);
+        if (r.state !== 'OK') throw new Error(`${f.label} plus modifiable (${r.state}), arrêt`);
         const v = expectedValue(g, f);
         if (valueMatches(f, r.el.value, v)) continue;
         await writeField(r.el, f.kind === 'number' ? FD.formatD365(v) : v);
@@ -1019,7 +1035,7 @@
         const expected = expectedValue(g, f);
         const shown = r.el ? r.el.value : undefined;
         if (!r.el || !valueMatches(f, shown, expected)) {
-          mismatches.push(`${f.label} : attendu « ${f.kind === 'number' ? FD.formatD365(expected) : expected} », lu « ${shown === undefined ? '—' : shown} »`);
+          mismatches.push(`${f.label} : lu « ${shown === undefined ? '—' : shown} », attendu « ${f.kind === 'number' ? FD.formatD365(expected) : expected} »`);
         }
       }
       // DEV après la dernière borne : simple lecture. Une valeur non nulle déjà présente est signalée.
@@ -1029,12 +1045,12 @@
         if (!r.el) continue;
         const n = parseNumber(r.el.value);
         if (Number.isFinite(n) && n !== 0) {
-          mismatches.push(`${f.label} : contient « ${r.el.value} », Façonote attend 0 (non modifié, à corriger à la main)`);
+          mismatches.push(`${f.label} : « ${r.el.value} », attendu 0 (à corriger)`);
         }
       }
       if (mismatches.length) {
         state.busy = false;
-        setMessage('ko', `Saisie incomplète : ${g.material} reste « à faire ».\n${mismatches.join('\n')}\n\nVérifiez dans D365 avant d’enregistrer.`);
+        setMessage('ko', `${g.material} : DEV à faire`, { lines: mismatches, small: 'Vérifiez avant d’enregistrer.' });
         return;
       }
 
@@ -1042,14 +1058,13 @@
       const next = state.orders[o.orderNumber].groups.find((x) => !x.done);
       if (next) state.selectedMaterial = next.material;
       state.busy = false;
-      setMessage(
-        'ok',
-        `${g.material} saisie et relue : OK (${written} champ${written > 1 ? 's' : ''} écrit${written > 1 ? 's' : ''}).\nVérifiez puis enregistrez vous-même dans D365.` +
-          (next ? `\nMatière suivante : ${next.material}.` : '\nToutes les matières de la commande sont faites.')
-      );
+      setMessage('ok', `${g.material} : DEV OK ✓`, {
+        lines: ['Vérifiez, puis Enregistrer.'],
+        small: `${written} écrit${written > 1 ? 's' : ''}` + (next ? ` · suivante : ${next.material}` : ' · commande terminée'),
+      });
     } catch (err) {
       state.busy = false;
-      setMessage('ko', `${errorText(err)}\n${g.material} reste « à faire ». Vérifiez les champs dans D365.`);
+      setMessage('ko', `${g.material} : DEV à faire`, { lines: [errorText(err)], small: 'Vérifiez les champs.' });
     }
   }
 
@@ -1059,7 +1074,7 @@
     if (state.busy) return;
     diagnostic = null;
     state.busy = true;
-    setMessage('warn', 'Lecture de la grille (défilement si besoin)… Ne touchez pas à la page.');
+    setMessage('warn', 'Lecture de la grille en cours…', { small: 'Ne touchez pas à la page.' });
     let p;
     try {
       p = planCoils(await scanGrid());
@@ -1068,7 +1083,7 @@
     }
     state.busy = false;
     if (p.error) {
-      setMessage('ko', p.error);
+      setMessage('ko', p.error, { details: [p.errorDetail] });
       return;
     }
     const { order, group } = p;
@@ -1076,19 +1091,19 @@
     state.selectedOrder = order.orderNumber;
     state.selectedMaterial = group.material;
     state.userPickedOrder = true;
-    const ignoredText = p.ignored.length ? `\nIgnorés (pas touchés) : ${p.ignored.join(', ')}.` : '';
+    const ignored = ignoredDetails(p.ignored);
     if (p.problems.length) {
       state.coilSignals[key] = p.problems.length;
-      setMessage('ko', `Rien n'a été écrit (${group.material}).\n${p.problems.join('\n')}${ignoredText}`);
+      setMessage('ko', `${group.material} : rien écrit`, { lines: p.problems, details: [ignored] });
       return;
     }
     if (!p.tasks.length) {
-      setMessage('warn', `Rien à saisir en bobines pour ${group.material}.${ignoredText}`);
+      setMessage('warn', `${group.material} : rien à saisir`, { details: [ignored] });
       return;
     }
 
     state.busy = true;
-    setMessage('warn', `Saisie des bobines de ${group.material} en cours… Ne touchez pas à la page.`);
+    setMessage('warn', `${group.material} : saisie en cours…`, { small: 'Ne touchez pas à la page.' });
     const signals = [];
     const writtenTasks = [];
     const alreadyCodes = [];
@@ -1097,21 +1112,21 @@
     try {
       for (const t of p.tasks) {
         const bom = findBom();
-        if (!bom) throw new Error('la fenêtre Nomenclature s’est fermée pendant la saisie. Arrêt.');
+        if (!bom) throw new Error('fenêtre fermée pendant la saisie, arrêt');
         const now = detectBomOrder(bom.dialog);
-        if (now.orderNumber !== order.orderNumber) throw new Error('la commande derrière la fenêtre a changé pendant la saisie. Arrêt.');
+        if (now.orderNumber !== order.orderNumber) throw new Error('CC changé pendant la saisie, arrêt');
         const act = await activateRow(t.code);
         if (act.error) {
-          signals.push(act.error);
-          notWritten.push(`${t.code} (ligne non modifiable)`);
+          signals.push({ text: `${t.label} : ${act.error}`, title: t.code });
+          notWritten.push(`${t.label} ${t.code} (pas modifiable)`);
           continue;
         }
         if (act.method !== 'ligne déjà active') methodsUsed.add(act.method);
         // Jamais d'écriture ailleurs que sur la ligne cible : elle doit être la seule ligne active
         const target = targetIsActive(t.code);
         if (!target) {
-          signals.push(`${t.label} : la ligne active n'est pas ${t.code} au moment d'écrire, rien écrit.`);
-          notWritten.push(`${t.code} (ligne active différente)`);
+          signals.push({ text: `${t.label} : autre ligne active, pas changé`, title: t.code });
+          notWritten.push(`${t.label} ${t.code} (autre ligne active)`);
           continue;
         }
         const shown = target.qty.value;
@@ -1119,8 +1134,8 @@
           if (valueMatches({ kind: 'number' }, shown, t.value)) {
             alreadyCodes.push(t.code);
           } else {
-            signals.push(`${t.label} : lu « ${shown} », Façonote ${FD.formatD365(t.value)}, non écrasé.`);
-            notWritten.push(`${t.code} (valeur déjà présente « ${shown} »)`);
+            signals.push({ text: `${t.label} : déjà ${shown}, pas changé (Façonote ${FD.formatD365(t.value)})`, title: t.code });
+            notWritten.push(`${t.label} ${t.code} (déjà ${shown})`);
           }
           continue;
         }
@@ -1128,8 +1143,8 @@
         await writeField(target.qty, FD.formatD365(t.value));
         const after = currentRow(t.code);
         if (!after || !after.qty || !valueMatches({ kind: 'number' }, after.qty.value, t.value)) {
-          signals.push(`${t.label} : attendu « ${FD.formatD365(t.value)} », lu « ${after && after.qty ? after.qty.value : '—'} » après saisie.`);
-          notWritten.push(`${t.code} (refusé par D365 ou valeur différente)`);
+          signals.push({ text: `${t.label} : lu ${after && after.qty ? after.qty.value || '—' : '—'} au lieu de ${FD.formatD365(t.value)}`, title: t.code });
+          notWritten.push(`${t.label} ${t.code} (refusé par D365)`);
           continue;
         }
         writtenTasks.push(t);
@@ -1140,31 +1155,36 @@
       for (const t of writtenTasks) {
         const r = await revealRow(t.code);
         if (!r || !r.qty || !valueMatches({ kind: 'number' }, r.qty.value, t.value)) {
-          signals.push(`${t.label} : attendu « ${FD.formatD365(t.value)} », lu « ${r && r.qty ? r.qty.value : '—'} » à la relecture.`);
+          signals.push({ text: `${t.label} : relu ${r && r.qty ? r.qty.value || '—' : '—'} au lieu de ${FD.formatD365(t.value)}`, title: t.code });
         }
       }
 
       const n = writtenTasks.length;
-      const summary =
-        `${n} ligne${n > 1 ? 's' : ''} écrite${n > 1 ? 's' : ''}, ${alreadyCodes.length} déjà juste${alreadyCodes.length > 1 ? 's' : ''}.` +
-        `\nÉcrits : ${writtenTasks.map((t) => t.code).join(', ') || 'aucun'}.` +
-        (alreadyCodes.length ? `\nDéjà justes (pas réécrits) : ${alreadyCodes.join(', ')}.` : '') +
-        (notWritten.length ? `\nNon écrits : ${notWritten.join(', ')}.` : '') +
-        (methodsUsed.size ? `\nActivation : ${[...methodsUsed].join(', ')}.` : '');
+      const a = alreadyCodes.length;
+      const count = `${n} écrite${n > 1 ? 's' : ''}, ${a} déjà juste${a > 1 ? 's' : ''}`;
+      // Détail replié : codes écrits / non écrits, méthode d'activation (aussi dans la console)
+      const detailLines = [
+        `Écrits : ${writtenTasks.map((t) => `${t.label} ${t.code}`).join(', ') || 'aucun'}`,
+        ...(a ? [`Déjà justes : ${alreadyCodes.join(', ')}`] : []),
+        ...(notWritten.length ? [`Non écrits : ${notWritten.join(', ')}`] : []),
+        ...(methodsUsed.size ? [`Activation : ${[...methodsUsed].join(', ')}`] : []),
+      ];
+      console.info('[Façonote → D365]', group.material, detailLines.join(' | '));
+      const details = [{ summary: 'Détail', lines: detailLines }, ignored];
       state.busy = false;
       if (signals.length) {
         state.coilSignals[key] = signals.length;
-        setMessage('ko', `Bobines de ${group.material} : « à faire ». ${summary}\n${signals.join('\n')}${ignoredText}\n\nVérifiez dans D365 avant d’enregistrer.`);
+        setMessage('ko', `${group.material} : bobines à faire`, { lines: signals, small: `${count}\nVérifiez, puis Enregistrer.`, details });
         return;
       }
       delete state.coilSignals[key];
       await updateGroup(order.orderNumber, group.material, { coilsDone: true, coilsDoneAt: new Date().toISOString() });
-      setMessage('ok', `Bobines de ${group.material} saisies et relues : OK. ${summary}${ignoredText}\nRien n’est enregistré : vérifiez puis cliquez vous-même sur Enregistrer dans D365.`);
+      setMessage('ok', `${group.material} : bobines OK ✓`, { lines: ['Vérifiez, puis Enregistrer.'], small: count, details });
     } catch (err) {
       state.busy = false;
       state.coilSignals[key] = signals.length + 1;
-      const doneCodes = writtenTasks.map((t) => t.code).join(', ') || 'aucun';
-      setMessage('ko', `${errorText(err)}\nBobines de ${group.material} : « à faire ». Écrits avant l’arrêt : ${doneCodes}.${signals.length ? `\n${signals.join('\n')}` : ''}`);
+      const doneCodes = writtenTasks.map((t) => `${t.label} ${t.code}`).join(', ') || 'aucun';
+      setMessage('ko', `${group.material} : bobines à faire`, { lines: [errorText(err), ...signals], small: `Écrits avant l’arrêt : ${doneCodes}` });
     }
   }
 

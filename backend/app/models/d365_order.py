@@ -48,7 +48,9 @@ class D365OrderGroup(BaseModel):
     chute_m: float | None = Field(None, description="Chutes de la matière en mètres, 2 décimales")
 
 
-D365OrderIssueCode = Literal["NO_MATIERE_LABEL", "EMPTY", "NO_COIL_ARTICLE", "SHEET_NOT_COIL", "ROUNDS_TO_ZERO"]
+D365OrderIssueCode = Literal[
+    "NO_MATIERE_LABEL", "EMPTY", "NO_COIL_ARTICLE", "SHEET_NOT_COIL", "ROUNDS_TO_ZERO", "QUANTITY_TOO_LARGE",
+]
 
 
 class D365OrderIssue(BaseModel):

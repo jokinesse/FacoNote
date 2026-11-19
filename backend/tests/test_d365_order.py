@@ -25,7 +25,7 @@ from app.core.constants import (
 from app.main import app
 from app.models.coils import CoilSummaryEntry
 from app.models.pieces_summary import PieceSummaryEntry
-from app.services.coil_engine import summarize_coils
+from app.services.coil_engine import encode_coil_entry, summarize_coils
 from app.services.d365_order import build_d365_order
 from app.services.pieces_engine import summarize_pieces
 from app.services.reference_service import build_reference
@@ -490,3 +490,83 @@ def test_coil_rounds_to_zero_only_coil_gives_empty() -> None:
     assert data["groups"] == []
     assert [w["code"] for w in data["warnings"]] == ["ROUNDS_TO_ZERO"]
     assert [e["code"] for e in data["errors"]] == ["EMPTY"]
+
+
+# --- Quantité trop grande pour D365 : envoi refusé ------------------------------------------
+
+def test_coil_quantity_too_large_refused() -> None:
+    data = dump([], [coil("1", 1000, 10000, 15.0, "Zinc ATZ 0.8"), coil("2", 600, 1, 2.0, "Zinc ATZ 0.8")])
+    assert data["errors"] == [{
+        "material": "Zinc ATZ 0.8", "code": "QUANTITY_TOO_LARGE",
+        "message": "Envoi refusé : Zinc ATZ 0.8 : bobine 1000 de 150000 m, trop longue (100000 m au plus). "
+                   "Vérifiez la saisie.",
+    }]
+
+
+def test_chute_quantity_too_large_refused() -> None:
+    data = dump([], [coil("1", 0, 10000, 1000.0, "Zinc Quartz 0.8")])
+    assert [(e["material"], e["code"]) for e in data["errors"]] == [("Zinc Quartz 0.8", "QUANTITY_TOO_LARGE")]
+    assert "chute de 10000000 m" in data["errors"][0]["message"]
+
+
+def test_quantity_at_limit_accepted() -> None:
+    data = dump([], [coil("1", 1000, 100, 1000.0, "Zinc ATZ 0.8"), coil("2", 0, 100, 1000.0, "Zinc ATZ 0.8")])
+    assert data["errors"] == []
+    assert data["groups"][0]["coils"][0]["quantity_m"] == 100000.0
+    assert data["groups"][0]["chute_m"] == 100000.0
+
+
+# --- Compte des bobines envoyées (coil-summary) ---------------------------------------------
+
+COUNT_CASES: list[list[CoilSummaryEntry]] = [
+    [],
+    [coil("1", 1000, 2, 3.0, "Zinc ATZ 0.8"), coil("2", 600, 1, 1.0, "Zinc ATZ 0.8")],
+    [coil("1", 1100, 1, 2.0, "Zinc ATZ 0.8"), coil("2", 1100, 1, 2.0, "Zinc Naturel 0.8")],
+    [coil("1", 1000, 1, 0.004, "Zinc ATZ 0.8"), coil("2", 0, 1, 0.004, "Zinc ATZ 0.8")],
+    [coil("1", 1000, 1, 2.0, "Zinc Perforée 1.0"), coil("2", 670, 1, 2.0, "Zinc Pigmento Rouge 0.8")],
+    [coil("1", 0, 1, 2.0, "Zinc Quartz 0.7"), coil("2", 0, 1, 2.0, "Alu 1.5 Brut"), coil("3", 800, 1, 1.0, "Zinc ATZ 0.7")],
+    [coil("1", 1000, 1, 2.0, "Alu Quartz"), coil("2", 650, 1, 2.0, "Alu RAL 7039 0.7"), coil("3", 0, 2, 1.0, "Alu Quartz")],
+]
+
+
+@pytest.mark.parametrize("coils", COUNT_CASES)
+def test_coil_summary_counts_match_d365_order(coils: list[CoilSummaryEntry]) -> None:
+    summary = summarize_coils(coils)
+    data = dump([piece("a", 333, 1, 2.0, "Zinc ATZ 0.8")], coils)
+    groups = data["groups"]
+    sent_coils = sum(len(g.get("coils", [])) for g in groups)
+    sent_chutes = sum(1 for g in groups if g.get("chute_m", 0) > 0)
+    assert summary.d365_coils_to_send == sent_coils
+    assert summary.d365_chutes_to_send == sent_chutes
+
+
+def test_coil_summary_counts_values() -> None:
+    summary = summarize_coils(COUNT_CASES[6])
+    assert (summary.d365_coils_to_send, summary.d365_chutes_to_send) == (2, 1)
+    reset_security_state_for_tests()
+    resp = client.post("/api/v1/optimizer/coil-summary", json={"entries": [
+        {"id": "1", "width": 1000, "quantity": 1, "unit_length_m": 2.0, "material": "Zinc ATZ 0.8"},
+        {"id": "2", "width": 1100, "quantity": 1, "unit_length_m": 2.0, "material": "Zinc ATZ 0.8"},
+    ]})
+    assert resp.status_code == 200
+    assert resp.json()["d365_coils_to_send"] == 1
+    assert resp.json()["d365_chutes_to_send"] == 0
+
+
+# --- Largeurs standard par matière (1100 seulement en Zinc Naturel 0.8) ---------------------
+
+def test_is_standard_per_material() -> None:
+    assert encode_coil_entry("1100", 1, "2", "m", "Zinc ATZ 0.8").is_standard is False
+    assert encode_coil_entry("1100", 1, "2", "m", "Zinc Naturel 0.8").is_standard is True
+    assert encode_coil_entry("650", 1, "2", "m", "Alu RAL 7016 0.7").is_standard is False
+    assert encode_coil_entry("650", 1, "2", "m", "Alu RAL 9005 0.7").is_standard is True
+    summary = summarize_coils([coil("1", 1100, 1, 2.0, "Zinc ATZ 0.8"), coil("2", 1100, 1, 2.0, "Zinc Naturel 0.8")])
+    rows = {r.material: r for r in summary.rows if r.width == 1100 and not r.is_empty}
+    assert rows["Zinc ATZ 0.8"].is_standard is False
+    assert rows["Zinc Naturel 0.8"].is_standard is True
+
+
+def test_reference_coil_widths_per_material() -> None:
+    ref = {m.name: m for m in build_reference().materials}
+    assert ref["Zinc ATZ 0.8"].coil_widths_mm == [600, 670, 750, 1000]
+    assert ref["Zinc Naturel 0.8"].coil_widths_mm == [600, 670, 750, 1000, 1100]

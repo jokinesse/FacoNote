@@ -11,6 +11,7 @@ from typing import Literal
 from app.core.constants import (
     DEV_BOBINE_BOUNDS,
     calculate_surface_m2,
+    D365_COIL_ARTICLES,
     calculate_weight_kg,
     d365_coil_article,
     resolve_material_spec,
@@ -35,6 +36,16 @@ from app.services.reference_service import official_materials_for_width, spec_fa
 def metal_family(material: str) -> MetalFamily:
     """Famille de métal d'une matière, selon la table officielle des nuances."""
     return spec_family(resolve_material_spec(material))
+
+
+def is_standard_width(material: str, width: int) -> bool:
+    """Largeur de bobine standard pour cette matière (ex. 1100 : seulement en Zinc Naturel 0.8)."""
+    return width in resolve_material_spec(material).standard_mother_widths_mm
+
+
+def d365_quantity_m(length_m: float) -> float:
+    """Quantité saisie dans la grille Nomenclature de D365 : mètres, 2 décimales."""
+    return round(length_m, 2)
 
 
 def encode_coil_entry(
@@ -76,7 +87,7 @@ def encode_coil_entry(
         total_length_m=round_meters(unit_length_m * quantity),
         material=resolve_material_spec(material_name).name,
         is_chute=width == 0,
-        is_standard=width in DEV_BOBINE_BOUNDS,
+        is_standard=is_standard_width(material_name, width),
     )
 
 
@@ -110,7 +121,7 @@ def summarize_coils(entries: list[CoilSummaryEntry]) -> CoilSummaryResponse:
                 width=width,
                 material=material,
                 family=metal_family(material),
-                is_standard=width in DEV_BOBINE_BOUNDS,
+                is_standard=is_standard_width(material, width),
                 is_empty=False,
                 quantity=sum(e.quantity for e in group),
                 length_m=length_m,
@@ -201,4 +212,11 @@ def summarize_coils(entries: list[CoilSummaryEntry]) -> CoilSummaryResponse:
         zinc=family_totals("ZINC"),
         materials=materials,
         standard_widths=list(DEV_BOBINE_BOUNDS),
+        # Lignes qui partiront vers D365 (code AR et quantité arrondie > 0)
+        d365_coils_to_send=sum(
+            1 for r in filled if r.d365_article is not None and d365_quantity_m(r.length_m) > 0
+        ),
+        d365_chutes_to_send=sum(
+            1 for c in chutes if c.material in D365_COIL_ARTICLES and d365_quantity_m(c.length_m) > 0
+        ),
     )

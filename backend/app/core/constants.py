@@ -92,6 +92,10 @@ D365_COIL_ARTICLES: Final[dict[str, dict[int, str]]] = {
     "Alu RAL 9010 0.7": {1000: "AR00112108"},
 }
 
+# Quantité maximale d'une ligne de la grille Nomenclature (bobine ou chute), en mètres.
+# Même plafond que l'extension : au-delà, l'envoi est refusé.
+D365_MAX_QUANTITY_M: Final[float] = 100000.0
+
 # Matières comptées en feuilles dans D365 (pas de bobine) : gardé pour mémoire, jamais envoyé.
 D365_SHEET_ARTICLES: Final[dict[str, str]] = {"Zinc Perforée 1.0": "AR00089875"}
 

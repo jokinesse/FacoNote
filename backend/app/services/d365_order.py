@@ -17,6 +17,7 @@ Règles :
 from app.core.constants import (
     D365_COIL_ARTICLES,
     D365_MATIERE_LABELS,
+    D365_MAX_QUANTITY_M,
     D365_SHEET_ARTICLES,
     DEV_PIECE_BOUNDS,
     d365_coil_article,
@@ -31,7 +32,7 @@ from app.models.d365_order import (
     D365OrderResponse,
 )
 from app.models.pieces_summary import PieceSummaryEntry
-from app.services.coil_engine import summarize_coils
+from app.services.coil_engine import d365_quantity_m, summarize_coils
 from app.services.pieces_engine import summarize_pieces
 
 
@@ -41,13 +42,13 @@ def _official(material: str) -> str:
 
 
 def _round2(length_m: float) -> float:
-    """Arrondi des quantités saisies dans D365 : 2 décimales."""
-    return round(length_m, 2)
+    """Arrondi des quantités saisies dans D365 : 2 décimales (même règle que coil-summary)."""
+    return d365_quantity_m(length_m)
 
 
 def _fr(length_m: float) -> str:
     """Longueur pour un message (virgule décimale, ex. 0,004)."""
-    return f"{length_m:g}".replace(".", ",")
+    return f"{length_m:.3f}".rstrip("0").rstrip(".").replace(".", ",")
 
 
 def build_d365_order(
@@ -126,6 +127,17 @@ def build_d365_order(
                     )
                 )
                 continue
+            if quantity_m > D365_MAX_QUANTITY_M:
+                errors.append(
+                    D365OrderIssue(
+                        material=row.material,
+                        code="QUANTITY_TOO_LARGE",
+                        message=(
+                            f"Envoi refusé : {row.material} : bobine {row.width} de {_fr(quantity_m)} m, "
+                            f"trop longue ({_fr(D365_MAX_QUANTITY_M)} m au plus). Vérifiez la saisie."
+                        ),
+                    )
+                )
             coils_by_material.setdefault(row.material, []).append(
                 D365OrderCoil(width_mm=row.width, article=article, quantity_m=quantity_m)
             )
@@ -142,6 +154,17 @@ def build_d365_order(
                         )
                     )
                     continue
+                if chute_m > D365_MAX_QUANTITY_M:
+                    errors.append(
+                        D365OrderIssue(
+                            material=chute.material,
+                            code="QUANTITY_TOO_LARGE",
+                            message=(
+                                f"Envoi refusé : {chute.material} : chute de {_fr(chute_m)} m, "
+                                f"trop longue ({_fr(D365_MAX_QUANTITY_M)} m au plus). Vérifiez la saisie."
+                            ),
+                        )
+                    )
                 chute_by_material[chute.material] = chute_m
             else:
                 skipped_chutes.append(chute.material)

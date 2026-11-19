@@ -37,7 +37,7 @@ class CoilEncodeResponse(BaseModel):
     total_length_m: float = Field(..., description="Métrage total de la saisie en mètres")
     material: str = Field(..., description="Matière normalisée")
     is_chute: bool = Field(..., description="Vrai si largeur 0 (chute notée hors totaux)")
-    is_standard: bool = Field(..., description="Vrai si la largeur est une largeur de bobine standard")
+    is_standard: bool = Field(..., description="Vrai si la largeur est une largeur de bobine de la matière")
 
 
 class CoilSummaryEntry(BaseModel):
@@ -144,3 +144,9 @@ class CoilSummaryResponse(BaseModel):
     zinc: CoilFamilyTotals
     materials: list[CoilMaterialTotals] = Field(default_factory=list)
     standard_widths: list[int]
+    d365_coils_to_send: int = Field(
+        0, description="Lignes bobine envoyées vers D365 (code AR et quantité arrondie > 0)"
+    )
+    d365_chutes_to_send: int = Field(
+        0, description="Matières dont la chute est envoyée vers D365 (code AR et quantité arrondie > 0)"
+    )

@@ -1,0 +1,51 @@
+{
+  "id": "04_pigmento_refuse",
+  "description": "Zinc ATZ 0.8 + Zinc Pigmento Rouge 0.8 (sans libellé D365) : envoi refusé, aucun message.",
+  "capture": {
+    "commit": "83435aa",
+    "variables": [
+      "requestId",
+      "sentAt"
+    ]
+  },
+  "saisies": {
+    "orderNumber": "CC26000000404",
+    "entries": [
+      {
+        "material": "Zinc ATZ 0.8",
+        "dev": 200,
+        "quantity": 2,
+        "length_m": 3
+      },
+      {
+        "material": "Zinc Pigmento Rouge 0.8",
+        "dev": 300,
+        "quantity": 1,
+        "length_m": 2
+      }
+    ]
+  },
+  "pieces_summary_request": {
+    "entries": [
+      {
+        "id": "entry-1795073473011-0-d9zm",
+        "dev": 200,
+        "quantity": 2,
+        "unit_length_m": 3,
+        "material": "Zinc ATZ 0.8"
+      },
+      {
+        "id": "entry-1795073473364-0-3in3",
+        "dev": 300,
+        "quantity": 1,
+        "unit_length_m": 2,
+        "material": "Zinc Pigmento Rouge 0.8"
+      }
+    ]
+  },
+  "message_attendu": null,
+  "statut_affiche": [
+    "Envoi refusé : libellé D365 pas encore connu pour Zinc Pigmento Rouge 0.8. Retirez ces saisies ou demandez l'ajout du libellé."
+  ],
+  "envoi_refuse": true
+}

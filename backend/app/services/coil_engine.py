@@ -12,6 +12,7 @@ from app.core.constants import (
     DEV_BOBINE_BOUNDS,
     calculate_surface_m2,
     calculate_weight_kg,
+    d365_coil_article,
     resolve_material_spec,
     round_meters,
 )
@@ -89,10 +90,12 @@ def summarize_coils(entries: list[CoilSummaryEntry]) -> CoilSummaryResponse:
     chute_groups: dict[str, list[CoilSummaryEntry]] = {}
 
     for entry in entries:
+        # Regroupement par matière officielle (un alias rejoint sa matière)
+        material = resolve_material_spec(entry.material).name
         if entry.width == 0:
-            chute_groups.setdefault(entry.material, []).append(entry)
+            chute_groups.setdefault(material, []).append(entry)
         else:
-            groups.setdefault((entry.width, entry.material), []).append(entry)
+            groups.setdefault((entry.width, material), []).append(entry)
 
     materials_per_width: dict[int, int] = {}
     for width, _material in groups:
@@ -119,6 +122,7 @@ def summarize_coils(entries: list[CoilSummaryEntry]) -> CoilSummaryResponse:
                     CoilSheetDetail(id=e.id, quantity=e.quantity, unit_length_m=e.unit_length_m)
                     for e in group
                 ],
+                d365_article=d365_coil_article(material, width),
             )
         )
 

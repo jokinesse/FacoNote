@@ -85,6 +85,9 @@ class CoilRowModel(BaseModel):
         default_factory=list, description="Matières officielles disponibles dans cette largeur"
     )
     sheets: list[CoilSheetDetail]
+    d365_article: str | None = Field(
+        None, description="Code article D365 de la bobine (None = pas de code, ou ligne vide)"
+    )
 
 
 class CoilChuteModel(BaseModel):

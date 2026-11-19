@@ -8,6 +8,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.models.coils import MetalFamily
 
 
+class D365CoilArticle(BaseModel):
+    """Code article D365 d'une bobine dans une largeur."""
+    model_config = ConfigDict(extra="forbid")
+
+    width_mm: int
+    article: str = Field(..., description="Code article D365 (« AR » + 8 chiffres)")
+
+
 class MaterialReference(BaseModel):
     """Une matière officielle et ses caractéristiques."""
     model_config = ConfigDict(extra="forbid")
@@ -21,6 +29,9 @@ class MaterialReference(BaseModel):
     coil_widths_mm: list[int] = Field(..., description="Largeurs de bobines disponibles pour cette matière")
     d365_matiere: str | None = Field(None, description="Champ « Matières » dans D365 (None = pas encore connu)")
     d365_epaisseur: str = Field(..., description="Champ « Epaisseur » dans D365 (ex: '0.7 mm')")
+    d365_coil_articles: list[D365CoilArticle] = Field(
+        default_factory=list, description="Codes article D365 des bobines (vide = aucun code)"
+    )
 
 
 class ReferenceResponse(BaseModel):

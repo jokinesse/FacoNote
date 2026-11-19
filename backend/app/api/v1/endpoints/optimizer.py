@@ -11,6 +11,7 @@ from app.models.coils import (
     CoilSummaryRequest,
     CoilSummaryResponse,
 )
+from app.models.d365_order import D365OrderRequest, D365OrderResponse
 from app.models.optimizer import (
     AutoBreakdownRequest,
     AutoPieceBreakdownResponse,
@@ -27,6 +28,7 @@ from app.models.pieces_summary import (
 from app.models.reference import ReferenceResponse
 from app.services.breakdown_engine import resolve_auto_piece_breakdown
 from app.services.coil_engine import encode_coil_entry, summarize_coils
+from app.services.d365_order import build_d365_order
 from app.services.encoder_engine import encode_three_fields, parse_composite_input
 from app.services.nesting_engine import run_nesting_optimization
 from app.services.pieces_engine import encode_pieces, summarize_pieces
@@ -243,6 +245,22 @@ def coil_summary_endpoint(request: CoilSummaryRequest) -> CoilSummaryResponse:
     calcule les totaux, le résumé ALU/ZINC et les chutes par matière (hors totaux).
     """
     return summarize_coils(request.entries)
+
+
+@router.post(
+    "/d365-order",
+    response_model=D365OrderResponse,
+    response_model_exclude_unset=True,
+    status_code=status.HTTP_200_OK,
+    summary="Commande pour l'extension D365 : pièces (DEV) et bobines par matière",
+)
+def d365_order_endpoint(request: D365OrderRequest) -> D365OrderResponse:
+    """
+    Assemble la commande envoyée vers l'extension « Façonote → D365 » : un groupe par matière
+    avec les longueurs DEV (pieces-summary) et les bobines à saisir (coil-summary, codes AR).
+    Pièces seules : version 1, groupes identiques au message d'avant. errors non vide = envoi refusé.
+    """
+    return build_d365_order(request.order_number, request.pieces, request.coils)
 
 
 @router.post(

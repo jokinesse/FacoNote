@@ -4,6 +4,7 @@ Tout vient de app.core.constants, la seule source.
 """
 
 from app.core.constants import (
+    D365_COIL_ARTICLES,
     D365_MATIERE_LABELS,
     DEV_BOBINE_BOUNDS,
     DEV_PIECE_BOUNDS,
@@ -14,7 +15,7 @@ from app.core.constants import (
     d365_epaisseur_label,
 )
 from app.models.coils import MetalFamily
-from app.models.reference import MaterialReference, ReferenceResponse
+from app.models.reference import D365CoilArticle, MaterialReference, ReferenceResponse
 
 
 def spec_family(spec: MaterialSpec) -> MetalFamily:
@@ -52,6 +53,10 @@ def build_reference() -> ReferenceResponse:
                 coil_widths_mm=list(spec.standard_mother_widths_mm),
                 d365_matiere=D365_MATIERE_LABELS.get(name),
                 d365_epaisseur=d365_epaisseur_label(spec.thickness_mm),
+                d365_coil_articles=[
+                    D365CoilArticle(width_mm=width, article=article)
+                    for width, article in sorted(D365_COIL_ARTICLES.get(name, {}).items())
+                ],
             )
         )
     return ReferenceResponse(

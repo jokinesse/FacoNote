@@ -11,12 +11,14 @@ from app.services.reference_service import build_reference, official_materials_f
 
 client = TestClient(app)
 
-ZINC_WIDTHS = (600, 670, 750, 1000, 1100)
+ZINC_WIDTHS = (600, 670, 750, 1000)
+# 1100 : seulement en Zinc Naturel 0.8 (seule bobine 1100 dans D365, atelier 19/11/2026)
+ZINC_NATUREL_08_WIDTHS = (600, 670, 750, 1000, 1100)
 
 # Liste atelier validée : largeurs de bobines disponibles par matière
 EXPECTED_WIDTHS: dict[str, tuple[int, ...]] = {
     "Zinc Naturel 0.7": ZINC_WIDTHS,
-    "Zinc Naturel 0.8": ZINC_WIDTHS,
+    "Zinc Naturel 0.8": ZINC_NATUREL_08_WIDTHS,
     "Zinc ATZ 0.7": ZINC_WIDTHS,
     "Zinc ATZ 0.8": ZINC_WIDTHS,
     "Zinc Quartz 0.7": ZINC_WIDTHS,
@@ -46,10 +48,7 @@ def test_aliases_follow_their_base_material() -> None:
 
 def test_materials_for_width() -> None:
     assert official_materials_for_width(650) == ["Alu RAL 9005 0.7", "Alu RAL 7039 0.7"]
-    assert official_materials_for_width(1100) == [
-        "Zinc Naturel 0.7", "Zinc ATZ 0.7", "Zinc Quartz 0.7",
-        "Zinc Naturel 0.8", "Zinc ATZ 0.8", "Zinc Quartz 0.8",
-    ]
+    assert official_materials_for_width(1100) == ["Zinc Naturel 0.8"]
     assert official_materials_for_width(1200) == []
 
 

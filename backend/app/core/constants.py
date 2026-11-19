@@ -3,6 +3,7 @@ Constantes physiques et industrielles standardisées de Facozinc.
 Spécification technique : Section 1.1 & 1.2 du Cahier des Charges & Catalogue Usine.
 """
 
+import re
 from typing import Final, NamedTuple
 
 
@@ -71,6 +72,48 @@ D365_MATIERE_LABELS: Final[dict[str, str]] = {
     "Alu 1.5 Brut": "ALU BRUT",
 }
 
+# Codes article des bobines dans D365 (grille Nomenclature), donnés par l'atelier
+# les 18 et 19/11/2026. Matière officielle -> largeur (mm) -> code, au format D365
+# (« AR » + 8 chiffres). Zinc Naturel 0.7 : fournisseur EN pour la 1000, VM pour les
+# autres largeurs ; Zinc Naturel 0.8 : VM partout. Matière ou largeur absente = pas de
+# code : la bobine n'est pas envoyée vers D365 (avertissement).
+D365_COIL_ARTICLES: Final[dict[str, dict[int, str]]] = {
+    "Zinc Naturel 0.7": {1000: "AR00002875", 750: "AR00002891", 670: "AR00002896", 600: "AR00002904"},
+    "Zinc Naturel 0.8": {
+        1100: "AR00002869", 1000: "AR00002872", 750: "AR00021070", 670: "AR00002894", 600: "AR00043248",
+    },
+    "Zinc ATZ 0.7": {1000: "AR00002954", 750: "AR00002957", 670: "AR00002959", 600: "AR00002961"},
+    "Zinc ATZ 0.8": {1000: "AR00002953", 750: "AR00002956", 670: "AR00002958", 600: "AR00002960"},
+    "Zinc Quartz 0.7": {1000: "AR00002987", 750: "AR00002991", 670: "AR00002993", 600: "AR00002995"},
+    "Zinc Quartz 0.8": {1000: "AR00002986", 750: "AR00002990", 670: "AR00002992", 600: "AR00002994"},
+    "Alu RAL 9005 0.7": {1000: "AR00112154", 650: "AR00106474"},
+    "Alu RAL 7039 0.7": {1000: "AR00120013", 650: "AR00131334"},
+    "Alu RAL 7016 0.7": {1000: "AR00102719"},
+    "Alu RAL 9010 0.7": {1000: "AR00112108"},
+}
+
+# Matières comptées en feuilles dans D365 (pas de bobine) : gardé pour mémoire, jamais envoyé.
+D365_SHEET_ARTICLES: Final[dict[str, str]] = {"Zinc Perforée 1.0": "AR00089875"}
+
+# Lignes de la grille Nomenclature qui ne sont pas des bobines
+D365_CHUTE_ARTICLE: Final[str] = "CHUTE"
+D365_IGNORED_ARTICLES: Final[tuple[str, ...]] = ("TEMPS_PROD",)
+
+_AR_CODE_RE: Final[re.Pattern[str]] = re.compile(r"^AR-?(\d{1,8})$")
+
+
+def normalize_ar_code(text: str) -> str | None:
+    """Code article au format D365 (« AR-2953 » -> « AR00002953 ») ; None si ce n'est pas un code AR."""
+    match = _AR_CODE_RE.match("".join(text.split()).upper())
+    if match is None:
+        return None
+    return "AR" + match.group(1).zfill(8)
+
+
+def d365_coil_article(material: str, width_mm: int) -> str | None:
+    """Code article D365 d'une bobine (matière officielle, largeur en mm) ; None si pas de code."""
+    return D365_COIL_ARTICLES.get(material, {}).get(width_mm)
+
 
 def d365_epaisseur_label(thickness_mm: float) -> str:
     """Libellé du champ « Epaisseur » dans D365 (ex : 0.7 -> « 0.7 mm »)."""
@@ -95,7 +138,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.70,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=5.04,
-        standard_mother_widths_mm=(600, 670, 750, 1000, 1100),
+        standard_mother_widths_mm=(600, 670, 750, 1000),
     ),
     "Zinc ATZ 0.7": MaterialSpec(
         name="Zinc ATZ 0.7",
@@ -104,7 +147,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.70,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=5.04,
-        standard_mother_widths_mm=(600, 670, 750, 1000, 1100),
+        standard_mother_widths_mm=(600, 670, 750, 1000),
     ),
     "Zinc Noir ATZ 0.7": MaterialSpec(
         name="Zinc ATZ 0.7",
@@ -113,7 +156,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.70,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=5.04,
-        standard_mother_widths_mm=(600, 670, 750, 1000, 1100),
+        standard_mother_widths_mm=(600, 670, 750, 1000),
     ),
     "Zinc Quartz 0.7": MaterialSpec(
         name="Zinc Quartz 0.7",
@@ -122,7 +165,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.70,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=5.04,
-        standard_mother_widths_mm=(600, 670, 750, 1000, 1100),
+        standard_mother_widths_mm=(600, 670, 750, 1000),
     ),
 
     # --- ZINC 0.80 mm (5.76 kg/m²) ---
@@ -133,6 +176,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.80,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=5.76,
+        # 1100 : seulement en Zinc Naturel 0.8 (seule bobine 1100 dans D365, atelier 19/11/2026)
         standard_mother_widths_mm=(600, 670, 750, 1000, 1100),
     ),
     "Zinc ATZ 0.8": MaterialSpec(
@@ -142,7 +186,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.80,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=5.76,
-        standard_mother_widths_mm=(600, 670, 750, 1000, 1100),
+        standard_mother_widths_mm=(600, 670, 750, 1000),
     ),
     "Zinc Noir ATZ 0.8": MaterialSpec(
         name="Zinc ATZ 0.8",
@@ -151,7 +195,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.80,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=5.76,
-        standard_mother_widths_mm=(600, 670, 750, 1000, 1100),
+        standard_mother_widths_mm=(600, 670, 750, 1000),
     ),
     "Zinc Quartz 0.8": MaterialSpec(
         name="Zinc Quartz 0.8",
@@ -160,7 +204,7 @@ STANDARDIZED_MATERIALS: Final[dict[str, MaterialSpec]] = {
         thickness_mm=0.80,
         volumetric_density_kg_m3=7200.0,
         surface_density_kg_m2=5.76,
-        standard_mother_widths_mm=(600, 670, 750, 1000, 1100),
+        standard_mother_widths_mm=(600, 670, 750, 1000),
     ),
     "Zinc Pigmento Rouge 0.8": MaterialSpec(
         name="Zinc Pigmento Rouge 0.8",

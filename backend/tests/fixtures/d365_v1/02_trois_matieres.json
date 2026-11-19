@@ -1,0 +1,203 @@
+{
+  "id": "02_trois_matieres",
+  "description": "Zinc ATZ 0.8, Alu RAL 9005 0.7, Zinc Naturel 0.7 ; bornes différentes par matière, bornes vides au milieu.",
+  "capture": {
+    "commit": "83435aa",
+    "variables": [
+      "requestId",
+      "sentAt"
+    ]
+  },
+  "saisies": {
+    "orderNumber": "CC26000000202",
+    "entries": [
+      {
+        "material": "Zinc ATZ 0.8",
+        "dev": 100,
+        "quantity": 5,
+        "length_m": 2
+      },
+      {
+        "material": "Zinc ATZ 0.8",
+        "dev": 400,
+        "quantity": 2,
+        "length_m": 4
+      },
+      {
+        "material": "Alu RAL 9005 0.7",
+        "dev": 250,
+        "quantity": 3,
+        "length_m": 3
+      },
+      {
+        "material": "Alu RAL 9005 0.7",
+        "dev": 1000,
+        "quantity": 1,
+        "length_m": 2.5
+      },
+      {
+        "material": "Zinc Naturel 0.7",
+        "dev": 187,
+        "quantity": 6,
+        "length_m": 1.5
+      },
+      {
+        "material": "Zinc Naturel 0.7",
+        "dev": 750,
+        "quantity": 2,
+        "length_m": 2
+      },
+      {
+        "material": "Zinc ATZ 0.8",
+        "dev": 90,
+        "quantity": 1,
+        "length_m": 1
+      }
+    ]
+  },
+  "pieces_summary_request": {
+    "entries": [
+      {
+        "id": "entry-1795073465408-0-qbff",
+        "dev": 100,
+        "quantity": 5,
+        "unit_length_m": 2,
+        "material": "Zinc ATZ 0.8"
+      },
+      {
+        "id": "entry-1795073465746-0-of5h",
+        "dev": 400,
+        "quantity": 2,
+        "unit_length_m": 4,
+        "material": "Zinc ATZ 0.8"
+      },
+      {
+        "id": "entry-1795073466070-0-uxmr",
+        "dev": 250,
+        "quantity": 3,
+        "unit_length_m": 3,
+        "material": "Alu RAL 9005 0.7"
+      },
+      {
+        "id": "entry-1795073466313-0-vg99",
+        "dev": 1000,
+        "quantity": 1,
+        "unit_length_m": 2.5,
+        "material": "Alu RAL 9005 0.7"
+      },
+      {
+        "id": "entry-1795073466581-0-25f5",
+        "dev": 187,
+        "quantity": 6,
+        "unit_length_m": 1.5,
+        "material": "Zinc Naturel 0.7"
+      },
+      {
+        "id": "entry-1795073466828-0-oc99",
+        "dev": 750,
+        "quantity": 2,
+        "unit_length_m": 2,
+        "material": "Zinc Naturel 0.7"
+      },
+      {
+        "id": "entry-1795073467074-0-8rvl",
+        "dev": 90,
+        "quantity": 1,
+        "unit_length_m": 1,
+        "material": "Zinc ATZ 0.8"
+      }
+    ]
+  },
+  "message_attendu": {
+    "source": "faconote",
+    "version": 1,
+    "requestId": "<variable>",
+    "type": "SEND",
+    "sentAt": "<variable>",
+    "orderNumber": "CC26000000202",
+    "groups": [
+      {
+        "material": "Alu RAL 9005 0.7",
+        "matiere": "ALU PREFA 03 NOIR P10",
+        "epaisseur": "0.7 mm",
+        "lengths": {
+          "100": 0,
+          "120": 0,
+          "150": 0,
+          "175": 0,
+          "187": 0,
+          "200": 0,
+          "250": 9,
+          "285": 0,
+          "300": 0,
+          "333": 0,
+          "375": 0,
+          "400": 0,
+          "450": 0,
+          "500": 0,
+          "600": 0,
+          "670": 0,
+          "750": 0,
+          "1000": 2.5,
+          "1100": 0
+        }
+      },
+      {
+        "material": "Zinc ATZ 0.8",
+        "matiere": "ATZ",
+        "epaisseur": "0.8 mm",
+        "lengths": {
+          "100": 11,
+          "120": 0,
+          "150": 0,
+          "175": 0,
+          "187": 0,
+          "200": 0,
+          "250": 0,
+          "285": 0,
+          "300": 0,
+          "333": 0,
+          "375": 0,
+          "400": 8,
+          "450": 0,
+          "500": 0,
+          "600": 0,
+          "670": 0,
+          "750": 0,
+          "1000": 0,
+          "1100": 0
+        }
+      },
+      {
+        "material": "Zinc Naturel 0.7",
+        "matiere": "ZN",
+        "epaisseur": "0.7 mm",
+        "lengths": {
+          "100": 0,
+          "120": 0,
+          "150": 0,
+          "175": 0,
+          "187": 9,
+          "200": 0,
+          "250": 0,
+          "285": 0,
+          "300": 0,
+          "333": 0,
+          "375": 0,
+          "400": 0,
+          "450": 0,
+          "500": 0,
+          "600": 0,
+          "670": 0,
+          "750": 4,
+          "1000": 0,
+          "1100": 0
+        }
+      }
+    ]
+  },
+  "statut_affiche": [
+    "Commande reçue (test local). Pré-remplissez maintenant dans D365, matière par matière.",
+    "Commande reçue (test local)."
+  ]
+}

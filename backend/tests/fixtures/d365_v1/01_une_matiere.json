@@ -1,0 +1,112 @@
+{
+  "id": "01_une_matiere",
+  "description": "Une seule matière (Zinc Quartz 0.7), trois bornes, deux saisies dans la même borne.",
+  "capture": {
+    "commit": "83435aa",
+    "variables": [
+      "requestId",
+      "sentAt"
+    ]
+  },
+  "saisies": {
+    "orderNumber": "CC26000000101",
+    "entries": [
+      {
+        "material": "Zinc Quartz 0.7",
+        "dev": 175,
+        "quantity": 4,
+        "length_m": 2
+      },
+      {
+        "material": "Zinc Quartz 0.7",
+        "dev": 160,
+        "quantity": 2,
+        "length_m": 3.5
+      },
+      {
+        "material": "Zinc Quartz 0.7",
+        "dev": 333,
+        "quantity": 1,
+        "length_m": 6
+      },
+      {
+        "material": "Zinc Quartz 0.7",
+        "dev": 600,
+        "quantity": 3,
+        "length_m": 1.25
+      }
+    ]
+  },
+  "pieces_summary_request": {
+    "entries": [
+      {
+        "id": "entry-1795073462427-0-knfq",
+        "dev": 175,
+        "quantity": 4,
+        "unit_length_m": 2,
+        "material": "Zinc Quartz 0.7"
+      },
+      {
+        "id": "entry-1795073462791-0-no56",
+        "dev": 160,
+        "quantity": 2,
+        "unit_length_m": 3.5,
+        "material": "Zinc Quartz 0.7"
+      },
+      {
+        "id": "entry-1795073463045-0-mfto",
+        "dev": 333,
+        "quantity": 1,
+        "unit_length_m": 6,
+        "material": "Zinc Quartz 0.7"
+      },
+      {
+        "id": "entry-1795073463312-0-vseq",
+        "dev": 600,
+        "quantity": 3,
+        "unit_length_m": 1.25,
+        "material": "Zinc Quartz 0.7"
+      }
+    ]
+  },
+  "message_attendu": {
+    "source": "faconote",
+    "version": 1,
+    "requestId": "<variable>",
+    "type": "SEND",
+    "sentAt": "<variable>",
+    "orderNumber": "CC26000000101",
+    "groups": [
+      {
+        "material": "Zinc Quartz 0.7",
+        "matiere": "QZ",
+        "epaisseur": "0.7 mm",
+        "lengths": {
+          "100": 0,
+          "120": 0,
+          "150": 0,
+          "175": 15,
+          "187": 0,
+          "200": 0,
+          "250": 0,
+          "285": 0,
+          "300": 0,
+          "333": 6,
+          "375": 0,
+          "400": 0,
+          "450": 0,
+          "500": 0,
+          "600": 3.75,
+          "670": 0,
+          "750": 0,
+          "1000": 0,
+          "1100": 0
+        }
+      }
+    ]
+  },
+  "statut_affiche": [
+    "Commande reçue (test local). Pré-remplissez maintenant dans D365, matière par matière.",
+    "Commande reçue (test local)."
+  ]
+}

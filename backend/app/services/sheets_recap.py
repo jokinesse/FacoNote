@@ -8,6 +8,7 @@ from app.core.constants import calculate_surface_m2, resolve_material_spec, roun
 from app.models.optimizer import (
     SheetFormatRecapModel,
     SheetPieceCountModel,
+    SheetsRankingModel,
     SheetsRecapMaterialModel,
     SheetsRecapTotalsModel,
     SlitNestResultModel,
@@ -71,3 +72,18 @@ def build_sheets_recap(
         total_weight_kg=round(sum(m.total_weight_kg for m in materials), 2),
     )
     return materials, totals
+
+
+def build_sheets_ranking(materials: list[SheetsRecapMaterialModel]) -> list[SheetsRankingModel]:
+    """Classe les matières par métrage cumulé (toutes largeurs), du plus long au plus court."""
+    ordered = sorted(materials, key=lambda m: (-m.total_length_m, m.material))
+    return [
+        SheetsRankingModel(
+            rank=i,
+            material=m.material,
+            total_length_m=m.total_length_m,
+            total_sheets=m.total_sheets,
+            total_weight_kg=m.total_weight_kg,
+        )
+        for i, m in enumerate(ordered, start=1)
+    ]

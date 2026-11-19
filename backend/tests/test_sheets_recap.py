@@ -63,3 +63,24 @@ def test_slit_yield_and_input_totals() -> None:
     assert resp.input_total_pieces == 8
     assert resp.input_total_length_m == 18.0
     assert resp.input_total_surface_m2 == round(0.333 * 12 + 0.175 * 6, 2)
+
+
+def test_ranking_sums_all_widths_per_material() -> None:
+    resp = run_nesting_optimization(OptimizationRequest(
+        material="Zinc Quartz 0.7",
+        pieces=[
+            piece("a", 333, 2.0, 6, "Zinc Quartz 0.7"),
+            piece("c", 900, 1.5, 2, "Zinc Quartz 0.7"),
+            piece("b", 250, 3.0, 1, "Alu RAL 9005 0.7"),
+        ],
+    ))
+    ranking = resp.sheets_ranking
+    assert [r.rank for r in ranking] == list(range(1, len(resp.sheets_recap) + 1))
+    assert {r.material for r in ranking} == {m.material for m in resp.sheets_recap}
+    lengths = [r.total_length_m for r in ranking]
+    assert lengths == sorted(lengths, reverse=True)
+    for r in ranking:
+        mat = next(m for m in resp.sheets_recap if m.material == r.material)
+        expected = round(sum(f.mother_length * f.count for f in mat.formats), 2)
+        assert abs(r.total_length_m - expected) <= 0.01
+        assert r.total_sheets == sum(f.count for f in mat.formats)

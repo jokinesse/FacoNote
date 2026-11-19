@@ -200,6 +200,17 @@ class SheetsRecapMaterialModel(BaseModel):
     formats: list[SheetFormatRecapModel]
 
 
+class SheetsRankingModel(BaseModel):
+    """Cumul des longueurs de bobines mères à sortir pour une matière (toutes largeurs confondues)."""
+    model_config = ConfigDict(extra="forbid")
+
+    rank: int
+    material: str
+    total_length_m: float
+    total_sheets: int
+    total_weight_kg: float
+
+
 class SheetsRecapTotalsModel(BaseModel):
     """Totaux des feuilles mères à sortir, toutes matières."""
     model_config = ConfigDict(extra="forbid")
@@ -237,4 +248,7 @@ class OptimizationResponse(BaseModel):
     input_total_surface_m2: float = Field(0.0, description="Surface nette totale des pièces demandées")
     sheets_recap_totals: SheetsRecapTotalsModel = Field(
         default_factory=SheetsRecapTotalsModel, description="Totaux des feuilles mères à sortir"
+    )
+    sheets_ranking: list[SheetsRankingModel] = Field(
+        default_factory=list, description="Classement des matières par métrage cumulé à sortir, du plus long au plus court"
     )

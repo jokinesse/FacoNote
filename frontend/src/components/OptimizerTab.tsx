@@ -38,6 +38,7 @@ import {
   useReference,
   SheetsRecapMaterial,
   SheetsRecapTotals,
+  SheetsRanking,
 } from '../api';
 import { CuttingPlan2D } from './CuttingPlan2D';
 import { AiScanButton, BTN_DANGER, DeleteButton, useDeleteAction } from './ui';
@@ -368,6 +369,7 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
         totals: response.data.sheets_recap_totals ?? {
           total_sheets: 0, total_length_m: 0, total_surface_m2: 0, total_weight_kg: 0,
         },
+        ranking: response.data.sheets_ranking ?? [],
       });
     } catch (err: any) {
       console.error('Erreur optimisation API:', err);
@@ -396,7 +398,9 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [] }
   const [sheetsRecap, setSheetsRecap] = useState<{
     materials: SheetsRecapMaterial[];
     totals: SheetsRecapTotals;
+    ranking: SheetsRanking[];
   } | null>(null);
+  const sheetsRanking = optimizationResult ? sheetsRecap?.ranking ?? [] : [];
 
   const sheetsRecapByMaterial = (optimizationResult ? sheetsRecap?.materials ?? [] : []).map((m) => ({
     material: m.material,
@@ -1386,7 +1390,11 @@ Sois direct, pro et concis en français.`;
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3 items-start">
+              <div className="space-y-3 min-w-0">
+                <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  Détail par bobine
+                </h5>
                 {sheetsRecapByMaterial.map((matGroup, mIdx) => {
                   const isGroupAlu = /alu/i.test(matGroup.material);
                   return (
@@ -1490,6 +1498,55 @@ Sois direct, pro et concis en français.`;
                     </div>
                   );
                 })}
+              </div>
+
+              <div className="space-y-3 min-w-0">
+                <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  Cumul par matière
+                </h5>
+                <div
+                  className="table-wrapper bg-white border border-slate-200 rounded-lg overflow-hidden"
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Cumul des longueurs à sortir par matière"
+                >
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px] border-b border-slate-200">
+                      <tr>
+                        <th className="py-2 px-3 w-8">#</th>
+                        <th className="py-2 px-3">Matière</th>
+                        <th className="py-2 px-3 text-right">Métrage total</th>
+                        <th className="py-2 px-3 text-right">Feuilles</th>
+                        <th className="py-2 px-3 text-right">Poids</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
+                      {sheetsRanking.map((r) => (
+                        <tr key={r.material} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-2 px-3 text-slate-400">{r.rank}</td>
+                          <td className="py-2 px-3 font-sans font-semibold text-slate-900">
+                            <span className="inline-flex items-center gap-1.5">
+                              <span
+                                className={`w-2 h-2 rounded-full shrink-0 ${
+                                  /alu/i.test(r.material) ? 'bg-[#3ca7da]' : 'bg-[#00478a]'
+                                }`}
+                              />
+                              {r.material}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-right font-bold text-[#00478a] whitespace-nowrap">
+                            {r.total_length_m.toFixed(2)} m
+                          </td>
+                          <td className="py-2 px-3 text-right text-slate-700">{r.total_sheets}</td>
+                          <td className="py-2 px-3 text-right text-slate-600 whitespace-nowrap">
+                            {r.total_weight_kg.toFixed(1)} kg
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
               </div>
             </div>
           )}

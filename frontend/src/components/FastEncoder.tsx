@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { OrderSnapshot, useOrderHistory } from '../utils/useOrderHistory';
 import { OrderLines, OrderLineDraft } from './OrderLines';
 import {
   Calculator,
@@ -170,6 +171,47 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     setLastFeedback(null);
   };
   const isCoilMode = preset === 'DEV_BOBINE';
+
+  // Annuler / rétablir sur plusieurs niveaux (lignes pièces et bobines de la commande)
+  const orderSnapshot = useMemo<OrderSnapshot>(
+    () => ({ pieces: entriesHistory, coils: coilEntries }),
+    [entriesHistory, coilEntries]
+  );
+  const restoreSnapshot = useCallback((snap: OrderSnapshot) => {
+    setEntriesHistory(snap.pieces);
+    setCoilEntries(snap.coils);
+  }, []);
+  const orderHistory = useOrderHistory(orderSnapshot, restoreSnapshot);
+  const handleUndo = () => {
+    const text = orderHistory.undo();
+    if (text) notify(`Annulé : ${text}`);
+  };
+  const handleRedo = () => {
+    const text = orderHistory.redo();
+    if (text) notify(`Rétabli : ${text}`);
+  };
+  // Ctrl+Z / Ctrl+Y (ou Ctrl+Maj+Z) hors d'un champ de saisie, quand le Calculateur est affiché
+  const rootRef = useRef<HTMLDivElement>(null);
+  const undoKeysRef = useRef({ handleUndo, handleRedo });
+  undoKeysRef.current = { handleUndo, handleRedo };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      if (!rootRef.current || rootRef.current.offsetParent === null) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+      const key = e.key.toLowerCase();
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undoKeysRef.current.handleUndo();
+      } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        undoKeysRef.current.handleRedo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Ajoute à l'historique des saisies déjà calculées par le backend
   const addEncodedEntries = (encoded: FastEncoderEntryResponse[]) => {
@@ -420,17 +462,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
     deleteAction(`la saisie Dév ${entry.dev} mm · ${entry.quantity || 1} × ${entry.unitLength} m`, () =>
       setEntriesHistory((prev) => prev.filter((e) => e.id !== entryId))
     );
-  };
-
-  // Annuler la dernière saisie (sans confirmation, pour garder la saisie rapide)
-  const handleUndoLast = () => {
-    if (entriesHistory.length === 0) return;
-    const [last] = entriesHistory;
-    setEntriesHistory((prev) => prev.filter((e) => e.id !== last.id));
-    setLastFeedback({
-      success: true,
-      message: `Dernière saisie annulée : Dév ${last.dev} mm · ${last.quantity || 1} × ${last.unitLength} m`,
-    });
   };
 
   // Vider l'onglet Pièce : seulement les pièces (le n° et les bobines restent)
@@ -902,7 +933,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
   };
 
   return (
-    <div className="space-y-4">
+    <div ref={rootRef} className="space-y-4">
       <OrderBar
         orderNumber={orderNumber}
         onOrderChange={setOrderNumber}
@@ -919,6 +950,10 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
         onClearPieces={handleClearPieces}
         onClearCoils={handleClearCoils}
         onClearOrder={handleClearOrder}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        undoCount={orderHistory.undoCount}
+        redoCount={orderHistory.redoCount}
       >
         {extStatus && (
           <Notice kind={extStatus.kind} message={extStatus.message} onClose={() => setExtStatus(null)} />
@@ -1326,15 +1361,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ onTransferToOptimizer 
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={handleUndoLast}
-              disabled={entriesHistory.length === 0}
-              className="px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white hover:bg-slate-100 disabled:opacity-40 border border-slate-200 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Annuler</span>
-            </button>
           </div>
         </div>
 

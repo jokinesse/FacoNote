@@ -237,17 +237,6 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
     );
   };
 
-  // Annuler la dernière saisie (sans confirmation, pour garder la saisie rapide)
-  const handleUndo = () => {
-    if (entries.length === 0) return;
-    const [last] = entries;
-    setEntries((prev) => prev.filter((e) => e.id !== last.id));
-    setFeedback({
-      success: true,
-      message: `Dernière saisie annulée : ${last.isChute ? 'Chute' : `${last.width} mm`} · ${last.quantity} × ${last.unitLength} m`,
-    });
-  };
-
   // Correction d'une ligne sur place : le backend relit et recalcule la ligne, qui garde sa place.
   const handleSaveEntry = async (id: string, draft: OrderLineDraft): Promise<string | null> => {
     const qty = parseInt(draft.quantity, 10);
@@ -605,15 +594,6 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
             <h2 className="text-xs font-bold text-[#00478a] uppercase tracking-wider">Tableau des Bobines & Feuilles Sorties</h2>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={handleUndo}
-              disabled={!hasData}
-              className={BTN_SECONDARY}
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Annuler</span>
-            </button>
             <button
               type="button"
               onClick={handleExportCSV}

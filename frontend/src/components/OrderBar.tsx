@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowRight, ChevronDown, ClipboardList, Printer, Send, Trash2 } from 'lucide-react';
+import { ArrowRight, ChevronDown, ClipboardList, Printer, Redo2, Send, Trash2, Undo2 } from 'lucide-react';
 import { D365_ORDER_RE } from '../utils/d365Bridge';
 import { BTN_SECONDARY } from './ui';
 
@@ -22,6 +22,10 @@ interface OrderBarProps {
   onClearPieces: () => void;
   onClearCoils: () => void;
   onClearOrder: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  undoCount: number;
+  redoCount: number;
   children?: React.ReactNode; // message de retour de l'extension
 }
 
@@ -43,6 +47,10 @@ export const OrderBar: React.FC<OrderBarProps> = ({
   onClearPieces,
   onClearCoils,
   onClearOrder,
+  onUndo,
+  onRedo,
+  undoCount,
+  redoCount,
   children,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -121,6 +129,31 @@ export const OrderBar: React.FC<OrderBarProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap ml-auto">
+          {/* Annuler / rétablir (plusieurs niveaux) */}
+          <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden">
+            <button
+              type="button"
+              onClick={onUndo}
+              disabled={undoCount === 0}
+              className="px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white hover:bg-slate-100 disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+              title="Annuler le dernier changement des lignes (Ctrl+Z)"
+              aria-label="Annuler"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+              <span>Annuler</span>
+            </button>
+            <button
+              type="button"
+              onClick={onRedo}
+              disabled={redoCount === 0}
+              className="px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white hover:bg-slate-100 disabled:opacity-40 border-l border-slate-200 flex items-center gap-1 cursor-pointer"
+              title="Rétablir le changement annulé (Ctrl+Y)"
+              aria-label="Rétablir"
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           {/* Actions secondaires */}
           <button
             type="button"

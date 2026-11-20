@@ -8,16 +8,7 @@ import type { D365OrderResponse } from '../api';
 import {
   Calculator,
   Plus,
-  Trash2,
-  RotateCcw,
-  Printer,
-  ArrowRight,
-  Hash,
-  CornerDownLeft,
-  Layers,
   Filter,
-  Sparkles,
-  Send,
 } from 'lucide-react';
 import {
   CoilEntry,
@@ -48,8 +39,6 @@ import { VisualPreEncoderModal } from './VisualPreEncoderModal';
 import { CoilCalculator } from './CoilCalculator';
 import { OrderBar } from './OrderBar';
 import {
-  AiScanButton,
-  BTN_DANGER,
   CELL_SHARED_EDGE,
   DeleteButton,
   MaterialFilterButtons,
@@ -126,7 +115,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
 
   // Multi-material & view mode states
   const [selectedMaterialFilter, setSelectedMaterialFilter] = useState<string>('ALL');
-  const [tableViewMode, setTableViewMode] = useState<'DEV' | 'BOUNDS'>('BOUNDS');
   const [hideEmptyBounds, setHideEmptyBounds] = useState<boolean>(true);
 
   // Refs for smooth Tab/Enter navigation between the 3 boxes
@@ -626,17 +614,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
     notify(ok);
   };
 
-  // Supprimer une ligne Dév × matière du tableau
-  const handleResetDevMaterialRow = (targetDev: number, targetMaterial: string) => {
-    deleteAction(`Dév ${targetDev} mm (${targetMaterial})`, () =>
-      setEntriesHistory((prev) =>
-        prev.filter(
-          (e) => !(e.dev === targetDev && (e.material || activeMaterial) === targetMaterial)
-        )
-      )
-    );
-  };
-
   // Supprimer une ligne Borne × matière du tableau
   const handleResetIntervalRow = (bound: number, targetMaterial?: string) => {
     deleteAction(
@@ -652,14 +629,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
           )
         )
     );
-  };
-
-  // Quick preset button click
-  const handleQuickPreset = (dev: number, len: string, qty: string) => {
-    setInputDev(dev.toString());
-    setInputLength(len);
-    setInputQuantity(qty);
-    handleSubmitEntry(dev.toString(), len, qty);
   };
 
   // Feuille A4 « pièces par borne » (imprimante ou PDF), avec le tableau recalculé à l'instant par le backend
@@ -848,22 +817,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
       isShared: c.is_shared_dev,
     }));
 
-  const tableDevRows = (summary?.dev_rows ?? []).map((r) => ({
-    id: `dev-${r.dev}-${r.material}`,
-    dev: r.dev,
-    bound: r.bound,
-    material: r.material,
-    metalFamily: r.family,
-    count: r.quantity,
-    accumulatedLength: r.length_m,
-    surface: r.surface_m2,
-    weightEst: r.weight_kg,
-    percent: r.percent,
-    isSharedDev: r.is_shared_dev,
-    sharedWithMaterials: r.shared_with_materials,
-    entries: toCuts(r.cuts),
-  }));
-
   // Après une saisie : si le même dév existe dans une autre matière, on prévient
   // (l'information vient du backend : is_shared_dev / shared_with_materials).
   useEffect(() => {
@@ -931,8 +884,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
     (selectedMaterialFilter === 'ALU' && family === 'ALU') ||
     (selectedMaterialFilter === 'ZINC' && family === 'ZINC') ||
     material === selectedMaterialFilter;
-
-  const filteredDevRows = tableDevRows.filter((r) => matchesFilter(r.metalFamily, r.material));
 
   const filteredIntervalRows = tableIntervalRows.filter((r) => {
     if (hideEmptyBounds && r.accumulatedLength <= 0) return false;
@@ -1406,33 +1357,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
               </h2>
             </div>
 
-            {/* View Mode Toggle: Real Pieces (Dév) vs Theoretical Bounds Grid */}
-            <div className="flex items-center bg-slate-200/80 p-0.5 rounded-lg border border-slate-300 text-xs">
-              <button
-                type="button"
-                onClick={() => setTableViewMode('DEV')}
-                className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
-                  tableViewMode === 'DEV'
-                    ? 'bg-white text-[#00478a] shadow-2xs font-bold'
-                    : 'text-slate-600 hover:text-[#282828]'
-                }`}
-                title="Afficher par développement réel saisi (ex: 150 mm Alu, 150 mm Zinc...)"
-              >
-                Par développé
-              </button>
-              <button
-                type="button"
-                onClick={() => setTableViewMode('BOUNDS')}
-                className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
-                  tableViewMode === 'BOUNDS'
-                    ? 'bg-white text-[#00478a] shadow-2xs font-bold'
-                    : 'text-slate-600 hover:text-[#282828]'
-                }`}
-                title="Afficher selon les bornes standards d'atelier (100, 125, 166...)"
-              >
-                Par borne
-              </button>
-            </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -1544,21 +1468,19 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
           </div>
         )}
 
-        {/* BOUNDS Mode extra option: Hide empty rows */}
-        {tableViewMode === 'BOUNDS' && (
-          <div className="px-4 py-1.5 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span className="text-[11px]">Grille standard des laizes et développements de refente</span>
-            <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-medium text-slate-600 hover:text-slate-900 select-none">
-              <input
-                type="checkbox"
-                checked={hideEmptyBounds}
-                onChange={(e) => setHideEmptyBounds(e.target.checked)}
-                className="rounded border-slate-300 text-[#00478a] focus:ring-0 cursor-pointer"
-              />
-              <span>Masquer les bornes vides (0m)</span>
-            </label>
-          </div>
-        )}
+        {/* Option : masquer les bornes vides */}
+        <div className="px-4 py-1.5 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <span className="text-[11px]">Grille standard des laizes et développements de refente</span>
+          <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-medium text-slate-600 hover:text-slate-900 select-none">
+            <input
+              type="checkbox"
+              checked={hideEmptyBounds}
+              onChange={(e) => setHideEmptyBounds(e.target.checked)}
+              className="rounded border-slate-300 text-[#00478a] focus:ring-0 cursor-pointer"
+            />
+            <span>Masquer les bornes vides (0m)</span>
+          </label>
+        </div>
 
         <div
           tabIndex={0}
@@ -1566,154 +1488,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
           aria-label="Tableau de calcul multi-matière"
           className="table-wrapper"
         >
-          {tableViewMode === 'DEV' ? (
-            /* ========================================================
-               MODE 1 : VUE DÉVELOPPEMENTS & PIÈCES RÉELLES ENCODÉES
-               ======================================================== */
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
-                <tr>
-                  <th className="py-2.5 px-4">Développement</th>
-                  <th className="py-2.5 px-4">Matière</th>
-                  <th className="py-2.5 px-4">Borne Atelier</th>
-                  <th className="py-2.5 px-4">Longueurs & Détail</th>
-                  <th className="py-2.5 px-4 text-right">Qté</th>
-                  <th className="py-2.5 px-4 text-right">Cumul (m)</th>
-                  <th className="py-2.5 px-4 text-right">Surface</th>
-                  <th className="py-2.5 px-4 text-right">Poids Est.</th>
-                  <th className="py-2.5 px-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-mono">
-                {filteredDevRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="py-8 px-4 text-center text-slate-400 font-sans">
-                      <div className="max-w-md mx-auto space-y-2">
-                        <Calculator className="w-8 h-8 text-slate-300 mx-auto" />
-                        <p className="text-xs font-semibold text-slate-600">
-                          Aucune pièce encodée pour le moment.
-                        </p>
-                        <p className="text-[11px] text-slate-400">
-                          Saisissez vos développements ci-dessus (ex: <span className="font-mono text-[#00478a] font-bold">150</span> en Alu, puis <span className="font-mono text-[#00478a] font-bold">150</span> en Zinc) pour les comparer et optimiser le débit.
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredDevRows.map((row) => {
-                    const isAlu = row.metalFamily === 'ALU';
-                    const isZinc = row.metalFamily === 'ZINC';
-
-                    return (
-                      <tr
-                        key={row.id}
-                        className={`transition-colors border-b border-slate-100 ${
-                          row.isSharedDev ? ROW_SHARED : 'bg-white hover:bg-slate-50/80'
-                        }`}
-                      >
-                        {/* 1. Dév Réel (Gros et lisible) + Badge Même Dév si partagé */}
-                        <td className={`py-2.5 px-4 ${row.isSharedDev ? CELL_SHARED_EDGE : ''}`}>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-black font-mono text-[#282828] tabular-nums">
-                              {row.dev} <span className="text-xs font-normal text-slate-500">mm</span>
-                            </span>
-                            {row.isSharedDev && (
-                              <SharedBadge label="Même dév" materials={row.sharedWithMaterials} />
-                            )}
-                          </div>
-                        </td>
-
-                        {/* 2. Badge Matière à fort contraste (ALU vs ZINC) */}
-                        <td className="py-2.5 px-4">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-black tracking-wider ${
-                                isAlu
-                                  ? 'bg-[#00478a] text-white shadow-2xs'
-                                  : isZinc
-                                  ? row.material.includes('Rouge')
-                                    ? 'bg-rose-600 text-white shadow-2xs'
-                                    : 'bg-slate-700 text-white shadow-2xs'
-                                  : 'bg-emerald-700 text-white'
-                              }`}
-                            >
-                              {isAlu ? 'ALU' : isZinc ? 'ZINC' : 'MÉTAL'}
-                            </span>
-                            <span className="font-semibold text-xs text-slate-800">
-                              {row.material.replace(/^(Alu|Zinc)\s*/i, '')}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* 3. Borne de Refente Atelier */}
-                        <td className="py-2.5 px-4 font-mono text-xs text-slate-500">
-                          <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                            Borne ≤ <strong className="text-[#00478a]">{row.bound}</strong> mm
-                          </span>
-                        </td>
-
-                        {/* 4. Détail des coupes */}
-                        <td className="py-2.5 px-4 text-xs font-mono">
-                          <div className="flex flex-wrap items-center gap-1">
-                            {row.entries.map((e) => (
-                              <span
-                                key={e.id}
-                                className="px-1.5 py-0.5 bg-[#f8fafc] text-slate-700 rounded border border-slate-200 text-[11px]"
-                              >
-                                {e.quantity} × {e.unitLength}m
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-
-                        {/* 5. Quantité */}
-                        <td className="py-2.5 px-4 text-right tabular-nums font-bold text-xs text-[#282828]">
-                          {row.count} pcs
-                        </td>
-
-                        {/* 6. Cumul en mètres */}
-                        <td className="py-2.5 px-4 text-right tabular-nums font-bold text-xs text-[#00478a]">
-                          {row.accumulatedLength.toFixed(2)} m
-                        </td>
-
-                        {/* 7. Surface nette m² */}
-                        <td className="py-2.5 px-4 text-right tabular-nums text-xs text-slate-600">
-                          {row.surface.toFixed(2)} m²
-                        </td>
-
-                        {/* 8. Poids calculé selon densité physique réelle */}
-                        <td className="py-2.5 px-4 text-right tabular-nums font-bold text-xs text-[#282828]">
-                          <span
-                            className={
-                              isAlu
-                                ? 'text-[#00478a]'
-                                : isZinc
-                                ? 'text-slate-800'
-                                : 'text-slate-700'
-                            }
-                          >
-                            {row.weightEst} kg
-                          </span>
-                        </td>
-
-                        {/* 9. Action Supprimer cette pièce */}
-                        <td className="py-2.5 px-4 text-right">
-                          <DeleteButton
-                            title={`Supprimer Dév ${row.dev} mm (${row.material})`}
-                            onClick={() => handleResetDevMaterialRow(row.dev, row.material)}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-
-              </tbody>
-            </table>
-          ) : (
-            /* ========================================================
-               MODE 2 : VUE GRILLE DES BORNES STANDARDS D'ATELIER
-               ======================================================== */
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200 uppercase tracking-wider text-[11px]">
                 <tr>
@@ -1838,7 +1612,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
 
               </tbody>
             </table>
-          )}
 
           {/* Unified Table Footer */}
           <table className="w-full text-left text-xs">

@@ -1322,20 +1322,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
         </div>
       )}
 
-      {/* Chiffres clés (backend) */}
-      <KpiStrip
-        items={[
-          { label: 'Métrage total', value: totalLengthM.toFixed(2), unit: 'm', tone: 'blue' },
-          { label: 'Pièces', value: String(totalCount), unit: 'pcs' },
-          {
-            label: 'Surface et poids',
-            value: totalSurfaceM2.toFixed(2),
-            unit: 'm²',
-            sub: `${totalWeightEstKg.toFixed(1)} kg`,
-          },
-        ]}
-      />
-
       {/* Lignes de la commande : chaque ligne se corrige sur place */}
       {!isCoilMode && (
         <OrderLines
@@ -1355,6 +1341,20 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
           onApplyActiveMaterialToAll={() => handleApplyActiveMaterialToAll()}
         />
       )}
+
+      {/* Chiffres clés (backend) */}
+      <KpiStrip
+        items={[
+          { label: 'Métrage total', value: totalLengthM.toFixed(2), unit: 'm', tone: 'blue' },
+          { label: 'Pièces', value: String(totalCount), unit: 'pcs' },
+          {
+            label: 'Surface et poids',
+            value: totalSurfaceM2.toFixed(2),
+            unit: 'm²',
+            sub: `${totalWeightEstKg.toFixed(1)} kg`,
+          },
+        ]}
+      />
 
       {/* Main Table: Accumulated Intervals & Multi-Material Management */}
       <div className="faco-card bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">

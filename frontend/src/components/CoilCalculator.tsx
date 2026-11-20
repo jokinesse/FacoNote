@@ -533,21 +533,6 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
         )}
       </div>
 
-      {/* Chiffres clés (backend) */}
-      <KpiStrip
-        items={[
-          { label: 'Métrage total', value: totals.length_m.toFixed(2), unit: 'm', tone: 'blue' },
-          { label: 'Feuilles', value: String(totals.quantity), unit: 'pcs' },
-          {
-            label: 'Surface et poids',
-            value: totals.surface_m2.toFixed(2),
-            unit: 'm²',
-            sub: `${totals.weight_kg.toFixed(1)} kg`,
-          },
-          { label: 'Chutes (hors totaux)', value: totals.chutes_length_m.toFixed(2), unit: 'm', tone: 'orange' },
-        ]}
-      />
-
       {/* Lignes de la commande : chaque ligne se corrige sur place */}
       <OrderLines
         mainHeader="Largeur (mm)"
@@ -566,6 +551,21 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
         onSave={handleSaveEntry}
         onDelete={handleDelete}
         onApplyActiveMaterialToAll={handleApplyActiveMaterialToAll}
+      />
+
+      {/* Chiffres clés (backend) */}
+      <KpiStrip
+        items={[
+          { label: 'Métrage total', value: totals.length_m.toFixed(2), unit: 'm', tone: 'blue' },
+          { label: 'Feuilles', value: String(totals.quantity), unit: 'pcs' },
+          {
+            label: 'Surface et poids',
+            value: totals.surface_m2.toFixed(2),
+            unit: 'm²',
+            sub: `${totals.weight_kg.toFixed(1)} kg`,
+          },
+          { label: 'Chutes (hors totaux)', value: totals.chutes_length_m.toFixed(2), unit: 'm', tone: 'orange' },
+        ]}
       />
 
       {/* Tableau des bobines */}

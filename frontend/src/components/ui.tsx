@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Camera, CheckCircle2, Layers, Trash2, X, type LucideIcon } from 'lucide-react';
+import { materialColor, materialFamily } from '../utils/materialColor';
 
 // Éléments communs à tout le site, pour que les actions se comportent partout pareil :
 // - confirmation de suppression (fenêtre Oui / Non) et message après suppression,
@@ -247,28 +248,19 @@ export const MaterialFilterButtons: React.FC<{
   <>
     {items.map((m) => {
       const isActive = selected === m.material;
-      const isAlu = m.family === 'ALU';
-      const isRouge = /rouge/i.test(m.material);
-      const active = isAlu
-        ? 'bg-faco-blue text-white border-faco-blue'
-        : isRouge
-        ? 'bg-rose-600 text-white border-rose-600'
-        : 'bg-slate-700 text-white border-slate-700';
-      const idle = isAlu
-        ? 'bg-white text-faco-blue border-sky-200 hover:bg-sky-50'
-        : isRouge
-        ? 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50'
-        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100';
+      const color = materialColor(m.material);
       return (
         <button
           key={m.material}
           type="button"
           onClick={() => onSelect(isActive ? 'ALL' : m.material)}
-          className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
-            isActive ? `${active} shadow-2xs` : idle
+          className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+            isActive ? 'text-white shadow-2xs' : 'bg-white text-faco-text border-slate-300 hover:bg-slate-50'
           }`}
+          style={isActive ? { backgroundColor: color, borderColor: color } : undefined}
           title={`Afficher seulement ${m.material}`}
         >
+          {!isActive && <MaterialDot material={m.material} />}
           {m.material} ({m.lengthM.toFixed(1)}m · {m.count} pcs)
         </button>
       );
@@ -323,3 +315,44 @@ export const CardTitle: React.FC<{ icon: LucideIcon; children: React.ReactNode; 
     <Tag className="text-[15px] font-bold text-faco-text leading-tight">{children}</Tag>
   </span>
 );
+
+// Pastille de couleur propre à la matière (même teinte partout sur le site)
+export const MaterialDot: React.FC<{ material: string; className?: string }> = ({ material, className = '' }) => (
+  <span
+    aria-hidden="true"
+    className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-black/10 ${className}`}
+    style={{ backgroundColor: materialColor(material) }}
+  />
+);
+
+// Badge matière : étiquette ALU / ZINC dans la couleur de la matière, puis le nom
+export const MaterialBadge: React.FC<{ material: string; muted?: boolean }> = ({ material, muted = false }) => {
+  if (muted) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-sans text-slate-400 bg-slate-50 border border-slate-200">
+        <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></span>
+        <span className="truncate max-w-[140px]">{material}</span>
+      </span>
+    );
+  }
+  const family = materialFamily(material);
+  const name = family ? material.replace(family === 'ALU' ? /^Alu\s*/i : /^Zinc\s*/i, '') : material;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border bg-white text-faco-text border-slate-200 shadow-2xs"
+      title={material}
+    >
+      {family ? (
+        <span
+          className="px-1.5 rounded text-[9px] font-black text-white tracking-wider"
+          style={{ backgroundColor: materialColor(material) }}
+        >
+          {family}
+        </span>
+      ) : (
+        <MaterialDot material={material} />
+      )}
+      <span className="truncate max-w-[150px] font-bold">{name}</span>
+    </span>
+  );
+};

@@ -88,7 +88,7 @@ export const OrderBar: React.FC<OrderBarProps> = ({
     <div className="no-print sticky top-[var(--faco-header-h,58px)] z-20 faco-card bg-white border border-slate-200 rounded-xl shadow-xs">
       <div className="px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* Commande : n° et contenu */}
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 min-w-0">
           <ClipboardList className="w-4 h-4 text-faco-blue shrink-0" />
           <div className="flex flex-col">
             <input
@@ -115,14 +115,14 @@ export const OrderBar: React.FC<OrderBarProps> = ({
               <span className="text-[10px] text-rose-600 mt-0.5">CC suivi de 11 chiffres</span>
             )}
           </div>
-          <span className="text-xs text-slate-500 whitespace-nowrap">
+          <span className="text-xs text-slate-500 min-w-0">
             {isEmpty ? (
               'Commande vide'
             ) : (
               <>
-                <strong className="text-faco-text">{plural(pieceLines, 'ligne pièce', 'lignes pièce')}</strong>
+                <strong className="text-faco-text whitespace-nowrap">{plural(pieceLines, 'ligne pièce', 'lignes pièce')}</strong>
                 {' · '}
-                <strong className="text-faco-text">{plural(coilLines, 'ligne bobine', 'lignes bobine')}</strong>
+                <strong className="text-faco-text whitespace-nowrap">{plural(coilLines, 'ligne bobine', 'lignes bobine')}</strong>
               </>
             )}
           </span>

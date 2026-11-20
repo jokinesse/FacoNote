@@ -10,7 +10,7 @@ import {
   
 } from 'lucide-react';
 import { CoilEntry } from '../types';
-import { ApiError, CoilSummaryResponse, MetalFamily, optimizerApi, useReference } from '../api';
+import { ApiError, CoilSummaryResponse, optimizerApi, useReference } from '../api';
 import {
   
   BTN_SECONDARY,
@@ -23,6 +23,7 @@ import {
   KpiStrip,
   useDeleteAction,
   CardTitle,
+  MaterialBadge,
 } from './ui';
 
 // Calculateur Bobine : saisies propres à l'onglet Bobine, séparées du tableau des pièces.
@@ -42,50 +43,6 @@ interface CoilCalculatorProps {
   // Comptes rendus par le backend : bobines et chutes qui partiront vers D365
   onSendCounts: (coils: number, chutes: number) => void;
 }
-
-// Badge matière, même rendu que dans le calculateur des pièces
-const MaterialBadge: React.FC<{ material: string; family: MetalFamily }> = ({ material, family }) => {
-  if (family === 'ALU') {
-    return (
-      <span
-        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border bg-faco-blue/10 text-faco-blue border-faco-blue/25 shadow-2xs"
-        title={material}
-      >
-        <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-faco-blue text-white tracking-wider">ALU</span>
-        <span className="truncate max-w-[150px] font-bold">{material.replace(/^Alu\s*/i, '')}</span>
-      </span>
-    );
-  }
-  if (family === 'ZINC') {
-    const isRouge = /rouge/i.test(material);
-    return (
-      <span
-        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border shadow-2xs ${
-          isRouge ? 'bg-rose-50 text-rose-800 border-rose-200' : 'bg-slate-100 text-slate-800 border-slate-300'
-        }`}
-        title={material}
-      >
-        <span
-          className={`px-1.5 py-0.2 rounded text-[9px] font-black text-white tracking-wider ${
-            isRouge ? 'bg-rose-600' : 'bg-slate-700'
-          }`}
-        >
-          ZINC
-        </span>
-        <span className="truncate max-w-[150px] font-bold">{material.replace(/^Zinc\s*/i, '')}</span>
-      </span>
-    );
-  }
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border bg-slate-100 text-slate-700 border-slate-200"
-      title={material}
-    >
-      <span className="w-1.5 h-1.5 rounded-full bg-faco-sky shrink-0"></span>
-      <span className="truncate max-w-[150px] font-semibold">{material}</span>
-    </span>
-  );
-};
 
 const fmt = (value: number, decimals = 2) =>
   value.toLocaleString('fr-BE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -761,7 +718,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
                         )}
                       </td>
                     )}
-                    <td className="py-2 px-4">{isEmpty ? <span className="text-slate-300">-</span> : <MaterialBadge material={row.material} family={row.family} />}</td>
+                    <td className="py-2 px-4">{isEmpty ? <span className="text-slate-300">-</span> : <MaterialBadge material={row.material} />}</td>
                     <td className="py-2 px-4 text-[11px]">
                       {isEmpty ? (
                         <span className="font-sans text-slate-400" title={row.available_materials.join('\n')}>
@@ -811,7 +768,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
               {filteredChutes.map((c) => (
                 <tr key={`chute-${c.material}`} className="bg-amber-50/50 text-amber-900 border-t border-amber-200">
                   <td className="py-2 px-4 font-bold">0 (CHUTES)</td>
-                  <td className="py-2 px-4"><MaterialBadge material={c.material} family={c.family} /></td>
+                  <td className="py-2 px-4"><MaterialBadge material={c.material} /></td>
                   <td className="py-2 px-4 text-[11px]">
                     <div className="flex flex-wrap items-center gap-1.5">
                       {[...c.sheets].reverse().map((e) => (

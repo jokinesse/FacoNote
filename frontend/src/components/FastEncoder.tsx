@@ -49,7 +49,9 @@ import {
   useDeleteAction,
   useNotify,
   CardTitle,
+  MaterialBadge,
 } from './ui';
+import { materialColor } from '../utils/materialColor';
 
 interface FastEncoderProps {
   view: 'input' | 'send';
@@ -892,73 +894,6 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
     return matchesFilter(r.metalFamily, r.material);
   });
 
-  // Discrete material badge helper with prominent ALU vs ZINC identification
-  const renderMaterialBadge = (material: string, isRowEmpty = false) => {
-    if (isRowEmpty) {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-sans text-slate-400 bg-slate-50 border border-slate-200">
-          <span className="w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></span>
-          <span className="truncate max-w-[140px]">{material}</span>
-        </span>
-      );
-    }
-
-    const matLower = material.toLowerCase();
-    const isAlu = matLower.includes('alu') || matLower.includes('aluminium');
-    const isZinc = matLower.includes('zinc');
-
-    if (isAlu) {
-      return (
-        <span
-          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border bg-faco-blue/10 text-faco-blue border-faco-blue/25 shadow-2xs"
-          title={material}
-        >
-          <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-faco-blue text-white tracking-wider">
-            ALU
-          </span>
-          <span className="truncate max-w-[150px] font-bold">
-            {material.replace(/^Alu\s*/i, '')}
-          </span>
-        </span>
-      );
-    }
-
-    if (isZinc) {
-      const isRouge = matLower.includes('rouge');
-      return (
-        <span
-          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border shadow-2xs ${
-            isRouge
-              ? 'bg-rose-50 text-rose-800 border-rose-200'
-              : 'bg-slate-100 text-slate-800 border-slate-300'
-          }`}
-          title={material}
-        >
-          <span
-            className={`px-1.5 py-0.2 rounded text-[9px] font-black text-white tracking-wider ${
-              isRouge ? 'bg-rose-600' : 'bg-slate-700'
-            }`}
-          >
-            ZINC
-          </span>
-          <span className="truncate max-w-[150px] font-bold">
-            {material.replace(/^Zinc\s*/i, '')}
-          </span>
-        </span>
-      );
-    }
-
-    return (
-      <span
-        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border bg-slate-100 text-slate-700 border-slate-200"
-        title={material}
-      >
-        <span className="w-1.5 h-1.5 rounded-full bg-faco-sky shrink-0"></span>
-        <span className="truncate max-w-[150px] font-semibold">{material}</span>
-      </span>
-    );
-  };
-
   return (
     <div ref={rootRef} className="space-y-4">
       {view === 'send' && (
@@ -1070,16 +1005,14 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                       setActiveMaterial(pill.value);
                     }}
                     className={`px-2 py-1 rounded-md text-xs font-bold border transition-all cursor-pointer flex items-center gap-1 ${
-                      isSelected
-                        ? pill.family === 'ALU'
-                          ? 'bg-faco-blue text-white border-faco-blue shadow-2xs'
-                          : 'bg-slate-700 text-white border-slate-700 shadow-2xs'
-                        : pill.family === 'ALU'
-                        ? 'bg-sky-50 text-faco-blue border-sky-200 hover:bg-sky-100'
-                        : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                      isSelected ? 'text-white shadow-2xs' : 'bg-white text-faco-text border-slate-300 hover:bg-slate-50'
                     }`}
+                    style={isSelected ? { backgroundColor: materialColor(pill.value), borderColor: materialColor(pill.value) } : undefined}
                   >
-                    <span className="text-[9px] px-1 py-0.2 rounded font-black opacity-80">
+                    <span
+                      className="text-[9px] px-1 rounded font-black text-white"
+                      style={{ backgroundColor: isSelected ? 'rgba(255,255,255,0.22)' : materialColor(pill.value) }}
+                    >
                       {pill.family}
                     </span>
                     <span>{pill.label}</span>
@@ -1524,7 +1457,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                         </div>
                       </td>
                       <td className="py-2 px-4">
-                        {renderMaterialBadge(row.material, row.count === 0)}
+                        <MaterialBadge material={row.material} muted={row.count === 0} />
                       </td>
                       <td className="py-2 px-4 text-[11px]">
                         {preset === 'DEV_BOBINE' && row.count === 0 ? (

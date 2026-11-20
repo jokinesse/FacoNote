@@ -9,7 +9,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { SlitNestResult } from '../types';
-import { CardTitle } from './ui';
+import { CardTitle, MaterialDot } from './ui';
 
 interface CuttingPlan2DProps {
   motherItems: {
@@ -22,16 +22,11 @@ interface CuttingPlan2DProps {
   onMovePieceToScrap?: (pieceId: string, count?: number) => void;
 }
 
-// Palette douce et faible contraste inspirée de Facozinc.be (bleus acier, ardoise, terre cuite)
-const STRIP_COLORS = [
-  { bg: 'bg-faco-blue/10', border: 'border-faco-blue/40', text: 'text-faco-blue', tag: 'bg-faco-blue/15 text-faco-blue' },
-  { bg: 'bg-faco-sky/15', border: 'border-faco-sky/50', text: 'text-faco-blue-dark', tag: 'bg-faco-sky/20 text-faco-blue-dark' },
-  { bg: 'bg-faco-orange/10', border: 'border-faco-orange/40', text: 'text-faco-orange-hover', tag: 'bg-faco-orange/15 text-faco-orange-hover' },
-  { bg: 'bg-emerald-600/10', border: 'border-emerald-600/40', text: 'text-emerald-900', tag: 'bg-emerald-600/15 text-emerald-900' },
-  { bg: 'bg-slate-500/12', border: 'border-slate-400', text: 'text-slate-800', tag: 'bg-slate-200 text-slate-800' },
-  { bg: 'bg-indigo-600/10', border: 'border-indigo-500/40', text: 'text-indigo-900', tag: 'bg-indigo-600/15 text-indigo-900' },
-  { bg: 'bg-amber-600/10', border: 'border-amber-500/40', text: 'text-amber-900', tag: 'bg-amber-600/15 text-amber-900' },
-];
+// Toutes les pièces ont la même couleur, toutes les chutes aussi, et toutes les tôles le même cadre.
+// Seules changent : la pastille de la matière, et la couleur d'une reprise de chute, propre à la
+// feuille d'origine (on suit d'un coup d'œil quelle chute repart de quelle feuille).
+const PIECE = { bg: 'bg-faco-blue/10', border: 'border-faco-blue/40', text: 'text-faco-blue' };
+const REPRISE_COLORS = ['#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#92400e', '#be123c', '#4338ca'];
 
 export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
   motherItems,
@@ -50,21 +45,6 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
     return null;
   }
 
-  const colorMap = new Map<string, typeof STRIP_COLORS[0]>();
-  let colorIndex = 0;
-
-  motherItems.forEach((mItem) => {
-    const slit = mItem.slits[0];
-    if (slit) {
-      slit.strips.forEach((st) => {
-        if (!colorMap.has(st.pieceId)) {
-          colorMap.set(st.pieceId, STRIP_COLORS[colorIndex % STRIP_COLORS.length]);
-          colorIndex++;
-        }
-      });
-    }
-  });
-
   // Chute reprise : largeurs des tôles d'où elle vient, de la feuille d'origine à elle-même
   // (ex. 1000 → 690 → 345). Lecture des liens du plan rendu par le backend, aucun calcul.
   const widthChain = (opIdx: number): number[] => {
@@ -79,6 +59,28 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
     }
     return chain;
   };
+
+  // Feuille d'origine d'une tôle (elle-même si ce n'est pas une reprise), lue dans les liens du backend
+  const rootOf = (opIdx: number): number => {
+    const seen = new Set<number>();
+    let i = opIdx;
+    while (!seen.has(i)) {
+      seen.add(i);
+      const s = motherItems[i]?.slits[0];
+      if (s?.sourceType === 'REUSED_OFFCUT' && s.sourceOpIndex && s.sourceOpIndex - 1 < motherItems.length) {
+        i = s.sourceOpIndex - 1;
+      } else break;
+    }
+    return i;
+  };
+  // Une couleur par feuille d'origine dont la chute est reprise
+  const repriseColor = new Map<number, string>();
+  motherItems.forEach((_, i) => {
+    const s = motherItems[i].slits[0];
+    if (s?.sourceType !== 'REUSED_OFFCUT') return;
+    const root = rootOf(i);
+    if (!repriseColor.has(root)) repriseColor.set(root, REPRISE_COLORS[repriseColor.size % REPRISE_COLORS.length]);
+  });
 
   return (
     <div className="faco-card bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-4">
@@ -127,6 +129,7 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
           const scrapWidth = slit.scrapWidth;
           const isReusedOffcut = slit.sourceType === 'REUSED_OFFCUT';
           const isParentReused = slit.suggestedScrapRef?.includes('Réemployée');
+          const chainColor = isReusedOffcut || isParentReused ? repriseColor.get(rootOf(opIdx)) : undefined;
 
           let accumulatedX = 0;
           const cutPositions: {
@@ -136,11 +139,11 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
             xStartMm: number;
             xMm: number;
             strip: typeof slit.strips[0];
-            color: typeof STRIP_COLORS[0];
+            color: typeof PIECE;
           }[] = [];
 
           slit.strips.forEach((st) => {
-            const color = colorMap.get(st.pieceId) || STRIP_COLORS[0];
+            const color = PIECE;
             const count = Math.max(1, st.qty || 1);
             for (let q = 0; q < count; q++) {
               const xStartMm = accumulatedX;
@@ -164,31 +167,25 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
             >
               {/* En-tête de la tôle */}
               <div
-                className={`px-3.5 py-2.5 border-b flex flex-col md:flex-row md:items-center justify-between gap-2.5 ${
-                  isReusedOffcut
-                    ? 'bg-faco-sky/10 border-faco-sky/30'
-                    : 'bg-slate-100/80 border-slate-200'
-                }`}
+                className="px-3.5 py-2.5 border-b flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-slate-100/80 border-slate-200"
               >
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <span
-                    className={`font-mono font-bold text-xs px-2 py-0.5 rounded ${
-                      isReusedOffcut
-                        ? 'bg-faco-sky text-white'
-                        : 'bg-faco-blue text-white'
-                    }`}
-                  >
+                  <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-faco-blue text-white">
                     #{opIdx + 1}
                   </span>
 
                   {isReusedOffcut && (
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-white border border-faco-sky/40 text-faco-blue flex items-center gap-1">
-                      <Layers className="w-3 h-3 text-faco-sky" />
+                    <span
+                      className="text-xs font-semibold px-2 py-0.5 rounded text-white flex items-center gap-1"
+                      style={{ backgroundColor: chainColor }}
+                    >
+                      <Layers className="w-3 h-3" />
                       <span>Reprise Chute #{slit.sourceOpIndex}</span>
                     </span>
                   )}
 
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-700">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-700 inline-flex items-center gap-1.5">
+                    <MaterialDot material={mItem.material || selectedMaterial} />
                     {mItem.material || selectedMaterial}
                   </span>
 
@@ -349,10 +346,13 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
                           flexBasis: `${(scrapWidth / motherWidth) * 100}%`,
                           flexGrow: scrapWidth,
                           containerType: 'inline-size',
+                          ...(isParentReused && chainColor
+                            ? { backgroundColor: `${chainColor}1f`, color: chainColor, borderColor: `${chainColor}66` }
+                            : {}),
                         }}
                         className={`@container h-full min-w-0 flex flex-col items-center justify-center px-1 text-center relative overflow-hidden ${
                           isParentReused
-                            ? 'bg-faco-sky/10 text-faco-blue border-l border-faco-sky/30'
+                            ? 'border-l'
                             : slit.isScrapReusable
                             ? 'bg-emerald-50/80 text-emerald-800 border-l border-emerald-200'
                             : 'bg-slate-100 text-slate-500 border-l border-slate-200'
@@ -413,8 +413,11 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
                     )}
 
                     {isParentReused && (
-                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-faco-sky/40 bg-faco-sky/10 text-faco-blue text-[11px]">
-                        <PackageCheck className="w-3 h-3 text-faco-sky" />
+                      <div
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px]"
+                        style={chainColor ? { backgroundColor: `${chainColor}1f`, color: chainColor, borderColor: `${chainColor}66` } : undefined}
+                      >
+                        <PackageCheck className="w-3 h-3" />
                         <span>Réemployée : <strong>{scrapWidth} mm</strong></span>
                       </div>
                     )}

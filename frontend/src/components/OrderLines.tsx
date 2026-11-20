@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, Copy, ListOrdered, Pencil, Trash2, X } from 'lucide-react';
 import { MATERIAL_GROUPS, STANDARD_MATERIALS } from '../types';
-import { CardTitle, DeleteButton } from './ui';
+import { CardTitle, DeleteButton, MaterialDot } from './ui';
 
 // Une ligne saisie, telle que le backend l'a validée (aucun calcul ici : affichage seulement).
 export interface OrderLine {
@@ -457,7 +457,12 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                       {line.totalLength !== undefined ? `${line.totalLength.toFixed(2)} m` : ''}
                     </td>
                   )}
-                  <td className="py-2 px-3 pl-6 font-sans text-[11px] text-slate-700 whitespace-nowrap">{line.material}</td>
+                  <td className="py-2 px-3 pl-6 font-sans text-[11px] text-slate-700 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      <MaterialDot material={line.material} />
+                      {line.material}
+                    </span>
+                  </td>
                   {extraColumn && (
                     <td className="py-2 px-3 font-sans" onClick={(e) => e.stopPropagation()}>
                       {extraColumn.render(line)}

@@ -465,6 +465,41 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
     });
   };
 
+  // Actions sur plusieurs lignes cochées (le tableau est recalculé par le backend)
+  const handleBulkMaterial = (ids: string[], material: string) => {
+    const set = new Set(ids);
+    setEntriesHistory((prev) => prev.map((item) => (set.has(item.id) ? { ...item, material } : item)));
+    setLastFeedback({
+      success: true,
+      message: `${ids.length} ${ids.length > 1 ? 'lignes passent' : 'ligne passe'} en : ${material}`,
+    });
+  };
+
+  // Chaque copie se place juste au-dessus de sa ligne d'origine
+  const handleBulkDuplicate = (ids: string[]) => {
+    const set = new Set(ids);
+    const stamp = Date.now();
+    const now = new Date().toLocaleTimeString();
+    setEntriesHistory((prev) =>
+      prev.flatMap((item, i) =>
+        set.has(item.id)
+          ? [{ ...item, id: `entry-${stamp}-d${i}-${Math.random().toString(36).substring(2, 6)}`, timestamp: now }, item]
+          : [item]
+      )
+    );
+    setLastFeedback({
+      success: true,
+      message: `${ids.length} ${ids.length > 1 ? 'lignes dupliquées' : 'ligne dupliquée'}`,
+    });
+  };
+
+  const handleBulkDelete = (ids: string[]) => {
+    const set = new Set(ids);
+    deleteAction(`${ids.length} ${ids.length > 1 ? 'lignes pièce' : 'ligne pièce'}`, () =>
+      setEntriesHistory((prev) => prev.filter((e) => !set.has(e.id)))
+    );
+  };
+
   // Suppression d'une saisie de l'historique (le tableau est recalculé par le backend)
   const handleDeleteHistoryEntry = (entryId: string) => {
     const entry = entriesHistory.find((e) => e.id === entryId);
@@ -1339,6 +1374,9 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
           onSave={handleSaveEntry}
           onDelete={handleDeleteHistoryEntry}
           onApplyActiveMaterialToAll={() => handleApplyActiveMaterialToAll()}
+          onBulkMaterial={handleBulkMaterial}
+          onBulkDuplicate={handleBulkDuplicate}
+          onBulkDelete={handleBulkDelete}
         />
       )}
 

@@ -280,6 +280,39 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
     }
   };
 
+  // Actions sur plusieurs lignes cochées (le tableau est recalculé par le backend)
+  const handleBulkMaterial = (ids: string[], material: string) => {
+    const set = new Set(ids);
+    setEntries((prev) => prev.map((e) => (set.has(e.id) ? { ...e, material } : e)));
+    setFeedback({
+      success: true,
+      message: `${ids.length} ${ids.length > 1 ? 'lignes passent' : 'ligne passe'} en : ${material}`,
+    });
+  };
+
+  // Chaque copie se place juste au-dessus de sa ligne d'origine
+  const handleBulkDuplicate = (ids: string[]) => {
+    const set = new Set(ids);
+    const stamp = Date.now();
+    const time = new Date().toLocaleTimeString('fr-BE');
+    setEntries((prev) =>
+      prev.flatMap((e, i) =>
+        set.has(e.id) ? [{ ...e, id: `coil-${stamp}-d${i}-${Math.random().toString(36).slice(2, 6)}`, time }, e] : [e]
+      )
+    );
+    setFeedback({
+      success: true,
+      message: `${ids.length} ${ids.length > 1 ? 'lignes dupliquées' : 'ligne dupliquée'}`,
+    });
+  };
+
+  const handleBulkDelete = (ids: string[]) => {
+    const set = new Set(ids);
+    deleteAction(`${ids.length} ${ids.length > 1 ? 'lignes bobine' : 'ligne bobine'}`, () =>
+      setEntries((prev) => prev.filter((e) => !set.has(e.id)))
+    );
+  };
+
   const handleApplyActiveMaterialToAll = () => {
     setEntries((prev) => prev.map((e) => ({ ...e, material: activeMaterial })));
     setFeedback({ success: true, message: `Toutes les saisies bobines passent en : ${activeMaterial}` });
@@ -551,6 +584,9 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
         onSave={handleSaveEntry}
         onDelete={handleDelete}
         onApplyActiveMaterialToAll={handleApplyActiveMaterialToAll}
+        onBulkMaterial={handleBulkMaterial}
+        onBulkDuplicate={handleBulkDuplicate}
+        onBulkDelete={handleBulkDelete}
       />
 
       {/* Chiffres clés (backend) */}

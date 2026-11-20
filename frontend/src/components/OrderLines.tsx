@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, ListOrdered, Pencil, X } from 'lucide-react';
+import { Check, ChevronDown, Copy, ListOrdered, Pencil, Trash2, X } from 'lucide-react';
 import { MATERIAL_GROUPS, STANDARD_MATERIALS } from '../types';
 import { DeleteButton } from './ui';
 
@@ -33,6 +33,10 @@ interface OrderLinesProps {
   onSave: (id: string, draft: OrderLineDraft) => Promise<string | null>;
   onDelete: (id: string) => void;
   onApplyActiveMaterialToAll: () => void;
+  // Actions sur plusieurs lignes cochées
+  onBulkMaterial: (ids: string[], material: string) => void;
+  onBulkDuplicate: (ids: string[]) => void;
+  onBulkDelete: (ids: string[]) => void;
 }
 
 const inputCls =
@@ -48,7 +52,14 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
   onSave,
   onDelete,
   onApplyActiveMaterialToAll,
+  onBulkMaterial,
+  onBulkDuplicate,
+  onBulkDelete,
 }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkMaterial, setBulkMaterial] = useState(activeMaterial);
+  const lastClickedRef = useRef<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<OrderLineDraft>({ main: '', quantity: '', unitLength: '', material: '' });
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +75,19 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
   useEffect(() => {
     if (editingId && !lines.some((l) => l.id === editingId)) setEditingId(null);
   }, [lines, editingId]);
+
+  // Les lignes cochées qui ont disparu (supprimées, commande vidée) sortent de la sélection
+  useEffect(() => {
+    setSelected((prev) => {
+      const ids = new Set(lines.map((l) => l.id));
+      const next = new Set([...prev].filter((id) => ids.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [lines]);
+
+  useEffect(() => {
+    setBulkMaterial(activeMaterial);
+  }, [activeMaterial]);
 
   useEffect(() => {
     if (!savedId) return;
@@ -112,20 +136,54 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
     }
   };
 
+  // Cocher une ligne ; Maj + clic coche toutes les lignes entre la dernière cliquée et celle-ci
+  const toggle = (id: string, shift: boolean) => {
+    const from = lastClickedRef.current ? lines.findIndex((l) => l.id === lastClickedRef.current) : -1;
+    const to = lines.findIndex((l) => l.id === id);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const check = !prev.has(id);
+      if (shift && from >= 0 && to >= 0) {
+        const [a, b] = from < to ? [from, to] : [to, from];
+        for (let i = a; i <= b; i++) {
+          if (check) next.add(lines[i].id);
+          else next.delete(lines[i].id);
+        }
+      } else if (check) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+    lastClickedRef.current = id;
+  };
+
+  const allChecked = lines.length > 0 && selected.size === lines.length;
+  const toggleAll = () => setSelected(allChecked ? new Set() : new Set(lines.map((l) => l.id)));
+  // Dans l'ordre du tableau
+  const selectedIds = () => lines.filter((l) => selected.has(l.id)).map((l) => l.id);
+
   if (lines.length === 0) return null;
 
   return (
     <div className="faco-card bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
-        <h3 className="text-sm font-bold text-[#282828] flex items-center gap-2">
+      <div
+        className={`flex flex-wrap items-center justify-between gap-2 px-4 py-3 ${isOpen ? 'border-b border-slate-100' : ''}`}
+      >
+        <button
+          type="button"
+          onClick={() => setIsOpen((o) => !o)}
+          aria-expanded={isOpen}
+          className="text-sm font-bold text-[#282828] flex items-center gap-2 cursor-pointer"
+        >
           <ListOrdered className="w-4 h-4 text-[#00478a]" />
           <span>
             {title} ({lines.length})
           </span>
-        </h3>
-        <div className="flex items-center gap-3">
+          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          <span className="text-xs font-semibold text-[#00478a]">{isOpen ? 'Fermer' : 'Ouvrir'}</span>
+        </button>
+        <div className={`${isOpen ? 'flex' : 'hidden'} items-center gap-3`}>
           <span className="hidden sm:inline text-[11px] text-slate-400">
-            Cliquez sur une ligne pour la corriger · Entrée = enregistrer · Échap = annuler
+            Clic sur une ligne = corriger · case = sélectionner (Maj + clic = plusieurs)
           </span>
           <button
             type="button"
@@ -137,10 +195,83 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
         </div>
       </div>
 
-      <div className="table-wrapper max-h-96 overflow-y-auto" tabIndex={0} role="region" aria-label={title}>
+      {isOpen && selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-[#f0f7fc] border-b border-[#3ca7da]/30 text-xs">
+          <strong className="text-[#00478a]">
+            {selected.size} {selected.size > 1 ? 'lignes sélectionnées' : 'ligne sélectionnée'}
+          </strong>
+          <span className="text-slate-300">|</span>
+          <select
+            aria-label="Matière pour les lignes sélectionnées"
+            value={bulkMaterial}
+            onChange={(e) => setBulkMaterial(e.target.value)}
+            className="bg-white border border-slate-300 text-[11px] font-medium text-slate-700 rounded-md px-2 py-1 focus:outline-none focus:border-[#00478a]"
+          >
+            {MATERIAL_GROUPS.map((grp) => (
+              <optgroup key={grp.group} label={grp.group}>
+                {grp.items.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.value}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => onBulkMaterial(selectedIds(), bulkMaterial)}
+            className="px-2.5 py-1 font-medium text-white bg-[#00478a] hover:bg-[#003566] rounded-md cursor-pointer"
+          >
+            Changer la matière
+          </button>
+          <button
+            type="button"
+            onClick={() => onBulkDuplicate(selectedIds())}
+            className="px-2.5 py-1 font-medium text-[#00478a] bg-white border border-slate-300 hover:bg-slate-50 rounded-md flex items-center gap-1 cursor-pointer"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            Dupliquer
+          </button>
+          <button
+            type="button"
+            onClick={() => onBulkDelete(selectedIds())}
+            className="px-2.5 py-1 font-medium text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 rounded-md flex items-center gap-1 cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Supprimer
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="ml-auto px-2 py-1 text-slate-500 hover:text-slate-800 cursor-pointer"
+          >
+            Tout désélectionner
+          </button>
+        </div>
+      )}
+
+      <div
+        className={`table-wrapper max-h-96 overflow-y-auto ${isOpen ? '' : 'hidden'}`}
+        tabIndex={0}
+        role="region"
+        aria-label={title}
+      >
         <table className="w-full text-left text-xs">
           <thead className="sticky top-0 bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px] border-b border-slate-200 whitespace-nowrap">
             <tr>
+              <th className="py-2 pl-3 pr-0 w-8">
+                <input
+                  type="checkbox"
+                  checked={allChecked}
+                  ref={(el) => {
+                    if (el) el.indeterminate = selected.size > 0 && !allChecked;
+                  }}
+                  onChange={toggleAll}
+                  aria-label="Tout sélectionner"
+                  title="Tout sélectionner"
+                  className="w-3.5 h-3.5 accent-[#00478a] cursor-pointer"
+                />
+              </th>
               <th className="py-2 px-3 w-28">{mainHeader}</th>
               <th className="py-2 px-3 w-24 text-right">Quantité</th>
               <th className="py-2 px-3 w-28 text-right">Longueur (m)</th>
@@ -156,6 +287,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                 return (
                   <React.Fragment key={line.id}>
                     <tr className="bg-[#f0f7fc]" onKeyDown={onKeys}>
+                      <td className="py-1.5 pl-3 pr-0"></td>
                       <td className="py-1.5 px-3">
                         <input
                           ref={firstFieldRef}
@@ -233,7 +365,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                     </tr>
                     {error && (
                       <tr className="bg-rose-50">
-                        <td colSpan={6} className="py-1.5 px-3 font-sans text-[11px] text-rose-700">
+                        <td colSpan={7} className="py-1.5 px-3 font-sans text-[11px] text-rose-700">
                           {error}
                         </td>
                       </tr>
@@ -247,10 +379,29 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                   key={line.id}
                   onClick={() => startEdit(line)}
                   className={`cursor-pointer transition-colors ${
-                    line.id === savedId ? 'bg-emerald-50' : 'hover:bg-slate-50'
+                    line.id === savedId
+                      ? 'bg-emerald-50'
+                      : selected.has(line.id)
+                      ? 'bg-[#f0f7fc] hover:bg-[#e3f0fa]'
+                      : 'hover:bg-slate-50'
                   }`}
                   title="Cliquer pour corriger cette ligne"
                 >
+                  <td
+                    className="py-2 pl-3 pr-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggle(line.id, e.shiftKey);
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.has(line.id)}
+                      onChange={() => {}}
+                      aria-label="Sélectionner cette ligne"
+                      className="w-3.5 h-3.5 accent-[#00478a] cursor-pointer"
+                    />
+                  </td>
                   <td className="py-2 px-3 font-bold whitespace-nowrap">
                     {line.mainLabel ? (
                       <span className="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 font-sans text-[11px]">

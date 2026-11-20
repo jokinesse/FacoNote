@@ -585,6 +585,8 @@
   const remainingParts = (o) => o.groups.filter((g) => !g.done).length + o.groups.filter((g) => !g.coilsDone).length;
 
   // ---------- Panneau (Shadow DOM, sans innerHTML) ----------
+  // L'essentiel reste visible (commande, matière, ce qui sera rempli ou vidé, action, résultat) ;
+  // le détail (DEV, lignes de bobines, diagnostic) est replié dans des <details>.
 
   const host = document.createElement('div');
   host.id = 'faconote-d365-host';
@@ -596,39 +598,48 @@
   const style = document.createElement('style');
   style.textContent = `
     :host { all: initial; }
-    * { box-sizing: border-box; font-family: "Segoe UI", system-ui, sans-serif; font-size: 12px; }
-    .fab { border: 0; border-radius: 20px; padding: 8px 14px; font-weight: 700; color: #fff;
-           background: #00478a; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
-    .fab.todo { background: #c62828; }
-    .panel { position: absolute; left: 0; bottom: 44px; width: 380px; max-height: 75vh; overflow: auto;
-             background: #fff; color: #222; border: 1px solid #c8c8c8; border-radius: 8px;
-             box-shadow: 0 6px 24px rgba(0,0,0,.25); padding: 10px; }
+    * { box-sizing: border-box; font-family: "Segoe UI", system-ui, sans-serif; font-size: 12px; line-height: 1.35; }
+    .fab { border: 0; border-radius: 4px; padding: 6px 12px; font-weight: 600; color: #fff;
+           background: #00478a; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+    .fab.todo { background: #e8521c; }
+    .fab:focus-visible, button.b:focus-visible, select:focus-visible, summary:focus-visible, li:focus-visible {
+      outline: 2px solid #3ca7da; outline-offset: 1px; }
+    .panel { position: absolute; left: 0; bottom: 36px; width: 340px; max-height: 60vh; overflow: auto;
+             background: #fff; color: #222; border: 1px solid #b8c4d0; border-top: 3px solid #00478a;
+             border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.18); padding: 6px 8px 8px; }
     .hidden { display: none; }
-    .row { display: flex; gap: 6px; align-items: center; margin: 6px 0; flex-wrap: wrap; }
-    h3 { margin: 0 0 6px; font-size: 13px; color: #00478a; }
-    .muted { color: #666; }
+    .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .title { font-weight: 700; color: #00478a; }
+    .row { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+    .muted { color: #666; } .small { font-size: 11px; color: #666; }
     .ok { color: #1b5e20; } .ko { color: #b71c1c; } .warn { color: #8a5a00; }
-    select, button.b { padding: 4px 8px; border: 1px solid #b0b0b0; border-radius: 4px; background: #fff; cursor: pointer; }
-    button.b.primary { background: #00478a; color: #fff; border-color: #00478a; }
+    .order { margin-top: 6px; }
+    select { display: block; width: 100%; padding: 2px 4px; border: 1px solid #b0b0b0; border-radius: 3px; background: #fff; }
+    button.b { padding: 3px 8px; border: 1px solid #b0b0b0; border-radius: 3px; background: #fff; color: #222; cursor: pointer; }
+    button.b:not(.primary) { padding: 2px 6px; font-size: 11px; }
+    button.b.primary { background: #00478a; border-color: #00478a; color: #fff; font-weight: 600; }
     button.b.danger { color: #b71c1c; border-color: #e0a0a0; }
     button.b:disabled { opacity: .45; cursor: default; }
-    ul { list-style: none; margin: 0; padding: 0; }
-    li { padding: 4px 6px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; }
-    li.sel { background: #e3eefa; }
-    li .tag { font-weight: 700; } li .tag.done { color: #1b5e20; } li .tag.todo { color: #c62828; }
-    table { border-collapse: collapse; width: 100%; margin-top: 4px; }
-    td, th { border-bottom: 1px solid #eee; padding: 2px 4px; text-align: left; }
+    ul { list-style: none; margin: 6px 0 0; padding: 0; }
+    li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 6px;
+         border-left: 3px solid transparent; cursor: pointer; }
+    li.sel { background: #eef6fb; border-left-color: #3ca7da; }
+    .tag { font-weight: 600; } .tag.done { color: #1b5e20; } .tag.todo { color: #e8521c; }
+    .plan { margin-top: 6px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 2px; }
+    td, th { border-bottom: 1px solid #eee; padding: 1px 4px; text-align: left; font-weight: normal; }
+    th { color: #666; }
     td.num { text-align: right; font-family: Consolas, monospace; }
-    .msg { margin-top: 8px; padding: 6px; border-radius: 4px; }
-    .msg.ok { background: #e8f5e9; } .msg.ko { background: #ffebee; } .msg.warn { background: #fff8e1; }
-    .small { font-size: 11px; color: #666; }
     .code { font-size: 10px; color: #888; font-family: Consolas, monospace; margin-left: 4px; }
-    .msg .head { font-weight: 700; }
-    .msg .line { margin-top: 2px; }
-    details { margin-top: 4px; } summary { cursor: pointer; color: #666; font-size: 11px; }
+    .msg { margin-top: 6px; padding: 4px 6px; border-left: 3px solid; }
+    .msg.ok { background: #eef7ef; border-color: #1b5e20; }
+    .msg.ko { background: #fdeeee; border-color: #b71c1c; }
+    .msg.warn { background: #fff8e8; border-color: #e8521c; }
+    .head { font-weight: 700; } .line { margin-top: 2px; }
+    details { margin-top: 2px; } summary { cursor: pointer; color: #555; font-size: 11px; }
     details div { font-size: 11px; color: #555; }
-    pre { margin: 6px 0 0; padding: 6px; background: #f5f5f5; border-radius: 4px; white-space: pre-wrap;
-          font-family: Consolas, monospace; font-size: 11px; max-height: 260px; overflow: auto; }
+    pre { margin: 4px 0 0; padding: 4px; background: #f5f5f5; white-space: pre-wrap;
+          font-family: Consolas, monospace; font-size: 11px; max-height: 220px; overflow: auto; }
   `;
   root.appendChild(style);
 
@@ -644,61 +655,46 @@
     return n;
   };
 
-  const fab = el('button', { class: 'fab', text: 'Façonote', title: 'Façonote → D365' });
-  const panel = el('div', { class: 'panel hidden' });
+  const fab = el('button', { class: 'fab', text: 'Façonote', title: 'Façonote → D365', 'aria-expanded': 'false' });
+  const panel = el('div', { class: 'panel hidden', role: 'region', 'aria-label': 'Façonote → D365' });
   root.append(panel, fab);
   fab.addEventListener('click', () => {
     state.open = !state.open;
     panel.classList.toggle('hidden', !state.open);
+    fab.setAttribute('aria-expanded', String(state.open));
     if (state.open) render();
   });
 
-  // Message : une ligne de tête, puis des lignes courtes (signalements), un texte en petit,
+  // Message : une ligne de tête, des lignes courtes (signalements), un texte en petit,
   // et des détails repliés (lignes ignorées, méthode d'activation…).
-  // { kind: 'ok'|'ko'|'warn', text, lines: [{ text, title }], small, details: [{ summary, lines }] }
+  // { kind: 'ok'|'ko'|'warn', text, lines: [texte | { text, title }], small, details: [{ summary, lines }] }
   let message = null;
   let diagnostic = null; // texte de « Lire l'écran »
 
   function setMessage(kind, text, extra = {}) {
-    message = { kind, text, lines: extra.lines || [], small: extra.small || null, details: (extra.details || []).filter(Boolean) };
+    message = { kind, text, ...extra };
     render();
   }
 
-  const asLine = (l) => (typeof l === 'string' ? { text: l } : l);
-
-  function renderMessage(m) {
-    const box = el('div', { class: `msg ${m.kind}` }, [el('div', { class: 'head', text: m.text })]);
-    for (const l of m.lines.map(asLine)) box.appendChild(el('div', { class: 'line', text: l.text, ...(l.title ? { title: l.title } : {}) }));
-    if (m.small) for (const t of String(m.small).split('\n')) box.appendChild(el('div', { class: 'small', text: t }));
-    for (const d of m.details) box.appendChild(detailsBox(d));
-    return box;
-  }
-
-  function detailsBox(d) {
-    return el('details', {}, [el('summary', { text: d.summary }), ...d.lines.map((t) => el('div', { text: t }))]);
-  }
-
+  // « 1 ligne ignorée », « 2 lignes ignorées »
+  const plural = (n, one, many = `${one}s`) => `${n} ${n > 1 ? many : one}`;
   const ignoredDetails = (ignored) =>
-    ignored.length ? { summary: `${ignored.length} ligne${ignored.length > 1 ? 's' : ''} ignorée${ignored.length > 1 ? 's' : ''}`, lines: ignored } : null;
+    ignored.length ? { summary: plural(ignored.length, 'ligne ignorée', 'lignes ignorées'), lines: ignored } : null;
 
   const currentOrder = () => (state.selectedOrder ? state.orders[state.selectedOrder] : null);
   const currentGroup = () => {
     const o = currentOrder();
     return o ? o.groups.find((g) => g.material === state.selectedMaterial) || null : null;
   };
+  const ordersByDate = () =>
+    Object.keys(state.orders).sort((a, b) => String(state.orders[b].receivedAt).localeCompare(String(state.orders[a].receivedAt)));
 
   function pickDefaults() {
-    const nums = Object.keys(state.orders);
     // Présélection : la commande affichée dans D365, sinon le dernier choix, sinon la plus récente
     if (!state.userPickedOrder && state.detected.orderNumber && state.orders[state.detected.orderNumber]) {
       state.selectedOrder = state.detected.orderNumber;
     }
-    if (!state.selectedOrder || !state.orders[state.selectedOrder]) {
-      const recent = nums.sort((a, b) =>
-        String(state.orders[b].receivedAt).localeCompare(String(state.orders[a].receivedAt))
-      );
-      state.selectedOrder = recent[0] || null;
-    }
+    if (!state.selectedOrder || !state.orders[state.selectedOrder]) state.selectedOrder = ordersByDate()[0] || null;
     const o = currentOrder();
     if (o && !o.groups.some((g) => g.material === state.selectedMaterial)) {
       const todo = o.groups.find((g) => !g.done);
@@ -713,6 +709,172 @@
     fab.textContent = remaining > 0 ? `Façonote · ${remaining} à faire` : 'Façonote';
   }
 
+  // ----- Briques du panneau -----
+
+  // Bloc replié ; reste ouvert d'un rendu à l'autre tant que l'utilisateur ne le ferme pas
+  const openFolds = new Set();
+  function fold(key, summary, children) {
+    const onToggle = (e) => (e.currentTarget.open ? openFolds.add(key) : openFolds.delete(key));
+    return el('details', { ...(openFolds.has(key) ? { open: '' } : {}), ontoggle: onToggle }, [el('summary', { text: summary }), ...children]);
+  }
+  // Clé sans les nombres : le pli reste ouvert quand le compte change, une seule clé par type de liste
+  const listFold = (d) => fold(`liste:${d.summary.replace(/\d+/g, '#')}`, d.summary, d.lines.map((t) => el('div', { text: t })));
+
+  const btn = (text, onclick, { kind = '', off = false, title = '' } = {}) =>
+    el('button', { class: kind ? `b ${kind}` : 'b', text, onclick, 'data-focus': `bouton:${text}`, ...(title ? { title } : {}), ...(off ? { disabled: '' } : {}) });
+
+  const table = (head, rows) => el('table', {}, [el('tr', {}, head.map((t) => el('th', { text: t, scope: 'col' }))), ...rows]);
+
+  function headerRow() {
+    const d = state.detected;
+    const [cls, text] =
+      d.status === 'OK' ? ['ok', `À l’écran : ${d.orderNumber}`]
+      : d.status === 'AMBIGU' ? ['warn', `Plusieurs CC à l’écran : ${d.all.join(', ')}`]
+      : ['muted', 'Aucun CC à l’écran'];
+    return el('div', { class: 'top' }, [el('span', { class: 'title', text: 'Façonote → D365' }), el('span', { class: cls, text })]);
+  }
+
+  function orderRow(nums, o) {
+    const sel = el('select', {
+      'aria-label': 'Commande',
+      'data-focus': 'commande',
+      onchange: (e) => {
+        state.selectedOrder = e.target.value;
+        state.selectedMaterial = null;
+        state.userPickedOrder = true;
+        render();
+      },
+    });
+    for (const n of nums) {
+      const left = remainingParts(state.orders[n]);
+      const opt = el('option', { value: n, text: `${n} — ${left ? `${left} à faire` : 'terminée'}` });
+      if (n === state.selectedOrder) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    const when = o && o.sentAt ? new Date(o.sentAt).toLocaleString('fr-BE', { dateStyle: 'short', timeStyle: 'short' }) : '?';
+    return el('div', { class: 'order' }, [sel, el('div', { class: 'small', text: `Envoyée le ${when}` })]);
+  }
+
+  const tag = (done, text) => el('span', { class: `tag ${done ? 'done' : 'todo'}`, text });
+
+  function coilTagText(o, g) {
+    if (g.coilsDone) return 'fait';
+    const n = state.coilSignals[`${o.orderNumber}|${g.material}`];
+    return n ? `à faire (${plural(n, 'signalement')})` : 'à faire';
+  }
+
+  // Une matière de la commande : nom, puis état DEV / bobines. Clic ou Entrée pour la choisir.
+  function materialItem(o, g) {
+    const choose = () => {
+      state.selectedMaterial = g.material;
+      render();
+    };
+    const coils = hasCoilPart(g);
+    const name = !coils || g.has_pieces ? `${g.material} → ${g.matiere} / ${g.epaisseur}` : `${g.material} (bobines seules)`;
+    const status = coils
+      ? el('span', {}, [
+          g.has_pieces ? tag(g.done, `DEV : ${g.done ? 'fait' : 'à faire'}`) : el('span', { class: 'tag', text: 'DEV : —' }),
+          el('span', { text: ' · ' }),
+          tag(g.coilsDone, `Bobines : ${coilTagText(o, g)}`),
+        ])
+      : tag(g.done, g.done ? 'fait' : 'à faire');
+    const selected = g.material === state.selectedMaterial;
+    return el('li', {
+      class: selected ? 'sel' : '',
+      tabindex: '0',
+      'data-focus': `matière:${g.material}`,
+      ...(selected ? { 'aria-current': 'true' } : {}),
+      onclick: choose,
+      onkeydown: (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          choose();
+        }
+      },
+    }, [el('span', { text: name }), status]);
+  }
+
+  function orderSection(o) {
+    const nums = ordersByDate();
+    if (!nums.length) return [el('div', { class: 'muted', text: 'Aucune commande : cliquez « Envoyer vers D365 » dans Façonote.' })];
+    const d = state.detected;
+    return [
+      orderRow(nums, o),
+      o && d.status === 'OK' && d.orderNumber !== o.orderNumber ? el('div', { class: 'warn', text: 'Pas la commande à l’écran.' }) : null,
+      o ? el('ul', { 'aria-label': 'Matières de la commande' }, o.groups.map((g) => materialItem(o, g))) : null,
+    ];
+  }
+
+  // Fiche principale : ce qui sera rempli dans les DEV (tableau replié)
+  function devPlan(g) {
+    if (!g) return null;
+    if (!g.has_pieces) return el('div', { class: 'plan muted', text: 'Pas de pièce.' });
+    const bounds = FD.BOUNDS.filter((b) => g.lengths[String(b)] > 0);
+    if (!bounds.length) return el('div', { class: 'plan small', text: 'DEV : tous à 0' });
+    const rows = bounds.map((b) => el('tr', {}, [el('td', { text: `DEV${b}` }), el('td', { class: 'num', text: FD.formatD365(g.lengths[String(b)]) })]));
+    return el('div', { class: 'plan' }, [fold('dev', `${bounds.length} DEV à remplir, les autres à 0`, [table(['DEV', 'm'], rows)])]);
+  }
+
+  // Fenêtre Nomenclature, avant la saisie (lecture seule) : lignes à remplir, lignes vidées si remplies
+  function coilPlan(p) {
+    const box = el('div', { class: 'msg warn' });
+    if (p.error) {
+      box.append(el('div', { class: 'head ko', text: p.error }));
+      if (p.errorDetail) box.append(listFold(p.errorDetail));
+      return box;
+    }
+    const fills = p.tasks.filter((t) => t.value !== null);
+    const clears = p.tasks.filter((t) => t.value === null);
+    box.append(el('div', { class: 'head', text: `Bobines · ${p.group.material}` }));
+    if (p.tasks.length) {
+      const summary = `${fills.length} à remplir` + (clears.length ? ` · ${plural(clears.length, 'vidée si remplie', 'vidées si remplies')}` : '');
+      const rows = [
+        ...fills.map((t) => el('tr', {}, [
+          el('td', { title: t.code }, [el('span', { text: t.label }), t.code !== 'CHUTE' ? el('span', { class: 'code', text: t.code }) : null]),
+          el('td', { class: 'num', text: FD.formatD365(t.value) }),
+        ])),
+        ...clears.map((t) => el('tr', {}, [el('td', { text: t.code }), el('td', { class: 'num', text: '(vidé)' })])),
+      ];
+      box.append(fold('bobines', summary, [table(['Ligne', 'm'], rows)]));
+    } else if (!p.problems.length) {
+      box.append(el('div', { text: 'Rien à saisir.' }));
+    }
+    for (const pr of p.problems) box.append(el('div', { class: 'line ko', text: pr.text, title: pr.title }));
+    const ig = ignoredDetails(p.ignored);
+    if (ig) box.append(listFold(ig));
+    return box;
+  }
+
+  function actionRow(bomPlan, g) {
+    const busy = state.busy;
+    const noPieces = !g || !g.has_pieces;
+    const noPiecesTitle = g && !g.has_pieces ? 'Pas de pièce dans cette matière' : '';
+    // Fenêtre Nomenclature : « Marquer » vise les bobines de la matière reconnue dans la grille
+    const coilTarget = bomPlan && !bomPlan.error && hasCoilPart(bomPlan.group) ? bomPlan.group : null;
+    const toggleText = coilTarget
+      ? coilTarget.coilsDone ? 'Marquer bobines à faire' : 'Marquer bobines faites'
+      : g && g.done ? 'Marquer à faire' : 'Marquer fait';
+    return el('div', { class: 'row' }, [
+      // Fenêtre Nomenclature : pas de DEV à remplir, seul le bouton des bobines est proposé
+      state.bomMode
+        ? btn('Pré-remplir les bobines', onFillCoils, { kind: 'primary', off: busy })
+        : btn('Pré-remplir', onFill, { kind: 'primary', off: busy || noPieces, title: noPiecesTitle || 'Pré-remplir Matières, Epaisseur et les DEV' }),
+      btn(toggleText, onToggleDone, { off: busy || (!coilTarget && noPieces), title: coilTarget ? '' : noPiecesTitle }),
+      btn('Lire l’écran', onReadScreen, { off: busy }),
+      btn('Supprimer', onDelete, { kind: 'danger', off: busy || !currentOrder(), title: 'Retirer cette commande de l’extension' }),
+    ]);
+  }
+
+  function messageBox(m) {
+    const lines = (m.lines || []).map((l) => (typeof l === 'string' ? { text: l } : l));
+    return el('div', { class: `msg ${m.kind}`, role: 'status' }, [
+      el('div', { class: 'head', text: m.text }),
+      ...lines.map((l) => el('div', { class: 'line', text: l.text, ...(l.title ? { title: l.title } : {}) })),
+      ...(m.small ? String(m.small).split('\n').map((t) => el('div', { class: 'small', text: t })) : []),
+      ...(m.details || []).filter(Boolean).map(listFold),
+    ]);
+  }
+
   function render() {
     updateFab();
     if (!state.open) return;
@@ -723,185 +885,28 @@
       state.selectedMaterial = bomPlan.group.material;
     }
     pickDefaults();
-    panel.replaceChildren();
-
-    panel.appendChild(el('h3', { text: 'Façonote → D365' }));
-
-    const d = state.detected;
-    const detLine =
-      d.status === 'OK'
-        ? el('div', { class: 'ok', text: `À l’écran : ${d.orderNumber}` })
-        : d.status === 'AMBIGU'
-        ? el('div', { class: 'warn', text: `Plusieurs CC à l’écran : ${d.all.join(', ')}` })
-        : el('div', { class: 'muted', text: 'Aucun CC à l’écran.' });
-    panel.appendChild(detLine);
-
-    const nums = Object.keys(state.orders).sort((a, b) =>
-      String(state.orders[b].receivedAt).localeCompare(String(state.orders[a].receivedAt))
-    );
-    if (!nums.length) {
-      panel.appendChild(
-        el('p', { class: 'muted', text: 'Aucune commande. Envoyez-la depuis Façonote.' })
-      );
-    } else {
-      const sel = el('select', {
-        onchange: (e) => {
-          state.selectedOrder = e.target.value;
-          state.selectedMaterial = null;
-          state.userPickedOrder = true;
-          render();
-        },
-      });
-      for (const n of nums) {
-        const o = state.orders[n];
-        const left = remainingParts(o);
-        const opt = el('option', { value: n, text: `${n} — ${left ? `${left} à faire` : 'terminée'}` });
-        if (n === state.selectedOrder) opt.selected = true;
-        sel.appendChild(opt);
-      }
-      panel.appendChild(el('div', { class: 'row' }, [el('span', { text: 'Commande :' }), sel]));
-
-      const o = currentOrder();
-      if (o) {
-        const when = o.sentAt ? new Date(o.sentAt).toLocaleString('fr-BE') : '?';
-        panel.appendChild(el('div', { class: 'small', text: `Envoyée le ${when}` }));
-        if (d.status === 'OK' && d.orderNumber !== o.orderNumber) {
-          panel.appendChild(el('div', { class: 'warn', text: 'Pas la commande à l’écran.' }));
-        }
-
-        const ul = el('ul');
-        for (const g of o.groups) {
-          const li = el(
-            'li',
-            {
-              class: g.material === state.selectedMaterial ? 'sel' : '',
-              onclick: () => {
-                state.selectedMaterial = g.material;
-                render();
-              },
-            },
-            hasCoilPart(g)
-              ? [
-                  el('span', { text: g.has_pieces ? `${g.material} → ${g.matiere} / ${g.epaisseur}` : `${g.material} (bobines seules)` }),
-                  el('span', {}, [
-                    g.has_pieces
-                      ? el('span', { class: `tag ${g.done ? 'done' : 'todo'}`, text: `DEV : ${g.done ? 'fait ✓' : 'à faire'}` })
-                      : el('span', { class: 'tag', text: 'DEV : —' }),
-                    el('span', { text: ' · ' }),
-                    el('span', { class: `tag ${g.coilsDone ? 'done' : 'todo'}`, text: `Bobines : ${coilTagText(o, g)}` }),
-                  ]),
-                ]
-              : [
-                  el('span', { text: `${g.material} → ${g.matiere} / ${g.epaisseur}` }),
-                  el('span', { class: `tag ${g.done ? 'done' : 'todo'}`, text: g.done ? 'fait ✓' : 'à faire' }),
-                ]
-          );
-          ul.appendChild(li);
-        }
-        panel.appendChild(ul);
-
-        const g = currentGroup();
-        if (g && !g.has_pieces) {
-          panel.appendChild(el('div', { class: 'muted', text: 'Pas de pièce.' }));
-        } else if (g) {
-          const nonZero = FD.BOUNDS.filter((b) => g.lengths[String(b)] > 0);
-          const table = el('table', {}, [
-            el('tr', {}, [el('th', { text: 'DEV' }), el('th', { text: 'm' })]),
-          ]);
-          if (!nonZero.length) {
-            table.appendChild(el('tr', {}, [el('td', { text: 'Tous à 0' }), el('td')]));
-          }
-          for (const b of nonZero) {
-            table.appendChild(
-              el('tr', {}, [el('td', { text: String(b) }), el('td', { class: 'num', text: FD.formatD365(g.lengths[String(b)]) })])
-            );
-          }
-          panel.appendChild(table);
-        }
-      }
-    }
-
-    if (bomPlan && !message) renderBom(bomPlan);
-
-    const has = Boolean(currentGroup());
-    const cg = currentGroup();
-    // Fenêtre Nomenclature : « Marquer » vise les bobines de la matière reconnue dans la grille
-    const coilTarget = bomPlan && !bomPlan.error && hasCoilPart(bomPlan.group) ? bomPlan.group : null;
-    const toggleText = coilTarget
-      ? coilTarget.coilsDone ? 'Marquer bobines à faire' : 'Marquer bobines faites'
-      : cg && cg.done ? 'Marquer à faire' : 'Marquer fait';
-    const toggleOff = state.busy || (!coilTarget && (!has || !cg.has_pieces));
-    const buttons = el('div', { class: 'row' }, [
-      // Fenêtre Nomenclature : pas de DEV à remplir, le bouton des DEV est masqué
-      state.bomMode
-        ? null
-        : el('button', {
-            class: 'b primary',
-            text: 'Pré-remplir',
-            title: cg && !cg.has_pieces ? 'Pas de pièce dans cette matière' : 'Pré-remplir Matières, Epaisseur et les DEV',
-            onclick: onFill,
-            ...(state.busy || !has || !cg.has_pieces ? { disabled: '' } : {}),
-          }),
-      state.bomMode
-        ? el('button', { class: 'b primary', text: 'Pré-remplir les bobines', onclick: onFillCoils, ...(state.busy ? { disabled: '' } : {}) })
-        : null,
-      el('button', {
-        class: 'b',
-        text: toggleText,
-        title: !coilTarget && cg && !cg.has_pieces ? 'Pas de pièce dans cette matière' : '',
-        onclick: onToggleDone,
-        ...(toggleOff ? { disabled: '' } : {}),
-      }),
-      el('button', { class: 'b', text: 'Lire l’écran', onclick: onReadScreen, ...(state.busy ? { disabled: '' } : {}) }),
-      el('button', {
-        class: 'b danger',
-        text: 'Supprimer',
-        title: 'Retirer cette commande de l’extension',
-        onclick: onDelete,
-        ...(state.busy || !currentOrder() ? { disabled: '' } : {}),
-      }),
-    ]);
-    panel.appendChild(buttons);
-
-    if (message) panel.appendChild(renderMessage(message));
-    if (diagnostic) panel.appendChild(el('pre', { text: diagnostic }));
+    const o = currentOrder();
+    const g = currentGroup();
+    const nodes = [
+      headerRow(),
+      ...orderSection(o),
+      // Fenêtre Nomenclature : aperçu des bobines d'abord, remplacé par le résultat après une saisie
+      state.bomMode && !message ? coilPlan(bomPlan) : null,
+      devPlan(g),
+      actionRow(bomPlan, g),
+      message ? messageBox(message) : null,
+      diagnostic ? fold('diagnostic', 'Diagnostic des champs', [el('pre', { text: diagnostic })]) : null,
+    ];
+    const focusKey = root.activeElement ? root.activeElement.getAttribute('data-focus') : null;
+    panel.replaceChildren(...nodes.filter(Boolean));
+    restoreFocus(focusKey);
   }
 
-  function coilTagText(o, g) {
-    if (g.coilsDone) return 'fait ✓';
-    const n = state.coilSignals[`${o.orderNumber}|${g.material}`];
-    return n ? `à faire (${n} ⚠)` : 'à faire';
-  }
-
-  // Aperçu dans le panneau quand la fenêtre Nomenclature est ouverte (lecture seule)
-  // Aperçu quand la fenêtre Nomenclature est ouverte (lecture seule). Remplacé par le résultat après une saisie.
-  function renderBom(p) {
-    const box = el('div', { class: 'msg warn' });
-    if (p.error) {
-      box.appendChild(el('div', { class: 'head ko', text: p.error }));
-      if (p.errorDetail) box.appendChild(detailsBox(p.errorDetail));
-    } else {
-      box.appendChild(el('div', { class: 'head', text: `Bobines · ${p.group.material}` }));
-      const table = el('table', {}, [el('tr', {}, [el('th', { text: 'Ligne' }), el('th', { text: 'm' })])]);
-      const fills = p.tasks.filter((t) => t.value !== null);
-      const clears = p.tasks.filter((t) => t.value === null);
-      for (const t of fills) {
-        const first = el('td', { title: t.code }, [el('span', { text: t.label }), t.code !== 'CHUTE' ? el('span', { class: 'code', text: t.code }) : null]);
-        table.appendChild(el('tr', {}, [first, el('td', { class: 'num', text: FD.formatD365(t.value) })]));
-      }
-      if (fills.length) box.appendChild(table);
-      if (clears.length) {
-        box.appendChild(detailsBox({
-          summary: `${clears.length} autre${clears.length > 1 ? 's' : ''} ligne${clears.length > 1 ? 's' : ''} vidée${clears.length > 1 ? 's' : ''} si remplie${clears.length > 1 ? 's' : ''}`,
-          lines: clears.map((t) => t.code),
-        }));
-      }
-      if (!p.tasks.length && !p.problems.length) box.appendChild(el('div', { text: 'Rien à saisir.' }));
-      for (const pr of p.problems) box.appendChild(el('div', { class: 'line ko', text: pr.text, title: pr.title }));
-      const ig = ignoredDetails(p.ignored);
-      if (ig) box.appendChild(detailsBox(ig));
-    }
-    panel.appendChild(box);
+  // Le panneau est refait à chaque rendu : le focus revient sur l'élément équivalent (même data-focus)
+  function restoreFocus(key) {
+    if (!key) return;
+    const same = [...panel.querySelectorAll('[data-focus]')].find((n) => n.getAttribute('data-focus') === key);
+    if (same && !same.disabled) same.focus();
   }
 
   // ---------- Actions ----------

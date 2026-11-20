@@ -30,7 +30,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
   const [copied, setCopied] = useState<boolean>(false);
   const [isFocused, setIsFocused] = useState<boolean>(false);
   // Repliée par défaut : ouverte seulement quand on en a besoin
-  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [isOpen, setIsOpen] = useState<boolean>(true);
   const [activeFlashedKey, setActiveFlashedKey] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);

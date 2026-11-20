@@ -34,7 +34,7 @@ import {
 } from '../api';
 import { CuttingPlan2D } from './CuttingPlan2D';
 import { AppTab, NextStep, StepIntro } from './Header';
-import { BTN_DANGER, CardTitle, KpiStrip, useDeleteAction } from './ui';
+import { BTN_DANGER, CardTitle, KpiStrip, MaterialDot, useDeleteAction } from './ui';
 import { OrderLineDraft, OrderLines } from './OrderLines';
 
 interface OptimizerTabProps {
@@ -627,7 +627,10 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], 
           {widthsByMaterial.map(({ material, widths }) => (
             <div key={material} className="flex items-center gap-1.5">
               {widthsByMaterial.length > 1 && (
-                <span className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">{material}</span>
+                <span className="text-[11px] font-semibold text-slate-600 whitespace-nowrap inline-flex items-center gap-1.5">
+                  <MaterialDot material={material} />
+                  {material}
+                </span>
               )}
               <div className="flex flex-wrap gap-1">
                 {widths.map((w) => {
@@ -991,7 +994,6 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], 
                   Détail, de la plus grande à la plus petite
                 </h5>
                 {sheetsRecapByMaterial.map((matGroup, mIdx) => {
-                  const isGroupAlu = /alu/i.test(matGroup.material);
                   return (
                     <div
                       key={mIdx}
@@ -999,11 +1001,7 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], 
                     >
                       <div className="px-3.5 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <span
-                            className={`w-2.5 h-2.5 rounded-full ${
-                              isGroupAlu ? 'bg-faco-sky' : 'bg-faco-blue'
-                            }`}
-                          />
+                          <MaterialDot material={matGroup.material} />
                           <span className="font-bold text-xs text-slate-900">
                             {matGroup.material}
                           </span>
@@ -1104,11 +1102,7 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], 
                   >
                     <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2">
                       <span className="inline-flex items-center gap-1.5 font-bold text-xs text-slate-900">
-                        <span
-                          className={`w-2 h-2 rounded-full shrink-0 ${
-                            /alu/i.test(c.material) ? 'bg-faco-sky' : 'bg-faco-blue'
-                          }`}
-                        />
+                        <MaterialDot material={c.material} />
                         {c.material}
                       </span>
                       <span className="font-mono text-xs font-bold text-faco-blue whitespace-nowrap">

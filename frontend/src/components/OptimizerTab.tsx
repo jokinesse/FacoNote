@@ -6,7 +6,6 @@ import {
   Trash2,
   RefreshCw,
   Sparkles,
-  Layers,
   CheckCircle2,
   AlertTriangle,
   Sliders,
@@ -43,7 +42,8 @@ import {
 } from '../api';
 import { CuttingPlan2D } from './CuttingPlan2D';
 import { AppTab, NextStep, StepIntro } from './Header';
-import { BTN_DANGER, DeleteButton, KpiStrip, useDeleteAction } from './ui';
+import { BTN_DANGER, KpiStrip, useDeleteAction } from './ui';
+import { OrderLineDraft, OrderLines } from './OrderLines';
 
 interface OptimizerTabProps {
   initialPieces?: ShapedPiece[];
@@ -529,6 +529,62 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], 
     );
   };
 
+  // Correction d'une pièce sur place : le backend relit dév, quantité, longueur et matière.
+  const handleSavePiece = async (id: string, draft: OrderLineDraft): Promise<string | null> => {
+    const qty = parseInt(draft.quantity, 10);
+    if (!draft.main.trim() || isNaN(qty) || qty < 1) return 'Développé et quantité (1 ou plus) obligatoires.';
+    try {
+      const { data: e } = await optimizerApi.quickEncode({
+        dev_expr: draft.main.trim(),
+        quantity: qty,
+        length_expr: draft.unitLength.trim() || '2.0',
+        material: draft.material,
+        length_unit: 'm',
+      });
+      setPieces((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                dev: e.dev,
+                quantity: e.quantity,
+                length: e.unit_length_m,
+                material: e.material,
+                originalTotalLengthRequested: undefined,
+              }
+            : p
+        )
+      );
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Correction refusée par le calcul.';
+    }
+  };
+
+  // Actions sur plusieurs pièces cochées
+  const handleBulkMaterial = (ids: string[], material: string) => {
+    const set = new Set(ids);
+    setPieces((prev) => prev.map((p) => (set.has(p.id) ? { ...p, material } : p)));
+    setActionNotice(`${ids.length} ${ids.length > 1 ? 'pièces passent' : 'pièce passe'} en : ${material}`);
+  };
+
+  // Chaque copie se place juste au-dessus de sa pièce d'origine
+  const handleBulkDuplicate = (ids: string[]) => {
+    const set = new Set(ids);
+    const stamp = Date.now();
+    setPieces((prev) =>
+      prev.flatMap((p, i) => (set.has(p.id) ? [{ ...p, id: `p-${stamp}-d${i}-${Math.floor(Math.random() * 1000)}` }, p] : [p]))
+    );
+    setActionNotice(`${ids.length} ${ids.length > 1 ? 'pièces dupliquées' : 'pièce dupliquée'}`);
+  };
+
+  const handleBulkDelete = (ids: string[]) => {
+    const set = new Set(ids);
+    deleteAction(`${ids.length} ${ids.length > 1 ? 'pièces' : 'pièce'}`, () =>
+      setPieces((prev) => prev.filter((p) => !set.has(p.id)))
+    );
+  };
+
   // Clear all pieces
   const handleClearPieces = () => {
     deleteAction("toutes les pièces de l'optimiseur", () => {
@@ -868,238 +924,182 @@ Sois direct, pro et concis en français.`;
         </div>
       )}
 
-      {/* 2. Pièces à débiter */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            <Layers className="w-4 h-4 text-[#00478a]" />
-            <h3 className="text-sm font-bold text-[#282828]">Pièces à débiter</h3>
-            {pieces.length > 0 && (
-              <span className="text-xs font-mono text-slate-500">
+      {/* 2. Pièces à débiter : même tableau que « Lignes de la commande » de l'étape Saisir */}
+      {analysisError && (
+        <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+          <span>{analysisError}</span>
+        </div>
+      )}
+
+      <OrderLines
+        title="Pièces à débiter"
+        mainHeader="Dév (mm)"
+        lines={pieces.map((p) => ({
+          id: p.id,
+          main: p.dev,
+          quantity: p.quantity,
+          quantityNote: p.originalTotalLengthRequested ? `(${p.originalTotalLengthRequested} m auto)` : undefined,
+          unitLength: p.length,
+          material: p.material || selectedMaterial,
+          tone: p.sourceType === 'RACK_SCRAP' ? 'scrap' : undefined,
+        }))}
+        activeMaterial={selectedMaterial}
+        onSave={handleSavePiece}
+        onDelete={handleRemovePiece}
+        onApplyActiveMaterialToAll={() => handleBulkMaterial(pieces.map((p) => p.id), selectedMaterial)}
+        onBulkMaterial={handleBulkMaterial}
+        onBulkDuplicate={handleBulkDuplicate}
+        onBulkDelete={handleBulkDelete}
+        defaultOpen
+        emptyText="Aucune pièce. Ajoutez-les ci-dessous, ou reprenez-les de l'étape Saisir."
+        onRowHover={setHoveredPieceId}
+        headerActions={
+          pieces.length > 0 && (
+            <>
+              <span className="text-xs font-mono text-slate-500 whitespace-nowrap">
                 {totalPiecesCount} pièces · {totalLinearMeters.toFixed(2)} m
               </span>
-            )}
-          </div>
-          {pieces.length > 0 && (
-            <button type="button" onClick={handleClearPieces} className={BTN_DANGER} title="Vider la liste des pièces">
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Vider la liste</span>
+              <button type="button" onClick={handleClearPieces} className={BTN_DANGER} title="Vider la liste des pièces">
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Vider la liste</span>
+              </button>
+            </>
+          )
+        }
+        extraColumn={{
+          header: 'Débit sur',
+          title: "Débiter sur une bobine neuve ou prendre une chute de l'atelier (raccourci : touche C)",
+          render: (line) => {
+            const p = pieces.find((x) => x.id === line.id);
+            if (!p) return null;
+            const onScrap = p.sourceType === 'RACK_SCRAP';
+            return (
+            <div className="inline-flex items-center gap-1.5">
+              <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-[11px] font-semibold">
+                <button
+                  type="button"
+                  onClick={() => onScrap && handleMovePieceUnits(p.id, 'BOBINE', p.quantity)}
+                  aria-pressed={!onScrap}
+                  className={`px-2 py-0.5 cursor-pointer ${
+                    !onScrap ? 'bg-[#00478a] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
+                  }`}
+                  title="Débiter sur une bobine neuve"
+                >
+                  Bobine
+                </button>
+                <button
+                  type="button"
+                  onClick={() => !onScrap && handleMovePieceUnits(p.id, 'RACK_SCRAP', p.quantity)}
+                  aria-pressed={onScrap}
+                  className={`px-2 py-0.5 border-l border-slate-200 cursor-pointer ${
+                    onScrap ? 'bg-amber-500 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
+                  }`}
+                  title="Prendre dans les chutes de l'atelier"
+                >
+                  Chute
+                </button>
+              </div>
+              {p.quantity > 1 && (
+                <button
+                  type="button"
+                  onClick={() => handleMovePieceUnits(p.id, onScrap ? 'BOBINE' : 'RACK_SCRAP', 1)}
+                  className="px-1.5 py-0.5 rounded text-[10px] text-slate-500 hover:text-[#00478a] hover:bg-slate-100 cursor-pointer"
+                  title={onScrap ? 'Remettre 1 pièce sur bobine (C)' : 'Passer 1 seule pièce en chute (C)'}
+                >
+                  {onScrap ? '1 sur bobine' : '1 en chute'}
+                </button>
+              )}
+            </div>
+            );
+          },
+        }}
+      >
+        {/* Ajout rapide : même ordre que les colonnes */}
+        <form onSubmit={handleAddPiece} className="border-t border-slate-200 bg-slate-50">
+          <div className="flex flex-wrap items-end gap-3 px-4 py-2.5">
+            <label className="flex flex-col gap-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Dév (mm)
+              <input
+                type="number"
+                value={newDev}
+                onChange={(e) => setNewDev(e.target.value)}
+                min="20"
+                max="2000"
+                required
+                aria-label="Développé (mm)"
+                placeholder="Dév"
+                className="w-24 bg-white border border-slate-300 rounded-md px-2 py-1 font-mono text-xs focus:outline-none focus:border-[#00478a]"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Quantité
+              <input
+                type="number"
+                value={newQty}
+                onChange={(e) => {
+                  setNewQty(e.target.value);
+                  if (e.target.value !== '0') setSelectedForcedLength(undefined);
+                }}
+                min="0"
+                required
+                aria-label="Quantité (0 = métrage auto)"
+                title="0 = métrage auto : la longueur devient le métrage total"
+                className={`w-16 border rounded-md px-2 py-1 font-mono text-xs text-right focus:outline-none ${
+                  isAutoMeterMode
+                    ? 'border-[#00478a] text-[#00478a] font-bold bg-[#f0f7fc]'
+                    : 'bg-white border-slate-300 focus:border-[#00478a]'
+                }`}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              {isAutoMeterMode ? 'Métrage total (m)' : 'Longueur (m)'}
+              <input
+                type="number"
+                step="0.05"
+                value={newLength}
+                onChange={(e) => setNewLength(e.target.value)}
+                min="0.2"
+                required
+                aria-label={isAutoMeterMode ? 'Métrage total (m)' : 'Longueur (m)'}
+                placeholder={isAutoMeterMode ? 'Total m' : 'Long.'}
+                className={`w-24 border rounded-md px-2 py-1 font-mono text-xs text-right focus:outline-none ${
+                  isAutoMeterMode
+                    ? 'border-[#00478a] text-[#00478a] font-bold bg-[#f0f7fc]'
+                    : 'bg-white border-slate-300 focus:border-[#00478a]'
+                }`}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Matière
+              <select
+                value={newMat}
+                onChange={(e) => {
+                  setNewMat(e.target.value);
+                  setSelectedMaterial(e.target.value);
+                }}
+                aria-label="Matière"
+                className="bg-white border border-slate-300 rounded-md px-1.5 py-1 text-xs focus:outline-none focus:border-[#00478a] cursor-pointer"
+              >
+                {MATERIAL_GROUPS.map((grp) => (
+                  <optgroup key={grp.group} label={grp.group}>
+                    {grp.items.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.value}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+            <button
+              type="submit"
+              className="px-3 py-1.5 bg-[#e7511f] hover:bg-[#cf4315] text-white font-semibold rounded-md text-xs flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>{isAutoMeterMode ? 'Ajouter (auto)' : 'Ajouter'}</span>
             </button>
-          )}
-        </div>
-
-        {analysisError && (
-          <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-            <span>{analysisError}</span>
           </div>
-        )}
-
-        <form onSubmit={handleAddPiece}>
-          <div className="table-wrapper" tabIndex={0} role="region" aria-label="Liste des pièces à débiter">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px] border-b border-slate-200 whitespace-nowrap">
-                <tr>
-                  <th className="py-2 px-4 w-32">Dév (mm)</th>
-                  <th className="py-2 px-3 text-right">Longueur (m)</th>
-                  <th className="py-2 px-3 text-right">Qté</th>
-                  <th className="py-2 px-3">Matière</th>
-                  <th
-                    className="py-2 px-3"
-                    title="Débiter sur une bobine neuve ou prendre une chute de l'atelier (raccourci : touche C)"
-                  >
-                    Débit sur
-                  </th>
-                  <th className="py-2 px-3 w-10"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-mono">
-                {pieces.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="py-6 px-4 text-center font-sans text-slate-400">
-                      Aucune pièce. Ajoutez-les ci-dessous, ou envoyez-les depuis le Calculateur (« Optimiser le débit »).
-                    </td>
-                  </tr>
-                )}
-                {pieces.map((p) => {
-                  const onScrap = p.sourceType === 'RACK_SCRAP';
-                  return (
-                    <tr
-                      key={p.id}
-                      onMouseEnter={() => setHoveredPieceId(p.id)}
-                      onMouseLeave={() => setHoveredPieceId(null)}
-                      className={`transition-colors ${onScrap ? 'bg-amber-50/40' : 'hover:bg-slate-50/80'}`}
-                    >
-                      <td className="py-2 px-4" title={p.label}>
-                        <span className="text-sm font-bold text-[#00478a]">{p.dev}</span>
-                      </td>
-                      <td className="py-2 px-3 text-right text-slate-700">{p.length}</td>
-                      <td className="py-2 px-3 text-right font-bold text-slate-900">
-                        {p.quantity}
-                        {p.originalTotalLengthRequested && (
-                          <span
-                            className="block text-[9px] font-sans font-normal text-[#00478a] whitespace-nowrap"
-                            title={`Métrage total demandé : ${p.originalTotalLengthRequested} m`}
-                          >
-                            ({p.originalTotalLengthRequested} m auto)
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3 font-sans">
-                        <select
-                          value={p.material || selectedMaterial}
-                          onChange={(e) => {
-                            const updatedMat = e.target.value;
-                            setPieces((prev) =>
-                              prev.map((item) => (item.id === p.id ? { ...item, material: updatedMat } : item))
-                            );
-                          }}
-                          className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-slate-700 text-xs focus:outline-none focus:border-[#00478a] cursor-pointer"
-                          aria-label="Matière de la pièce"
-                        >
-                          {MATERIAL_GROUPS.map((grp) => (
-                            <optgroup key={grp.group} label={grp.group}>
-                              {grp.items.map((m) => (
-                                <option key={m.value} value={m.value}>
-                                  {m.value}
-                                </option>
-                              ))}
-                            </optgroup>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="py-2 px-3 font-sans whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5">
-                          <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-[11px] font-semibold">
-                            <button
-                              type="button"
-                              onClick={() => onScrap && handleMovePieceUnits(p.id, 'BOBINE', p.quantity)}
-                              aria-pressed={!onScrap}
-                              className={`px-2 py-0.5 cursor-pointer ${
-                                !onScrap ? 'bg-[#00478a] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
-                              }`}
-                              title="Débiter sur une bobine neuve"
-                            >
-                              Bobine
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => !onScrap && handleMovePieceUnits(p.id, 'RACK_SCRAP', p.quantity)}
-                              aria-pressed={onScrap}
-                              className={`px-2 py-0.5 border-l border-slate-200 cursor-pointer ${
-                                onScrap ? 'bg-amber-500 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
-                              }`}
-                              title="Prendre dans les chutes de l'atelier"
-                            >
-                              Chute
-                            </button>
-                          </div>
-                          {p.quantity > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => handleMovePieceUnits(p.id, onScrap ? 'BOBINE' : 'RACK_SCRAP', 1)}
-                              className="px-1.5 py-0.5 rounded text-[10px] text-slate-500 hover:text-[#00478a] hover:bg-slate-100 cursor-pointer"
-                              title={onScrap ? 'Remettre 1 pièce sur bobine (C)' : 'Passer 1 seule pièce en chute (C)'}
-                            >
-                              {onScrap ? '1 sur bobine' : '1 en chute'}
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-2 px-3 text-right">
-                        <DeleteButton title="Supprimer cette pièce" onClick={() => handleRemovePiece(p.id)} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              {/* Ajout rapide : même ordre que les colonnes */}
-              <tfoot className="bg-slate-50 border-t border-slate-200">
-                <tr>
-                  <td className="py-2 px-4">
-                    <input
-                      type="number"
-                      value={newDev}
-                      onChange={(e) => setNewDev(e.target.value)}
-                      min="20"
-                      max="2000"
-                      required
-                      aria-label="Développé (mm)"
-                      placeholder="Dév"
-                      className="w-24 bg-white border border-slate-300 rounded-md px-2 py-1 font-mono text-xs focus:outline-none focus:border-[#00478a]"
-                    />
-                  </td>
-                  <td className="py-2 px-3 text-right">
-                    <input
-                      type="number"
-                      step="0.05"
-                      value={newLength}
-                      onChange={(e) => setNewLength(e.target.value)}
-                      min="0.2"
-                      required
-                      aria-label={isAutoMeterMode ? 'Métrage total (m)' : 'Longueur (m)'}
-                      placeholder={isAutoMeterMode ? 'Total m' : 'Long.'}
-                      className={`w-24 border rounded-md px-2 py-1 font-mono text-xs text-right focus:outline-none ${
-                        isAutoMeterMode
-                          ? 'border-[#00478a] text-[#00478a] font-bold bg-[#f0f7fc]'
-                          : 'bg-white border-slate-300 focus:border-[#00478a]'
-                      }`}
-                    />
-                  </td>
-                  <td className="py-2 px-3 text-right">
-                    <input
-                      type="number"
-                      value={newQty}
-                      onChange={(e) => {
-                        setNewQty(e.target.value);
-                        if (e.target.value !== '0') setSelectedForcedLength(undefined);
-                      }}
-                      min="0"
-                      required
-                      aria-label="Quantité (0 = métrage auto)"
-                      title="0 = métrage auto : la longueur devient le métrage total"
-                      className={`w-16 border rounded-md px-2 py-1 font-mono text-xs text-right focus:outline-none ${
-                        isAutoMeterMode
-                          ? 'border-[#00478a] text-[#00478a] font-bold bg-[#f0f7fc]'
-                          : 'bg-white border-slate-300 focus:border-[#00478a]'
-                      }`}
-                    />
-                  </td>
-                  <td className="py-2 px-3">
-                    <select
-                      value={newMat}
-                      onChange={(e) => {
-                        setNewMat(e.target.value);
-                        setSelectedMaterial(e.target.value);
-                      }}
-                      aria-label="Matière"
-                      className="bg-white border border-slate-300 rounded-md px-1.5 py-1 text-xs focus:outline-none focus:border-[#00478a] cursor-pointer"
-                    >
-                      {MATERIAL_GROUPS.map((grp) => (
-                        <optgroup key={grp.group} label={grp.group}>
-                          {grp.items.map((m) => (
-                            <option key={m.value} value={m.value}>
-                              {m.value}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="py-2 px-3" colSpan={2}>
-                    <button
-                      type="submit"
-                      className="px-3 py-1 bg-[#e7511f] hover:bg-[#cf4315] text-white font-semibold rounded-md text-xs flex items-center gap-1 transition-colors cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>{isAutoMeterMode ? 'Ajouter (auto)' : 'Ajouter'}</span>
-                    </button>
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-
           {/* Métrage auto (Qté = 0) : découpage proposé par le backend */}
           {isAutoMeterMode && autoBreakdown && (
             <div className="mx-4 my-3 bg-[#f0f7fc] border border-[#b9dcf2] rounded-lg p-3 space-y-2">
@@ -1136,7 +1136,7 @@ Sois direct, pro et concis en français.`;
             </div>
           )}
         </form>
-      </div>
+      </OrderLines>
 
       {/* 3. Résultat du débit */}
       {optimizationResult && (

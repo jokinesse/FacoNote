@@ -10,10 +10,11 @@ export interface OrderLine {
   mainLabel?: string; // texte à la place du nombre (ex. « Chute »)
   quantity: number;
   unitLength: number; // m
-  totalLength: number; // m, calculé par le backend
+  totalLength?: number; // m, calculé par le backend (colonne masquée si absent)
+  quantityNote?: string; // petit texte sous la quantité (ex. « 12 m auto »)
   material: string;
   time?: string;
-  tone?: 'chute';
+  tone?: 'chute' | 'scrap'; // 'scrap' : ligne prise dans les chutes (fond orangé)
 }
 
 export interface OrderLineDraft {
@@ -37,6 +38,12 @@ interface OrderLinesProps {
   onBulkMaterial: (ids: string[], material: string) => void;
   onBulkDuplicate: (ids: string[]) => void;
   onBulkDelete: (ids: string[]) => void;
+  defaultOpen?: boolean;
+  emptyText?: string; // sans ligne : le panneau s'affiche avec ce texte (sinon il disparaît)
+  headerActions?: React.ReactNode; // boutons en plus dans l'en-tête
+  extraColumn?: { header: React.ReactNode; title?: string; render: (line: OrderLine) => React.ReactNode };
+  onRowHover?: (id: string | null) => void;
+  children?: React.ReactNode; // sous le tableau (ex. formulaire d'ajout)
 }
 
 const inputCls =
@@ -55,8 +62,14 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
   onBulkMaterial,
   onBulkDuplicate,
   onBulkDelete,
+  defaultOpen = false,
+  emptyText,
+  headerActions,
+  extraColumn,
+  onRowHover,
+  children,
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkMaterial, setBulkMaterial] = useState(activeMaterial);
   const lastClickedRef = useRef<string | null>(null);
@@ -161,7 +174,9 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
   // Dans l'ordre du tableau
   const selectedIds = () => lines.filter((l) => selected.has(l.id)).map((l) => l.id);
 
-  if (lines.length === 0) return null;
+  if (lines.length === 0 && !emptyText) return null;
+  const showTotal = lines.some((l) => l.totalLength !== undefined);
+  const columns = 6 + (showTotal ? 1 : 0) + (extraColumn ? 1 : 0);
 
   return (
     <div className="faco-card bg-white border border-slate-200 rounded-xl shadow-2xs overflow-hidden">
@@ -181,7 +196,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
           <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           <span className="text-xs font-semibold text-[#00478a]">{isOpen ? 'Fermer' : 'Ouvrir'}</span>
         </button>
-        <div className={`${isOpen ? 'flex' : 'hidden'} items-center gap-3`}>
+        <div className={`${isOpen ? 'flex' : 'hidden'} flex-wrap items-center gap-3`}>
           <span className="hidden sm:inline text-[11px] text-slate-400">
             Clic sur une ligne = corriger · case = sélectionner (Maj + clic = plusieurs)
           </span>
@@ -192,6 +207,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
           >
             Tout passer en « {activeMaterial} »
           </button>
+          {headerActions}
         </div>
       </div>
 
@@ -275,12 +291,24 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
               <th className="py-2 px-3 w-28">{mainHeader}</th>
               <th className="py-2 px-3 w-24 text-right">Quantité</th>
               <th className="py-2 px-3 w-28 text-right">Longueur (m)</th>
-              <th className="py-2 px-3 w-28 text-right">Total</th>
+              {showTotal && <th className="py-2 px-3 w-28 text-right">Total</th>}
               <th className="py-2 px-3 pl-6">Matière</th>
+              {extraColumn && (
+                <th className="py-2 px-3" title={extraColumn.title}>
+                  {extraColumn.header}
+                </th>
+              )}
               <th className="py-2 px-3 w-24 text-right"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 font-mono">
+            {lines.length === 0 && (
+              <tr>
+                <td colSpan={columns} className="py-6 px-4 text-center font-sans text-slate-400">
+                  {emptyText}
+                </td>
+              </tr>
+            )}
             {lines.map((line) => {
               const isEditing = line.id === editingId;
               if (isEditing) {
@@ -317,7 +345,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                           inputMode="decimal"
                         />
                       </td>
-                      <td className="py-1.5 px-3 text-right text-slate-400">…</td>
+                      {showTotal && <td className="py-1.5 px-3 text-right text-slate-400">…</td>}
                       <td className="py-1.5 px-3">
                         <select
                           aria-label="Matière"
@@ -339,6 +367,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                           )}
                         </select>
                       </td>
+                      {extraColumn && <td className="py-1.5 px-3"></td>}
                       <td className="py-1.5 px-3">
                         <div className="flex items-center justify-end gap-1">
                           <button
@@ -365,7 +394,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                     </tr>
                     {error && (
                       <tr className="bg-rose-50">
-                        <td colSpan={7} className="py-1.5 px-3 font-sans text-[11px] text-rose-700">
+                        <td colSpan={columns} className="py-1.5 px-3 font-sans text-[11px] text-rose-700">
                           {error}
                         </td>
                       </tr>
@@ -378,11 +407,15 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                 <tr
                   key={line.id}
                   onClick={() => startEdit(line)}
+                  onMouseEnter={onRowHover && (() => onRowHover(line.id))}
+                  onMouseLeave={onRowHover && (() => onRowHover(null))}
                   className={`cursor-pointer transition-colors ${
                     line.id === savedId
                       ? 'bg-emerald-50'
                       : selected.has(line.id)
                       ? 'bg-[#f0f7fc] hover:bg-[#e3f0fa]'
+                      : line.tone === 'scrap'
+                      ? 'bg-amber-50/40 hover:bg-amber-50'
                       : 'hover:bg-slate-50'
                   }`}
                   title="Cliquer pour corriger cette ligne"
@@ -413,12 +446,24 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                       </span>
                     )}
                   </td>
-                  <td className="py-2 px-3 text-right tabular-nums">{line.quantity}</td>
-                  <td className="py-2 px-3 text-right tabular-nums">{line.unitLength}</td>
-                  <td className="py-2 px-3 text-right tabular-nums font-bold text-[#282828] whitespace-nowrap">
-                    {line.totalLength.toFixed(2)} m
+                  <td className="py-2 px-3 text-right tabular-nums">
+                    {line.quantity}
+                    {line.quantityNote && (
+                      <span className="block text-[9px] font-sans text-[#00478a] whitespace-nowrap">{line.quantityNote}</span>
+                    )}
                   </td>
+                  <td className="py-2 px-3 text-right tabular-nums">{line.unitLength}</td>
+                  {showTotal && (
+                    <td className="py-2 px-3 text-right tabular-nums font-bold text-[#282828] whitespace-nowrap">
+                      {line.totalLength !== undefined ? `${line.totalLength.toFixed(2)} m` : ''}
+                    </td>
+                  )}
                   <td className="py-2 px-3 pl-6 font-sans text-[11px] text-slate-700 whitespace-nowrap">{line.material}</td>
+                  {extraColumn && (
+                    <td className="py-2 px-3 font-sans" onClick={(e) => e.stopPropagation()}>
+                      {extraColumn.render(line)}
+                    </td>
+                  )}
                   <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
                       <button
@@ -439,6 +484,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
           </tbody>
         </table>
       </div>
+      {isOpen && children}
     </div>
   );
 };

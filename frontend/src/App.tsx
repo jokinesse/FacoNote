@@ -143,9 +143,9 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f3f4f6] text-[#282828] flex flex-col font-sans">
+    <div className="min-h-screen bg-faco-bg text-faco-text flex flex-col font-sans">
       {IS_PREVIEW && (
-        <div className="bg-[#e7511f] text-white text-xs font-semibold text-center px-4 py-1.5">
+        <div className="bg-faco-orange text-white text-xs font-semibold text-center px-4 py-1.5">
           Préversion de la nouvelle interface : pour essayer seulement. L'envoi vers D365 est désactivé.
         </div>
       )}
@@ -207,7 +207,7 @@ export default function App() {
       {/* Minimal Footer */}
       <footer className="no-print border-t border-slate-200 bg-white py-3 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between text-xs text-slate-500">
-          <span className="font-semibold text-[#00478a]">FACOZINC</span>
+          <span className="font-semibold text-faco-blue">FACOZINC</span>
           <span>Atelier Pliage & Façonnage</span>
         </div>
       </footer>

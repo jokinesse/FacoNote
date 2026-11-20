@@ -47,7 +47,7 @@ interface OrderLinesProps {
 }
 
 const inputCls =
-  'faco-input w-full bg-white border border-slate-300 rounded-md px-2 py-1 text-xs font-mono font-bold text-[#282828] focus:outline-none focus:border-[#00478a]';
+  'faco-input w-full bg-white border border-slate-300 rounded-md px-2 py-1 text-xs font-mono font-bold text-faco-text focus:outline-none focus:border-faco-blue';
 
 // Tableau des lignes de la commande : chaque ligne se corrige sur place (Entrée = enregistrer, Échap = annuler).
 export const OrderLines: React.FC<OrderLinesProps> = ({
@@ -187,14 +187,14 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
           type="button"
           onClick={() => setIsOpen((o) => !o)}
           aria-expanded={isOpen}
-          className="text-sm font-bold text-[#282828] flex items-center gap-2 cursor-pointer"
+          className="text-sm font-bold text-faco-text flex items-center gap-2 cursor-pointer"
         >
-          <ListOrdered className="w-4 h-4 text-[#00478a]" />
+          <ListOrdered className="w-4 h-4 text-faco-blue" />
           <span>
             {title} ({lines.length})
           </span>
           <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-          <span className="text-xs font-semibold text-[#00478a]">{isOpen ? 'Fermer' : 'Ouvrir'}</span>
+          <span className="text-xs font-semibold text-faco-blue">{isOpen ? 'Fermer' : 'Ouvrir'}</span>
         </button>
         <div className={`${isOpen ? 'flex' : 'hidden'} flex-wrap items-center gap-3`}>
           <span className="hidden sm:inline text-[11px] text-slate-400">
@@ -203,7 +203,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
           <button
             type="button"
             onClick={onApplyActiveMaterialToAll}
-            className="px-2.5 py-1 text-[11px] font-medium text-[#00478a] bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer whitespace-nowrap"
+            className="px-2.5 py-1 text-[11px] font-medium text-faco-blue bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer whitespace-nowrap"
           >
             Tout passer en « {activeMaterial} »
           </button>
@@ -212,8 +212,8 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
       </div>
 
       {isOpen && selected.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-[#f0f7fc] border-b border-[#3ca7da]/30 text-xs">
-          <strong className="text-[#00478a]">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2 bg-faco-blue-50 border-b border-faco-sky/30 text-xs">
+          <strong className="text-faco-blue">
             {selected.size} {selected.size > 1 ? 'lignes sélectionnées' : 'ligne sélectionnée'}
           </strong>
           <span className="text-slate-300">|</span>
@@ -221,7 +221,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
             aria-label="Matière pour les lignes sélectionnées"
             value={bulkMaterial}
             onChange={(e) => setBulkMaterial(e.target.value)}
-            className="bg-white border border-slate-300 text-[11px] font-medium text-slate-700 rounded-md px-2 py-1 focus:outline-none focus:border-[#00478a]"
+            className="bg-white border border-slate-300 text-[11px] font-medium text-slate-700 rounded-md px-2 py-1 focus:outline-none focus:border-faco-blue"
           >
             {MATERIAL_GROUPS.map((grp) => (
               <optgroup key={grp.group} label={grp.group}>
@@ -236,14 +236,14 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
           <button
             type="button"
             onClick={() => onBulkMaterial(selectedIds(), bulkMaterial)}
-            className="px-2.5 py-1 font-medium text-white bg-[#00478a] hover:bg-[#003566] rounded-md cursor-pointer"
+            className="px-2.5 py-1 font-medium text-white bg-faco-blue hover:bg-faco-blue-dark rounded-md cursor-pointer"
           >
             Changer la matière
           </button>
           <button
             type="button"
             onClick={() => onBulkDuplicate(selectedIds())}
-            className="px-2.5 py-1 font-medium text-[#00478a] bg-white border border-slate-300 hover:bg-slate-50 rounded-md flex items-center gap-1 cursor-pointer"
+            className="px-2.5 py-1 font-medium text-faco-blue bg-white border border-slate-300 hover:bg-slate-50 rounded-md flex items-center gap-1 cursor-pointer"
           >
             <Copy className="w-3.5 h-3.5" />
             Dupliquer
@@ -285,7 +285,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                   onChange={toggleAll}
                   aria-label="Tout sélectionner"
                   title="Tout sélectionner"
-                  className="w-3.5 h-3.5 accent-[#00478a] cursor-pointer"
+                  className="w-3.5 h-3.5 accent-faco-blue cursor-pointer"
                 />
               </th>
               <th className="py-2 px-3 w-28">{mainHeader}</th>
@@ -314,7 +314,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
               if (isEditing) {
                 return (
                   <React.Fragment key={line.id}>
-                    <tr className="bg-[#f0f7fc]" onKeyDown={onKeys}>
+                    <tr className="bg-faco-blue-50" onKeyDown={onKeys}>
                       <td className="py-1.5 pl-3 pr-0"></td>
                       <td className="py-1.5 px-3">
                         <input
@@ -351,7 +351,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                           aria-label="Matière"
                           value={draft.material}
                           onChange={(e) => setDraft({ ...draft, material: e.target.value })}
-                          className="bg-white border border-slate-300 text-[11px] font-sans font-medium text-slate-700 rounded-md px-2 py-1 focus:outline-none focus:border-[#00478a]"
+                          className="bg-white border border-slate-300 text-[11px] font-sans font-medium text-slate-700 rounded-md px-2 py-1 focus:outline-none focus:border-faco-blue"
                         >
                           {MATERIAL_GROUPS.map((grp) => (
                             <optgroup key={grp.group} label={grp.group}>
@@ -376,7 +376,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                             disabled={saving}
                             title="Enregistrer (Entrée)"
                             aria-label="Enregistrer la ligne"
-                            className="p-1.5 rounded-md bg-[#00478a] text-white hover:bg-[#003a72] disabled:opacity-50 cursor-pointer"
+                            className="p-1.5 rounded-md bg-faco-blue text-white hover:bg-faco-blue-dark disabled:opacity-50 cursor-pointer"
                           >
                             <Check className="w-3.5 h-3.5" />
                           </button>
@@ -413,7 +413,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                     line.id === savedId
                       ? 'bg-emerald-50'
                       : selected.has(line.id)
-                      ? 'bg-[#f0f7fc] hover:bg-[#e3f0fa]'
+                      ? 'bg-faco-blue-50 hover:bg-faco-blue-100'
                       : line.tone === 'scrap'
                       ? 'bg-amber-50/40 hover:bg-amber-50'
                       : 'hover:bg-slate-50'
@@ -432,7 +432,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                       checked={selected.has(line.id)}
                       onChange={() => {}}
                       aria-label="Sélectionner cette ligne"
-                      className="w-3.5 h-3.5 accent-[#00478a] cursor-pointer"
+                      className="w-3.5 h-3.5 accent-faco-blue cursor-pointer"
                     />
                   </td>
                   <td className="py-2 px-3 font-bold whitespace-nowrap">
@@ -441,7 +441,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                         {line.mainLabel}
                       </span>
                     ) : (
-                      <span className="text-[#00478a]">
+                      <span className="text-faco-blue">
                         {line.main} <span className="text-[10px] font-normal text-slate-400">mm</span>
                       </span>
                     )}
@@ -449,12 +449,12 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                   <td className="py-2 px-3 text-right tabular-nums">
                     {line.quantity}
                     {line.quantityNote && (
-                      <span className="block text-[9px] font-sans text-[#00478a] whitespace-nowrap">{line.quantityNote}</span>
+                      <span className="block text-[9px] font-sans text-faco-blue whitespace-nowrap">{line.quantityNote}</span>
                     )}
                   </td>
                   <td className="py-2 px-3 text-right tabular-nums">{line.unitLength}</td>
                   {showTotal && (
-                    <td className="py-2 px-3 text-right tabular-nums font-bold text-[#282828] whitespace-nowrap">
+                    <td className="py-2 px-3 text-right tabular-nums font-bold text-faco-text whitespace-nowrap">
                       {line.totalLength !== undefined ? `${line.totalLength.toFixed(2)} m` : ''}
                     </td>
                   )}
@@ -471,7 +471,7 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
                         onClick={() => startEdit(line)}
                         title="Corriger cette ligne"
                         aria-label="Corriger cette ligne"
-                        className="p-1.5 rounded-md text-slate-500 hover:text-[#00478a] hover:bg-slate-100 cursor-pointer"
+                        className="p-1.5 rounded-md text-slate-500 hover:text-faco-blue hover:bg-slate-100 cursor-pointer"
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>

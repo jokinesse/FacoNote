@@ -67,7 +67,7 @@ export const SendStep: React.FC<SendStepProps> = ({
               maxLength={13}
               aria-invalid={invalid}
               className={`faco-input w-full max-w-xs bg-white border-2 rounded-lg px-3 py-2 text-lg font-mono font-bold focus:outline-none ${
-                invalid ? 'border-rose-400' : 'border-slate-300 focus:border-[#00478a]'
+                invalid ? 'border-rose-400' : 'border-slate-300 focus:border-faco-blue'
               }`}
             />
             <p className={`text-xs mt-1 ${invalid ? 'text-rose-600' : 'text-slate-400'}`}>
@@ -110,7 +110,7 @@ export const SendStep: React.FC<SendStepProps> = ({
               type="button"
               onClick={onSend}
               disabled={isSending || isEmpty}
-              className="px-5 py-2.5 bg-[#00478a] hover:bg-[#003566] disabled:opacity-40 text-white font-semibold rounded-lg text-sm flex items-center gap-2 shadow-xs cursor-pointer"
+              className="px-5 py-2.5 bg-faco-blue hover:bg-faco-blue-dark disabled:opacity-40 text-white font-semibold rounded-lg text-sm flex items-center gap-2 shadow-xs cursor-pointer"
             >
               <Send className="w-4 h-4" />
               <span>{isSending ? 'Envoi…' : 'Envoyer vers D365'}</span>
@@ -118,7 +118,7 @@ export const SendStep: React.FC<SendStepProps> = ({
             <button
               type="button"
               onClick={onBack}
-              className="px-3 py-2 text-sm text-slate-600 hover:text-[#00478a] cursor-pointer"
+              className="px-3 py-2 text-sm text-slate-600 hover:text-faco-blue cursor-pointer"
             >
               ← Revenir à la saisie
             </button>
@@ -127,8 +127,8 @@ export const SendStep: React.FC<SendStepProps> = ({
           {children}
         </div>
 
-        <div className="bg-[#f0f7fc] border border-[#b9dcf2] rounded-xl p-5 text-sm text-slate-700">
-          <h2 className="font-bold text-[#00478a] mb-2">Ensuite, dans D365</h2>
+        <div className="bg-faco-blue-50 border border-faco-blue-200 rounded-xl p-5 text-sm text-slate-700">
+          <h2 className="font-bold text-faco-blue mb-2">Ensuite, dans D365</h2>
           <ol className="list-decimal pl-5 space-y-1.5">
             <li>Ouvrez la commande, en mode Modifier.</li>
             <li>

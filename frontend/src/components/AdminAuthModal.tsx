@@ -83,11 +83,11 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
       <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-[#00478a]/10 border border-[#00478a]/20 text-[#00478a]">
+            <div className="p-2 rounded-lg bg-faco-blue/10 border border-faco-blue/20 text-faco-blue">
               {isFirstSetup ? <KeyRound className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
             </div>
             <div>
-              <h2 id="admin-modal-title" className="text-base font-bold text-[#282828]">
+              <h2 id="admin-modal-title" className="text-base font-bold text-faco-text">
                 {isFirstSetup ? 'Initialiser le Coffre-Fort Admin' : 'Accès Restreint — Stress Lab'}
               </h2>
               <p className="text-xs text-slate-500">
@@ -141,7 +141,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"
-                className="w-full bg-[#f8fafc] border border-slate-300 rounded-lg pl-3.5 pr-20 py-2.5 text-sm font-mono text-[#282828] focus:outline-none focus:border-[#00478a] focus:bg-white disabled:opacity-50 transition-colors"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg pl-3.5 pr-20 py-2.5 text-sm font-mono text-faco-text focus:outline-none focus:border-faco-blue focus:bg-white disabled:opacity-50 transition-colors"
               />
               <button
                 type="button"
@@ -183,7 +183,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
             <button
               type="submit"
               disabled={isLoading || lockedSec > 0 || !password.trim()}
-              className="px-4 py-2 bg-[#00478a] hover:bg-[#003870] disabled:opacity-40 text-white font-bold rounded-lg text-xs cursor-pointer transition-colors shadow-2xs"
+              className="px-4 py-2 bg-faco-blue hover:bg-faco-blue-dark disabled:opacity-40 text-white font-bold rounded-lg text-xs cursor-pointer transition-colors shadow-2xs"
             >
               {isLoading
                 ? 'Vérification...'

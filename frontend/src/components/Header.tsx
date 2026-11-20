@@ -23,12 +23,12 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onStep, isAdminUnlock
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4 h-14">
           <div className="flex items-center gap-2.5 shrink-0">
-            <div className="w-8 h-8 rounded-md bg-[#00478a] flex items-center justify-center font-extrabold text-white text-sm tracking-tight relative">
+            <div className="w-8 h-8 rounded-md bg-faco-blue flex items-center justify-center font-extrabold text-white text-sm tracking-tight relative">
               FZ
-              <span className="w-2 h-2 rounded-full bg-[#e7511f] absolute -bottom-0.5 -right-0.5 border border-white" />
+              <span className="w-2 h-2 rounded-full bg-faco-orange absolute -bottom-0.5 -right-0.5 border border-white" />
             </div>
-            <span className="hidden md:inline text-base font-extrabold tracking-tight text-[#00478a]">
-              FACO<span className="text-[#3ca7da]">ZINC</span>
+            <span className="hidden md:inline text-base font-extrabold tracking-tight text-faco-blue">
+              FACO<span className="text-faco-sky">ZINC</span>
             </span>
           </div>
 
@@ -45,15 +45,15 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onStep, isAdminUnlock
                       onClick={() => onStep(s.tab)}
                       aria-current={isActive ? 'step' : undefined}
                       className={`flex items-center gap-2 pl-1 pr-3 py-1 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
-                        isActive ? 'bg-[#00478a] text-white' : 'text-slate-600 hover:bg-slate-100'
+                        isActive ? 'bg-faco-blue text-white' : 'text-slate-600 hover:bg-slate-100'
                       }`}
                     >
                       <span
                         className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
                           isActive
-                            ? 'bg-white text-[#00478a]'
+                            ? 'bg-white text-faco-blue'
                             : isDone
-                            ? 'bg-[#3ca7da] text-white'
+                            ? 'bg-faco-sky text-white'
                             : 'bg-slate-200 text-slate-600'
                         }`}
                       >
@@ -75,7 +75,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onStep, isAdminUnlock
                 title="Admin"
                 aria-label="Admin"
                 className={`p-1.5 rounded-lg cursor-pointer ${
-                  activeTab === 'stress' ? 'bg-[#00478a] text-white' : 'text-slate-500 hover:bg-slate-100'
+                  activeTab === 'stress' ? 'bg-faco-blue text-white' : 'text-slate-500 hover:bg-slate-100'
                 }`}
               >
                 <Gauge className="w-4 h-4" />
@@ -97,8 +97,8 @@ export const StepIntro: React.FC<{ step: number; title: string; hint: string; ch
 }) => (
   <div className="flex flex-wrap items-end justify-between gap-3">
     <div>
-      <div className="text-[11px] font-bold uppercase tracking-wider text-[#3ca7da]">Étape {step} sur 3</div>
-      <h1 className="text-xl font-bold text-[#282828] leading-tight">{title}</h1>
+      <div className="text-[11px] font-bold uppercase tracking-wider text-faco-sky">Étape {step} sur 3</div>
+      <h1 className="text-xl font-bold text-faco-text leading-tight">{title}</h1>
       <p className="text-sm text-slate-500 mt-0.5">{hint}</p>
     </div>
     {children}
@@ -116,7 +116,7 @@ export const NextStep: React.FC<{ label: string; onClick: () => void; secondary?
     <button
       type="button"
       onClick={onClick}
-      className="px-5 py-2.5 bg-[#00478a] hover:bg-[#003566] text-white font-semibold rounded-lg text-sm flex items-center gap-2 shadow-xs cursor-pointer"
+      className="px-5 py-2.5 bg-faco-blue hover:bg-faco-blue-dark text-white font-semibold rounded-lg text-sm flex items-center gap-2 shadow-xs cursor-pointer"
     >
       <span>{label}</span>
       <span aria-hidden="true">→</span>

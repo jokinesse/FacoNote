@@ -909,10 +909,10 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
     if (isAlu) {
       return (
         <span
-          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border bg-[#00478a]/10 text-[#00478a] border-[#00478a]/25 shadow-2xs"
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border bg-faco-blue/10 text-faco-blue border-faco-blue/25 shadow-2xs"
           title={material}
         >
-          <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-[#00478a] text-white tracking-wider">
+          <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-faco-blue text-white tracking-wider">
             ALU
           </span>
           <span className="truncate max-w-[150px] font-bold">
@@ -952,7 +952,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
         className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border bg-slate-100 text-slate-700 border-slate-200"
         title={material}
       >
-        <span className="w-1.5 h-1.5 rounded-full bg-[#3ca7da] shrink-0"></span>
+        <span className="w-1.5 h-1.5 rounded-full bg-faco-sky shrink-0"></span>
         <span className="truncate max-w-[150px] font-semibold">{material}</span>
       </span>
     );
@@ -1023,7 +1023,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
               onClick={() => handlePresetChange('DEV_PIECE')}
               aria-pressed={!isCoilMode}
               className={`px-4 py-1.5 text-sm font-semibold transition-colors cursor-pointer ${
-                !isCoilMode ? 'bg-[#00478a] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+                !isCoilMode ? 'bg-faco-blue text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
               }`}
             >
               des pièces
@@ -1033,7 +1033,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
               onClick={() => handlePresetChange('DEV_BOBINE')}
               aria-pressed={isCoilMode}
               className={`px-4 py-1.5 text-sm font-semibold border-l border-slate-300 transition-colors cursor-pointer ${
-                isCoilMode ? 'bg-[#00478a] text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+                isCoilMode ? 'bg-faco-blue text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
               }`}
             >
               des bobines
@@ -1047,7 +1047,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
         {/* Matière et unité */}
         <div className={`flex flex-wrap items-center justify-between gap-3 ${isCoilMode ? '' : 'pb-3 border-b border-slate-100'}`}>
           <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="text-xs font-bold text-[#00478a] flex items-center gap-1.5">
+            <span className="text-xs font-bold text-faco-blue flex items-center gap-1.5">
               <span>Matière</span>
             </span>
 
@@ -1071,10 +1071,10 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                     className={`px-2 py-1 rounded-md text-xs font-bold border transition-all cursor-pointer flex items-center gap-1 ${
                       isSelected
                         ? pill.family === 'ALU'
-                          ? 'bg-[#00478a] text-white border-[#00478a] shadow-2xs'
+                          ? 'bg-faco-blue text-white border-faco-blue shadow-2xs'
                           : 'bg-slate-700 text-white border-slate-700 shadow-2xs'
                         : pill.family === 'ALU'
-                        ? 'bg-sky-50 text-[#00478a] border-sky-200 hover:bg-sky-100'
+                        ? 'bg-sky-50 text-faco-blue border-sky-200 hover:bg-sky-100'
                         : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
                     }`}
                   >
@@ -1098,7 +1098,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                   setActiveMaterial(e.target.value);
                 }
               }}
-              className="faco-input bg-[#f8fafc] border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold text-[#282828] focus:outline-none focus:border-[#00478a] cursor-pointer"
+              className="faco-input bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold text-faco-text focus:outline-none focus:border-faco-blue cursor-pointer"
             >
               {MATERIAL_GROUPS.map((grp) => (
                 <optgroup key={grp.group} label={grp.group}>
@@ -1124,7 +1124,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                 value={activeMaterial}
                 onChange={(e) => setActiveMaterial(e.target.value)}
                 placeholder="Nuance personnalisée..."
-                className="faco-input bg-[#f8fafc] border border-[#00478a] text-[#282828] text-xs rounded-lg px-2.5 py-1 focus:outline-none font-mono w-40"
+                className="faco-input bg-slate-50 border border-faco-blue text-faco-text text-xs rounded-lg px-2.5 py-1 focus:outline-none font-mono w-40"
               />
             )}
           </div>
@@ -1137,8 +1137,8 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                 onClick={() => setLengthUnit('m')}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   lengthUnit === 'm'
-                    ? 'bg-white text-[#00478a] font-semibold shadow-2xs'
-                    : 'text-slate-500 hover:text-[#282828]'
+                    ? 'bg-white text-faco-blue font-semibold shadow-2xs'
+                    : 'text-slate-500 hover:text-faco-text'
                 }`}
               >
                 m
@@ -1148,8 +1148,8 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                 onClick={() => setLengthUnit('mm')}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   lengthUnit === 'mm'
-                    ? 'bg-white text-[#00478a] font-semibold shadow-2xs'
-                    : 'text-slate-500 hover:text-[#282828]'
+                    ? 'bg-white text-faco-blue font-semibold shadow-2xs'
+                    : 'text-slate-500 hover:text-faco-text'
                 }`}
               >
                 mm
@@ -1178,7 +1178,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
               onChange={(e) => setInputDev(e.target.value)}
               onKeyDown={handlePieceFieldKeys(0)}
               placeholder={preset === 'DEV_BOBINE' ? 'ex: 650 (0 = chute)' : 'ex: 175'}
-              className="faco-input w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-[#00478a] placeholder:text-slate-400 focus:outline-none focus:border-[#00478a] focus:bg-white"
+              className="faco-input w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-faco-blue placeholder:text-slate-400 focus:outline-none focus:border-faco-blue focus:bg-white"
             />
           </div>
 
@@ -1198,7 +1198,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
               onChange={(e) => setInputQuantity(e.target.value)}
               onKeyDown={handlePieceFieldKeys(1)}
               placeholder="ex: 4"
-              className="faco-input w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-[#282828] placeholder:text-slate-400 focus:outline-none focus:border-[#00478a] focus:bg-white"
+              className="faco-input w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-faco-text placeholder:text-slate-400 focus:outline-none focus:border-faco-blue focus:bg-white"
             />
           </div>
 
@@ -1217,7 +1217,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
               onChange={(e) => setInputLength(e.target.value)}
               onKeyDown={handlePieceFieldKeys(2)}
               placeholder="ex: 2.0"
-              className="faco-input w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-[#282828] placeholder:text-slate-400 focus:outline-none focus:border-[#00478a] focus:bg-white"
+              className="faco-input w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-faco-text placeholder:text-slate-400 focus:outline-none focus:border-faco-blue focus:bg-white"
             />
           </div>
 
@@ -1240,7 +1240,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                   focusField(lengthRef);
                 }
               }}
-              className="faco-btn w-full py-2 bg-[#e7511f] hover:bg-[#cf4315] focus:bg-[#cf4315] disabled:opacity-50 text-white font-semibold rounded-lg text-sm flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#00478a] focus:ring-offset-2"
+              className="faco-btn w-full py-2 bg-faco-orange hover:bg-faco-orange-hover focus:bg-faco-orange-hover disabled:opacity-50 text-white font-semibold rounded-lg text-sm flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-faco-blue focus:ring-offset-2"
             >
               {isSubmitting ? (
                 <>
@@ -1285,8 +1285,8 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
 
       <div className={isCoilMode ? 'hidden' : 'space-y-4'}>
       {breakdownAlternatives.length > 0 && (
-        <div className="bg-white border border-[#3ca7da]/40 rounded-xl p-3 space-y-2 shadow-2xs">
-          <div className="text-[11px] font-bold text-[#00478a] uppercase tracking-wider flex items-center justify-between">
+        <div className="bg-white border border-faco-sky/40 rounded-xl p-3 space-y-2 shadow-2xs">
+          <div className="text-[11px] font-bold text-faco-blue uppercase tracking-wider flex items-center justify-between">
             <span>Variantes de calepinage disponibles :</span>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -1298,7 +1298,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                 className={`px-2.5 py-1 rounded-md text-xs font-mono transition-all border cursor-pointer ${
                   alt.is_exact
                     ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
-                    : 'bg-[#f8fafc] border-slate-200 text-slate-700 hover:bg-slate-100'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                 }`}
               >
                 {alt.label}
@@ -1348,11 +1348,11 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
       {/* Main Table: Accumulated Intervals & Multi-Material Management */}
       <div className="faco-card bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
         {/* Table Top Controls Bar */}
-        <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-[#f8fafc]">
+        <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2">
-              <Calculator className="w-4 h-4 text-[#00478a]" />
-              <h2 className="text-sm font-bold text-[#282828]">
+              <Calculator className="w-4 h-4 text-faco-blue" />
+              <h2 className="text-sm font-bold text-faco-text">
                 Récapitulatif par borne
               </h2>
             </div>
@@ -1378,7 +1378,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                 onClick={() => setSelectedMaterialFilter('ALL')}
                 className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
                   selectedMaterialFilter === 'ALL'
-                    ? 'bg-[#00478a] text-white border-[#00478a] shadow-2xs'
+                    ? 'bg-faco-blue text-white border-faco-blue shadow-2xs'
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
                 }`}
               >
@@ -1391,11 +1391,11 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                   onClick={() => setSelectedMaterialFilter('ALU')}
                   className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
                     selectedMaterialFilter === 'ALU'
-                      ? 'bg-[#00478a] text-white border-[#00478a] shadow-2xs'
-                      : 'bg-sky-50 text-[#00478a] border-sky-200 hover:bg-sky-100'
+                      ? 'bg-faco-blue text-white border-faco-blue shadow-2xs'
+                      : 'bg-sky-50 text-faco-blue border-sky-200 hover:bg-sky-100'
                   }`}
                 >
-                  <span className="px-1.5 py-0.2 bg-[#00478a] text-white rounded text-[9px] font-black">
+                  <span className="px-1.5 py-0.2 bg-faco-blue text-white rounded text-[9px] font-black">
                     ALU
                   </span>
                   <span>
@@ -1452,7 +1452,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                       title={`${m.material}: ${m.lengthM}m (${m.percent}%)`}
                       className={`h-full ${
                         m.metalFamily === 'ALU'
-                          ? 'bg-[#00478a]'
+                          ? 'bg-faco-blue'
                           : m.material.includes('Rouge')
                           ? 'bg-rose-500'
                           : 'bg-slate-600'
@@ -1476,7 +1476,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
               type="checkbox"
               checked={hideEmptyBounds}
               onChange={(e) => setHideEmptyBounds(e.target.checked)}
-              className="rounded border-slate-300 text-[#00478a] focus:ring-0 cursor-pointer"
+              className="rounded border-slate-300 text-faco-blue focus:ring-0 cursor-pointer"
             />
             <span>Masquer les bornes vides (0m)</span>
           </label>
@@ -1515,13 +1515,13 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                         hasSharedDev
                           ? ROW_SHARED
                           : isHighlighted
-                          ? 'bg-[#3ca7da]/10 font-semibold'
+                          ? 'bg-faco-sky/10 font-semibold'
                           : row.accumulatedLength > 0
                           ? 'bg-white hover:bg-slate-50/80'
-                          : 'bg-[#f8fafc]/50 hover:bg-slate-50 text-slate-400'
+                          : 'bg-slate-50/50 hover:bg-slate-50 text-slate-400'
                       }`}
                     >
-                      <td className={`py-2 px-4 font-bold text-[#282828] ${hasSharedDev ? CELL_SHARED_EDGE : ''}`}>
+                      <td className={`py-2 px-4 font-bold text-faco-text ${hasSharedDev ? CELL_SHARED_EDGE : ''}`}>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="tabular-nums font-mono text-sm">{row.bound}</span> mm
                           {hasSharedDev && <SharedBadge label="Même dév" materials={[]} />}
@@ -1558,7 +1558,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                                       : undefined
                                   }
                                 >
-                                  <span className="font-bold text-[#00478a]">
+                                  <span className="font-bold text-faco-blue">
                                     {entry.dev}mm
                                   </span>
                                   {isEntryShared && (
@@ -1578,14 +1578,14 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                       </td>
                       <td className="py-2 px-4 text-right tabular-nums">
                         {row.count > 0 ? (
-                          <span className="text-[#282828] font-semibold">{row.count}</span>
+                          <span className="text-faco-text font-semibold">{row.count}</span>
                         ) : (
                           <span className="text-slate-300">-</span>
                         )}
                       </td>
                       <td className="py-2 px-4 text-right tabular-nums font-bold text-xs">
                         {row.accumulatedLength > 0 ? (
-                          <span className="text-[#00478a]">
+                          <span className="text-faco-blue">
                             {row.accumulatedLength.toFixed(2)} m
                           </span>
                         ) : (
@@ -1611,41 +1611,28 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
                 })}
 
               </tbody>
-            </table>
-
-          {/* Unified Table Footer */}
-          <table className="w-full text-left text-xs">
-            <tfoot className="bg-slate-100 text-[#282828] font-bold border-t border-slate-200">
-              <tr>
-                <td className="py-2.5 px-4 uppercase text-[11px] tracking-wider text-[#00478a] w-1/4">
-                  <div>
-                    <span>Total Général</span>
+              {/* Total général, aligné sur les colonnes du tableau */}
+              <tfoot className="bg-slate-100 text-faco-text font-bold border-t border-slate-200">
+                <tr>
+                  <td colSpan={3} className="py-2.5 px-4">
+                    <span className="uppercase text-[11px] tracking-wider text-faco-blue">Total général</span>
+                    <span className="ml-3 font-mono text-[11px] font-normal text-slate-600">{totalSurfaceM2.toFixed(2)} m²</span>
                     {materialsSummary.length > 1 && (
-                      <div className="text-[10px] font-normal text-slate-500 font-sans mt-0.5">
+                      <div className="text-[10px] font-normal text-slate-500 mt-0.5">
                         {aluSummary.count > 0 && `Alu: ${aluSummary.lengthM}m (${aluSummary.weightKg}kg)`}
                         {aluSummary.count > 0 && zincSummary.count > 0 && ' · '}
                         {zincSummary.count > 0 && `Zinc: ${zincSummary.lengthM}m (${zincSummary.weightKg}kg)`}
                       </div>
                     )}
-                  </div>
-                </td>
-                <td className="py-2.5 px-4 text-slate-600 font-mono text-[11px]">
-                  {totalSurfaceM2.toFixed(2)} m²
-                </td>
-                <td className="py-2.5 px-4 text-right font-mono text-[#282828] tabular-nums">
-                  {totalCount} pcs
-                </td>
-                <td className="py-2.5 px-4 text-right font-mono text-[#00478a] tabular-nums text-sm">
-                  {totalLengthM.toFixed(2)} m
-                </td>
-                <td className="py-2.5 px-4 text-right font-mono tabular-nums text-slate-500">100%</td>
-                <td className="py-2.5 px-4 text-right font-mono tabular-nums text-[#00478a]">
-                  {totalWeightEstKg.toFixed(1)} kg
-                </td>
-                <td className="py-2.5 px-4 w-12"></td>
-              </tr>
-            </tfoot>
-          </table>
+                  </td>
+                  <td className="py-2.5 px-4 text-right font-mono">{totalCount}</td>
+                  <td className="py-2.5 px-4 text-right font-mono text-faco-blue text-sm">{totalLengthM.toFixed(2)} m</td>
+                  <td className="py-2.5 px-4 text-right font-mono text-slate-500">100%</td>
+                  <td className="py-2.5 px-4 text-right font-mono text-faco-blue">{totalWeightEstKg.toFixed(1)} kg</td>
+                  <td className="py-2.5 px-4"></td>
+                </tr>
+              </tfoot>
+            </table>
         </div>
       </div>
 
@@ -1687,7 +1674,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
             onClick={() => {
               onStep('send');
             }}
-            className="text-sm text-slate-600 hover:text-[#00478a] cursor-pointer"
+            className="text-sm text-slate-600 hover:text-faco-blue cursor-pointer"
             title="La découpe est facultative"
           >
             Passer directement à l'envoi

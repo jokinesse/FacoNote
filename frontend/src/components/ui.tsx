@@ -81,11 +81,11 @@ export const UiProvider: React.FC<{ children: React.ReactNode }> = ({ children }
                 <Trash2 className="w-4 h-4" />
               </div>
               <div className="space-y-1">
-                <h2 id="confirm-title" className="text-sm font-bold text-[#282828]">
+                <h2 id="confirm-title" className="text-sm font-bold text-faco-text">
                   Confirmer la suppression
                 </h2>
                 <p className="text-xs text-slate-600">
-                  Supprimer <strong className="text-[#282828]">{pending.what}</strong> ?
+                  Supprimer <strong className="text-faco-text">{pending.what}</strong> ?
                 </p>
                 <p className="text-[11px] text-slate-400">Cette action est irréversible.</p>
               </div>
@@ -213,10 +213,10 @@ export const AiScanButton: React.FC<{ onClick: () => void }> = ({ onClick }) => 
   <button
     type="button"
     onClick={onClick}
-    className="px-3 py-1.5 bg-[#f8fafc] hover:bg-slate-100 text-[#00478a] font-semibold rounded-lg text-xs flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
+    className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-faco-blue font-semibold rounded-lg text-xs flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
     title="Scanner un croquis, une photo ou un plan PDF avec l'IA"
   >
-    <Camera className="w-3.5 h-3.5 text-[#3ca7da]" />
+    <Camera className="w-3.5 h-3.5 text-faco-sky" />
     <span>Scanner</span>
   </button>
 );
@@ -250,12 +250,12 @@ export const MaterialFilterButtons: React.FC<{
       const isAlu = m.family === 'ALU';
       const isRouge = /rouge/i.test(m.material);
       const active = isAlu
-        ? 'bg-[#00478a] text-white border-[#00478a]'
+        ? 'bg-faco-blue text-white border-faco-blue'
         : isRouge
         ? 'bg-rose-600 text-white border-rose-600'
         : 'bg-slate-700 text-white border-slate-700';
       const idle = isAlu
-        ? 'bg-white text-[#00478a] border-sky-200 hover:bg-sky-50'
+        ? 'bg-white text-faco-blue border-sky-200 hover:bg-sky-50'
         : isRouge
         ? 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50'
         : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100';
@@ -285,10 +285,10 @@ export interface KpiItem {
   tone?: 'blue' | 'dark' | 'green' | 'orange' | 'muted';
 }
 const KPI_TONE: Record<NonNullable<KpiItem['tone']>, string> = {
-  blue: 'text-[#00478a]',
-  dark: 'text-[#282828]',
+  blue: 'text-faco-blue',
+  dark: 'text-faco-text',
   green: 'text-emerald-700',
-  orange: 'text-[#e7511f]',
+  orange: 'text-faco-orange',
   muted: 'text-slate-600',
 };
 export const KpiStrip: React.FC<{ items: KpiItem[] }> = ({ items }) => (

@@ -46,8 +46,8 @@ export const WorkshopPrintModal: React.FC<WorkshopPrintModalProps> = ({
         {/* Modal Top Bar - Hidden during print */}
         <div className="no-print px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-[#00478a]" />
-            <h3 className="text-sm font-bold text-[#282828]">
+            <FileText className="w-4 h-4 text-faco-blue" />
+            <h3 className="text-sm font-bold text-faco-text">
               Aperçu Fiche Atelier
             </h3>
           </div>
@@ -55,7 +55,7 @@ export const WorkshopPrintModal: React.FC<WorkshopPrintModalProps> = ({
           <div className="flex items-center gap-2.5">
             <button
               onClick={handlePrint}
-              className="px-4 py-1.5 bg-[#e7511f] hover:bg-[#cf4315] text-white font-bold text-xs rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+              className="px-4 py-1.5 bg-faco-orange hover:bg-faco-orange-hover text-white font-bold text-xs rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Imprimer (Format A4)</span>
@@ -72,9 +72,9 @@ export const WorkshopPrintModal: React.FC<WorkshopPrintModalProps> = ({
         {/* Printable Sheet Content */}
         <div className="p-8 bg-white text-slate-900 print:p-0 print:m-0 font-sans">
           {/* Printable Header */}
-          <div className="border-b-2 border-[#00478a] pb-4 flex items-start justify-between">
+          <div className="border-b-2 border-faco-blue pb-4 flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-[#00478a] text-white font-black text-2xl flex items-center justify-center rounded">
+              <div className="w-12 h-12 bg-faco-blue text-white font-black text-2xl flex items-center justify-center rounded">
                 FZ
               </div>
               <div>

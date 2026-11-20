@@ -47,10 +47,10 @@ const MaterialBadge: React.FC<{ material: string; family: MetalFamily }> = ({ ma
   if (family === 'ALU') {
     return (
       <span
-        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border bg-[#00478a]/10 text-[#00478a] border-[#00478a]/25 shadow-2xs"
+        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border bg-faco-blue/10 text-faco-blue border-faco-blue/25 shadow-2xs"
         title={material}
       >
-        <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-[#00478a] text-white tracking-wider">ALU</span>
+        <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-faco-blue text-white tracking-wider">ALU</span>
         <span className="truncate max-w-[150px] font-bold">{material.replace(/^Alu\s*/i, '')}</span>
       </span>
     );
@@ -80,7 +80,7 @@ const MaterialBadge: React.FC<{ material: string; family: MetalFamily }> = ({ ma
       className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium border bg-slate-100 text-slate-700 border-slate-200"
       title={material}
     >
-      <span className="w-1.5 h-1.5 rounded-full bg-[#3ca7da] shrink-0"></span>
+      <span className="w-1.5 h-1.5 rounded-full bg-faco-sky shrink-0"></span>
       <span className="truncate max-w-[150px] font-semibold">{material}</span>
     </span>
   );
@@ -418,7 +418,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
   };
 
   const inputClass =
-    'faco-input w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold placeholder:text-slate-400 focus:outline-none focus:border-[#00478a] focus:bg-white';
+    'faco-input w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold placeholder:text-slate-400 focus:outline-none focus:border-faco-blue focus:bg-white';
   const labelClass = 'text-[11px] font-semibold text-slate-600 block mb-1';
   const hasData = entries.length > 0;
 
@@ -427,8 +427,8 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
       {/* Saisie */}
       <div className="faco-card bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-bold text-[#282828]">
-            Bobines en <span className="text-[#00478a]">{activeMaterial}</span>
+          <span className="text-sm font-bold text-faco-text">
+            Bobines en <span className="text-faco-blue">{activeMaterial}</span>
           </span>
           <div className="flex items-center gap-1 flex-wrap ml-auto">
             <span className="text-[11px] text-slate-500 mr-1">Largeur rapide :</span>
@@ -445,7 +445,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
                 }}
                 className={`px-2 py-1 rounded-md text-xs font-mono font-bold border transition-colors cursor-pointer ${
                   inputWidth === String(w)
-                    ? 'bg-[#00478a] text-white border-[#00478a]'
+                    ? 'bg-faco-blue text-white border-faco-blue'
                     : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
                 }`}
                 title={`Bobine de ${w} mm`}
@@ -485,7 +485,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
               onChange={(e) => setInputWidth(e.target.value)}
               onKeyDown={handleFieldKeys(0)}
               placeholder="ex: 1000 (0 = chute)"
-              className={`${inputClass} text-[#00478a]`}
+              className={`${inputClass} text-faco-blue`}
             />
           </div>
 
@@ -502,7 +502,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
               onChange={(e) => setInputQuantity(e.target.value)}
               onKeyDown={handleFieldKeys(1)}
               placeholder="ex: 4"
-              className={`${inputClass} text-[#282828]`}
+              className={`${inputClass} text-faco-text`}
             />
           </div>
 
@@ -519,7 +519,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
               onChange={(e) => setInputLength(e.target.value)}
               onKeyDown={handleFieldKeys(2)}
               placeholder={lengthUnit === 'mm' ? 'ex: 3500' : 'ex: 3.5'}
-              className={`${inputClass} text-[#282828]`}
+              className={`${inputClass} text-faco-text`}
             />
           </div>
 
@@ -542,7 +542,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
                   focus(lengthRef);
                 }
               }}
-              className="faco-btn w-full py-2 bg-[#e7511f] hover:bg-[#cf4315] focus:bg-[#cf4315] text-white font-semibold rounded-lg text-sm flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#00478a] focus:ring-offset-2"
+              className="faco-btn w-full py-2 bg-faco-orange hover:bg-faco-orange-hover focus:bg-faco-orange-hover text-white font-semibold rounded-lg text-sm flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-faco-blue focus:ring-offset-2"
             >
               <Plus className="w-4 h-4" />
               <span>Ajouter</span>
@@ -606,10 +606,10 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
 
       {/* Tableau des bobines */}
       <div className="faco-card bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-        <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-[#f8fafc]">
+        <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
           <div className="flex items-center gap-2">
-            <Calculator className="w-4 h-4 text-[#00478a]" />
-            <h2 className="text-sm font-bold text-[#282828]">Récapitulatif des bobines</h2>
+            <Calculator className="w-4 h-4 text-faco-blue" />
+            <h2 className="text-sm font-bold text-faco-text">Récapitulatif des bobines</h2>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button
@@ -636,7 +636,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
               onClick={() => setMaterialFilter('ALL')}
               className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer ${
                 materialFilter === 'ALL'
-                  ? 'bg-[#00478a] text-white border-[#00478a] shadow-2xs'
+                  ? 'bg-faco-blue text-white border-faco-blue shadow-2xs'
                   : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
               }`}
             >
@@ -648,11 +648,11 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
                 onClick={() => setMaterialFilter('ALU')}
                 className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 ${
                   materialFilter === 'ALU'
-                    ? 'bg-[#00478a] text-white border-[#00478a] shadow-2xs'
-                    : 'bg-sky-50 text-[#00478a] border-sky-200 hover:bg-sky-100'
+                    ? 'bg-faco-blue text-white border-faco-blue shadow-2xs'
+                    : 'bg-sky-50 text-faco-blue border-sky-200 hover:bg-sky-100'
                 }`}
               >
-                <span className="px-1.5 py-0.2 bg-[#00478a] text-white rounded text-[9px] font-black">ALU</span>
+                <span className="px-1.5 py-0.2 bg-faco-blue text-white rounded text-[9px] font-black">ALU</span>
                 <span>
                   {aluSummary.length_m.toFixed(1)}m ({aluSummary.quantity} pcs · {aluSummary.weight_kg.toFixed(1)} kg)
                 </span>
@@ -697,7 +697,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
               type="checkbox"
               checked={hideEmpty}
               onChange={(e) => setHideEmpty(e.target.checked)}
-              className="rounded border-slate-300 text-[#00478a] focus:ring-0 cursor-pointer"
+              className="rounded border-slate-300 text-faco-blue focus:ring-0 cursor-pointer"
             />
             <span>Masquer les largeurs vides (0m)</span>
           </label>
@@ -729,7 +729,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
                     key={`${row.width}-${row.material || 'vide'}`}
                     className={`transition-colors ${
                       isEmpty
-                        ? 'bg-[#f8fafc]/50 hover:bg-slate-50 text-slate-400'
+                        ? 'bg-slate-50/50 hover:bg-slate-50 text-slate-400'
                         : isShared
                         ? ROW_SHARED
                         : 'bg-white hover:bg-slate-50/80'
@@ -738,7 +738,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
                     {isFirstOfWidth && (
                       <td
                         rowSpan={span}
-                        className={`py-2 px-4 font-bold text-[#282828] align-top ${
+                        className={`py-2 px-4 font-bold text-faco-text align-top ${
                           isShared ? CELL_SHARED_EDGE : ''
                         }`}
                       >
@@ -787,10 +787,10 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
                       )}
                     </td>
                     <td className="py-2 px-4 text-right tabular-nums">
-                      {isEmpty ? <span className="text-slate-300">-</span> : <span className="text-[#282828] font-semibold">{row.quantity}</span>}
+                      {isEmpty ? <span className="text-slate-300">-</span> : <span className="text-faco-text font-semibold">{row.quantity}</span>}
                     </td>
                     <td className="py-2 px-4 text-right tabular-nums font-bold text-xs">
-                      {isEmpty ? <span className="text-slate-300">0.00 m</span> : <span className="text-[#00478a]">{row.length_m.toFixed(2)} m</span>}
+                      {isEmpty ? <span className="text-slate-300">0.00 m</span> : <span className="text-faco-blue">{row.length_m.toFixed(2)} m</span>}
                     </td>
                     <td className="py-2 px-4 text-right tabular-nums">
                       {isEmpty ? <span className="text-slate-300">-</span> : `${row.surface_m2.toFixed(2)} m²`}
@@ -827,7 +827,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
                     </div>
                   </td>
                   <td className="py-2 px-4 text-right tabular-nums font-bold">{c.quantity}</td>
-                  <td className="py-2 px-4 text-right tabular-nums font-bold text-[#e7511f]">{c.length_m.toFixed(2)} m</td>
+                  <td className="py-2 px-4 text-right tabular-nums font-bold text-faco-orange">{c.length_m.toFixed(2)} m</td>
                   <td className="py-2 px-4 text-right">-</td>
                   <td className="py-2 px-4 text-right">-</td>
                   <td className="py-2 px-4 text-right">

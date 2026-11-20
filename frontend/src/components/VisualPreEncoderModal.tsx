@@ -363,11 +363,11 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
         {/* Header */}
         <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-[#f0f7fc] border border-[#b9dcf2] text-[#00478a]">
+            <div className="p-2 rounded-lg bg-faco-blue-50 border border-faco-blue-200 text-faco-blue">
               <Camera className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-[#282828] flex items-center gap-2">
+              <h2 className="text-sm font-bold text-faco-text flex items-center gap-2">
                 <span>Import Croquis &amp; Plans (IA Vision)</span>
               </h2>
             </div>
@@ -389,7 +389,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
               onClick={() => setActiveInputTab('photo')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
                 activeInputTab === 'photo'
-                  ? 'bg-[#00478a] text-white shadow-xs'
+                  ? 'bg-faco-blue text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -400,7 +400,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
               onClick={() => setActiveInputTab('text')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
                 activeInputTab === 'text'
-                  ? 'bg-[#00478a] text-white shadow-xs'
+                  ? 'bg-faco-blue text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -449,8 +449,8 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                     }}
                     className={`px-3 py-2 font-semibold rounded-lg text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer ${
                       isQrModeActive
-                        ? 'bg-[#00478a] text-white border-[#00478a]'
-                        : 'bg-[#f0f7fc] hover:bg-[#e1effa] text-[#00478a] border-[#b9dcf2]'
+                        ? 'bg-faco-blue text-white border-faco-blue'
+                        : 'bg-faco-blue-50 hover:bg-faco-blue-100 text-faco-blue border-faco-blue-200'
                     }`}
                   >
                     <QrCode className="w-4 h-4" />
@@ -465,7 +465,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                     }}
                     className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs flex items-center justify-center gap-2 border border-slate-200 transition-colors cursor-pointer"
                   >
-                    <Upload className="w-4 h-4 text-[#00478a]" />
+                    <Upload className="w-4 h-4 text-faco-blue" />
                     <span>Choisir Fichier PC</span>
                   </button>
                 </div>
@@ -489,9 +489,9 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
 
                 {/* QR Code Scanner Mode vs Standard Dropzone / Preview */}
                 {isQrModeActive ? (
-                  <div className="border border-[#b9dcf2] rounded-xl p-4 bg-[#f8fafc] flex flex-col items-center justify-center text-center space-y-3 relative overflow-hidden">
+                  <div className="border border-faco-blue-200 rounded-xl p-4 bg-slate-50 flex flex-col items-center justify-center text-center space-y-3 relative overflow-hidden">
                     <div className="flex items-center justify-between w-full">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#00478a] flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-faco-blue flex items-center gap-1.5">
                         <Smartphone className="w-3.5 h-3.5" />
                         <span>Scanner avec votre smartphone</span>
                       </span>
@@ -523,15 +523,15 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                     <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 w-full flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2 text-left">
                         <span className="relative flex h-2.5 w-2.5 shrink-0">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#3ca7da] opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#00478a]"></span>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-faco-sky opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-faco-blue"></span>
                         </span>
                         <div>
                           <p className="font-semibold text-slate-800 text-[11px]">En attente de la photo...</p>
                         </div>
                       </div>
 
-                      <span className="font-mono text-[11px] font-bold text-[#00478a] bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                      <span className="font-mono text-[11px] font-bold text-faco-blue bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
                         {mobileSessionId}
                       </span>
                     </div>
@@ -555,7 +555,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                           </>
                         ) : (
                           <>
-                            <Copy className="w-3.5 h-3.5 text-[#00478a]" />
+                            <Copy className="w-3.5 h-3.5 text-faco-blue" />
                             <span>Copier le lien mobile</span>
                           </>
                         )}
@@ -565,7 +565,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                         href={`/mobile?session=${mobileSessionId}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="py-1.5 px-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 hover:text-[#00478a] flex items-center gap-1.5 transition-colors"
+                        className="py-1.5 px-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700 hover:text-faco-blue flex items-center gap-1.5 transition-colors"
                         title="Tester le scanner mobile dans un nouvel onglet"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
@@ -582,7 +582,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                       const file = e.dataTransfer.files?.[0];
                       if (file) handleFileSelected(file);
                     }}
-                    className="border-2 border-dashed border-slate-300 hover:border-[#00478a] rounded-xl p-3 bg-slate-50 flex flex-col items-center justify-center min-h-[200px] max-h-[320px] relative overflow-hidden group transition-colors"
+                    className="border-2 border-dashed border-slate-300 hover:border-faco-blue rounded-xl p-3 bg-slate-50 flex flex-col items-center justify-center min-h-[200px] max-h-[320px] relative overflow-hidden group transition-colors"
                   >
                     {imagePreviewUrl ? (
                       <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
@@ -602,7 +602,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                             <button
                               type="button"
                               onClick={handleRotate}
-                              className="p-1 hover:text-[#00478a] rounded hover:bg-slate-100 cursor-pointer"
+                              className="p-1 hover:text-faco-blue rounded hover:bg-slate-100 cursor-pointer"
                               title="Pivoter 90°"
                             >
                               <RotateCw className="w-3.5 h-3.5" />
@@ -610,7 +610,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                             <button
                               type="button"
                               onClick={() => setZoomLevel((z) => Math.min(2.5, z + 0.2))}
-                              className="p-1 hover:text-[#00478a] rounded hover:bg-slate-100 cursor-pointer"
+                              className="p-1 hover:text-faco-blue rounded hover:bg-slate-100 cursor-pointer"
                               title="Zoom +"
                             >
                               <ZoomIn className="w-3.5 h-3.5" />
@@ -618,7 +618,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                             <button
                               type="button"
                               onClick={() => setZoomLevel((z) => Math.max(0.6, z - 0.2))}
-                              className="p-1 hover:text-[#00478a] rounded hover:bg-slate-100 cursor-pointer"
+                              className="p-1 hover:text-faco-blue rounded hover:bg-slate-100 cursor-pointer"
                               title="Zoom -"
                             >
                               <ZoomOut className="w-3.5 h-3.5" />
@@ -626,7 +626,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                             <button
                               type="button"
                               onClick={() => setZoomLevel(1)}
-                              className="p-1 hover:text-[#00478a] rounded hover:bg-slate-100 cursor-pointer"
+                              className="p-1 hover:text-faco-blue rounded hover:bg-slate-100 cursor-pointer"
                               title="Réinitialiser zoom"
                             >
                               1x
@@ -643,7 +643,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                           <Upload className="w-5 h-5" />
                         </div>
                         <p className="text-xs text-slate-600 font-medium">
-                          Glissez une image/PDF ou collez (<kbd className="font-mono bg-white border border-slate-200 px-1 rounded text-[#00478a]">Ctrl+V</kbd>)
+                          Glissez une image/PDF ou collez (<kbd className="font-mono bg-white border border-slate-200 px-1 rounded text-faco-blue">Ctrl+V</kbd>)
                         </p>
                       </div>
                     )}
@@ -656,7 +656,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700 flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-[#00478a]" />
+                      <Sparkles className="w-4 h-4 text-faco-blue" />
                       <span>Extraction automatique des cotes</span>
                     </span>
                     {selectedFile && (
@@ -670,7 +670,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                     type="button"
                     onClick={handleRunAnalysis}
                     disabled={!selectedFile || isProcessing}
-                    className="w-full py-2.5 bg-[#e7511f] hover:bg-[#cf4315] disabled:opacity-40 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-colors shadow-xs cursor-pointer"
+                    className="w-full py-2.5 bg-faco-orange hover:bg-faco-orange-hover disabled:opacity-40 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 transition-colors shadow-xs cursor-pointer"
                   >
                     {isProcessing ? (
                       <>
@@ -697,8 +697,8 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                 )}
 
                 {rawAiObservations && (
-                  <div className="bg-[#f0f7fc] border border-[#b9dcf2] rounded-xl p-3 text-xs text-slate-700 space-y-1">
-                    <strong className="font-semibold block text-[#00478a]">
+                  <div className="bg-faco-blue-50 border border-faco-blue-200 rounded-xl p-3 text-xs text-slate-700 space-y-1">
+                    <strong className="font-semibold block text-faco-blue">
                       Observations :
                     </strong>
                     <p className="text-[11px] text-slate-600 font-mono whitespace-pre-line">
@@ -722,13 +722,13 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                   onChange={(e) => setManualText(e.target.value)}
                   placeholder="Exemples :&#10;8 pcs bavette 15+120+35+20 en 2m Zinc Quartz 0.7&#10;Rive 250 6x3m Alu RAL 9005 0.7"
                   rows={5}
-                  className="w-full bg-white border border-slate-300 rounded-lg p-3 text-xs font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#00478a]"
+                  className="w-full bg-white border border-slate-300 rounded-lg p-3 text-xs font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-faco-blue"
                 />
                 <button
                   type="button"
                   onClick={handleRunAnalysis}
                   disabled={!manualText.trim() || isProcessing}
-                  className="px-4 py-2 bg-[#e7511f] hover:bg-[#cf4315] disabled:opacity-40 text-white font-bold rounded-lg text-xs flex items-center gap-2 transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-faco-orange hover:bg-faco-orange-hover disabled:opacity-40 text-white font-bold rounded-lg text-xs flex items-center gap-2 transition-colors cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4" />
                   <span>Analyser le Descriptif</span>
@@ -751,7 +751,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                   onClick={handleAddEmptyPiece}
                   className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg flex items-center gap-1.5 border border-slate-200 cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5 text-[#00478a]" />
+                  <Plus className="w-3.5 h-3.5 text-faco-blue" />
                   <span>Ajouter une pièce</span>
                 </button>
               </div>
@@ -780,7 +780,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                               setSelectedIndices([]);
                             }
                           }}
-                          className="rounded border-slate-300 text-[#00478a] focus:ring-0"
+                          className="rounded border-slate-300 text-faco-blue focus:ring-0"
                         />
                       </th>
                       <th className="py-2 px-3">Désignation</th>
@@ -808,7 +808,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => handleToggleSelect(idx)}
-                              className="rounded border-slate-300 text-[#00478a] focus:ring-0"
+                              className="rounded border-slate-300 text-faco-blue focus:ring-0"
                             />
                           </td>
                           <td className="py-2 px-3">
@@ -816,7 +816,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                               type="text"
                               value={p.label}
                               onChange={(e) => handleUpdatePiece(idx, 'label', e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-800 font-medium focus:border-[#00478a] focus:bg-white"
+                              className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-800 font-medium focus:border-faco-blue focus:bg-white"
                             />
                           </td>
                           <td className="py-2 px-3 text-right">
@@ -826,7 +826,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                               onChange={(e) =>
                                 handleUpdatePiece(idx, 'dev', Number(e.target.value) || 0)
                               }
-                              className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-mono font-bold text-[#00478a] text-right focus:border-[#00478a] focus:bg-white"
+                              className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-mono font-bold text-faco-blue text-right focus:border-faco-blue focus:bg-white"
                             />
                           </td>
                           <td className="py-2 px-3 text-right">
@@ -837,7 +837,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                               onChange={(e) =>
                                 handleUpdatePiece(idx, 'length', Number(e.target.value) || 2.0)
                               }
-                              className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-mono text-slate-800 text-right focus:border-[#00478a] focus:bg-white"
+                              className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-mono text-slate-800 text-right focus:border-faco-blue focus:bg-white"
                             />
                           </td>
                           <td className="py-2 px-3 text-right">
@@ -847,7 +847,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                               onChange={(e) =>
                                 handleUpdatePiece(idx, 'quantity', Number(e.target.value) || 1)
                               }
-                              className="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900 text-right focus:border-[#00478a] focus:bg-white"
+                              className="w-16 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-mono font-bold text-slate-900 text-right focus:border-faco-blue focus:bg-white"
                             />
                           </td>
                           <td className="py-2 px-3 text-center">
@@ -857,14 +857,14 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                               onChange={(e) =>
                                 handleUpdatePiece(idx, 'bends', Number(e.target.value) || 2)
                               }
-                              className="w-14 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-mono text-slate-600 text-center focus:border-[#00478a] focus:bg-white"
+                              className="w-14 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs font-mono text-slate-600 text-center focus:border-faco-blue focus:bg-white"
                             />
                           </td>
                           <td className="py-2 px-3">
                             <select
                               value={p.material || currentDefaultMaterial}
                               onChange={(e) => handleUpdatePiece(idx, 'material', e.target.value)}
-                              className="w-44 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:border-[#00478a] focus:bg-white font-sans"
+                              className="w-44 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-700 focus:border-faco-blue focus:bg-white font-sans"
                             >
                               {MATERIAL_GROUPS.map((grp) => (
                                 <optgroup key={grp.group} label={grp.group}>
@@ -920,7 +920,7 @@ export const VisualPreEncoderModal: React.FC<VisualPreEncoderModalProps> = ({
                 type="button"
                 onClick={handleConfirmImport}
                 disabled={selectedIndices.length === 0}
-                className="px-5 py-2 bg-[#e7511f] hover:bg-[#cf4315] disabled:opacity-40 text-white font-bold rounded-lg text-xs flex items-center gap-2 transition-colors shadow-xs cursor-pointer"
+                className="px-5 py-2 bg-faco-orange hover:bg-faco-orange-hover disabled:opacity-40 text-white font-bold rounded-lg text-xs flex items-center gap-2 transition-colors shadow-xs cursor-pointer"
               >
                 <Check className="w-4 h-4" />
                 <span>

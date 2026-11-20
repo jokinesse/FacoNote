@@ -89,7 +89,7 @@ export const OrderBar: React.FC<OrderBarProps> = ({
       <div className="px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* Commande : n° et contenu */}
         <div className="flex items-center gap-2.5 min-w-0">
-          <ClipboardList className="w-4 h-4 text-[#00478a] shrink-0" />
+          <ClipboardList className="w-4 h-4 text-faco-blue shrink-0" />
           <div className="flex flex-col">
             <input
               ref={inputRef}
@@ -108,7 +108,7 @@ export const OrderBar: React.FC<OrderBarProps> = ({
               title="N° de commande D365 : CC suivi de 11 chiffres (ex. CC26000236736)"
               maxLength={13}
               className={`faco-input w-40 bg-white border rounded-lg px-2.5 py-1.5 text-sm font-mono font-bold focus:outline-none ${
-                invalidNumber ? 'border-rose-400 focus:border-rose-500' : 'border-slate-300 focus:border-[#00478a]'
+                invalidNumber ? 'border-rose-400 focus:border-rose-500' : 'border-slate-300 focus:border-faco-blue'
               }`}
             />
             {invalidNumber && (
@@ -120,9 +120,9 @@ export const OrderBar: React.FC<OrderBarProps> = ({
               'Commande vide'
             ) : (
               <>
-                <strong className="text-[#282828]">{plural(pieceLines, 'ligne pièce', 'lignes pièce')}</strong>
+                <strong className="text-faco-text">{plural(pieceLines, 'ligne pièce', 'lignes pièce')}</strong>
                 {' · '}
-                <strong className="text-[#282828]">{plural(coilLines, 'ligne bobine', 'lignes bobine')}</strong>
+                <strong className="text-faco-text">{plural(coilLines, 'ligne bobine', 'lignes bobine')}</strong>
               </>
             )}
           </span>
@@ -171,7 +171,7 @@ export const OrderBar: React.FC<OrderBarProps> = ({
             type="button"
             onClick={onSend}
             disabled={isSending || isEmpty}
-            className="px-3.5 py-1.5 bg-[#00478a] hover:bg-[#003566] disabled:opacity-40 text-white font-semibold rounded-lg text-xs flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+            className="px-3.5 py-1.5 bg-faco-blue hover:bg-faco-blue-dark disabled:opacity-40 text-white font-semibold rounded-lg text-xs flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
             title="Envoyer la commande (pièces et bobines) vers l'extension Edge « Façonote → D365 »"
           >
             <Send className="w-3.5 h-3.5" />

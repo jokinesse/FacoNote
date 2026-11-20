@@ -427,11 +427,11 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-lg bg-[#00478a]/10 border border-[#00478a]/20 text-[#00478a]">
+              <div className="p-2 rounded-lg bg-faco-blue/10 border border-faco-blue/20 text-faco-blue">
                 <Wrench className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-[#282828] tracking-tight">Stress Lab — Boîte à outils de charge</h2>
+                <h2 className="text-lg font-bold text-faco-text tracking-tight">Stress Lab — Boîte à outils de charge</h2>
                 <p className="text-xs text-slate-500">
                   Envoie de vraies requêtes au backend FastAPI et mesure débit, latences (p50/p95/p99) et stabilité.
                 </p>
@@ -461,7 +461,7 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
                 disabled={isRunning}
                 title={p.hint}
                 onClick={() => setConfig((c) => ({ ...c, ...p.config }))}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#f8fafc] border border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300 hover:text-[#00478a] disabled:opacity-40 transition-colors cursor-pointer shadow-2xs"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-slate-300 hover:text-faco-blue disabled:opacity-40 transition-colors cursor-pointer shadow-2xs"
               >
                 {p.label}
               </button>
@@ -472,10 +472,10 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-2">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-              <Server className="w-3.5 h-3.5 text-[#00478a]" /> Moniteur de santé
+              <Server className="w-3.5 h-3.5 text-faco-blue" /> Moniteur de santé
             </h3>
             <label className="flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer">
-              <input type="checkbox" checked={healthOn} onChange={(e) => setHealthOn(e.target.checked)} className="accent-[#00478a]" />
+              <input type="checkbox" checked={healthOn} onChange={(e) => setHealthOn(e.target.checked)} className="accent-faco-blue" />
               Ping 1 s
             </label>
           </div>
@@ -485,7 +485,7 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
                 healthStatus === 'up' ? 'bg-emerald-500' : healthStatus === 'slow' ? 'bg-amber-500' : healthStatus === 'down' ? 'bg-rose-500 animate-pulse' : 'bg-slate-400'
               }`}
             />
-            <span className="text-sm font-bold text-[#282828]">
+            <span className="text-sm font-bold text-faco-text">
               {healthStatus === 'up' ? 'En ligne' : healthStatus === 'slow' ? 'Lent' : healthStatus === 'down' ? 'Hors ligne' : '—'}
             </span>
             {lastHealth && (
@@ -502,7 +502,7 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
       {/* CONFIGURATION */}
       <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs space-y-4" aria-labelledby="cfg-title">
         <h3 id="cfg-title" className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-          <Gauge className="w-3.5 h-3.5 text-[#00478a]" /> Configuration du test
+          <Gauge className="w-3.5 h-3.5 text-faco-blue" /> Configuration du test
         </h3>
 
         <fieldset disabled={isRunning} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 disabled:opacity-60">
@@ -512,7 +512,7 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
               id="sl-scenario"
               value={config.scenario}
               onChange={(e) => update('scenario', e.target.value as ScenarioId)}
-              className="w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-3 py-2 text-sm text-[#282828] focus:outline-none focus:border-[#00478a] focus:bg-white transition-colors"
+              className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-faco-text focus:outline-none focus:border-faco-blue focus:bg-white transition-colors"
             >
               {Object.values(SCENARIOS).map((s) => (
                 <option key={s.id} value={s.id}>{s.label}</option>
@@ -533,7 +533,7 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
                   role="radio"
                   aria-checked={config.mode === m}
                   onClick={() => update('mode', m)}
-                  className={`py-1.5 rounded-md font-semibold cursor-pointer transition-all ${config.mode === m ? 'bg-[#00478a] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+                  className={`py-1.5 rounded-md font-semibold cursor-pointer transition-all ${config.mode === m ? 'bg-faco-blue text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
                 >
                   {l}
                 </button>
@@ -551,7 +551,7 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
                   role="radio"
                   aria-checked={targetMode === m}
                   onClick={() => setTargetMode(m)}
-                  className={`py-1.5 rounded-md font-semibold cursor-pointer transition-all ${targetMode === m ? 'bg-[#00478a] text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+                  className={`py-1.5 rounded-md font-semibold cursor-pointer transition-all ${targetMode === m ? 'bg-faco-blue text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
                 >
                   {l}
                 </button>
@@ -559,7 +559,7 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
             </div>
 
             <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500 font-mono">
-              <span className="truncate">Cible : <strong className="text-[#00478a]">{baseUrl || '(Même domaine /api)'}</strong></span>
+              <span className="truncate">Cible : <strong className="text-faco-blue">{baseUrl || '(Même domaine /api)'}</strong></span>
               {targetMode === 'direct' && (
                 <span className="text-slate-400 text-[10px] shrink-0 ml-1">Hôte auto</span>
               )}
@@ -573,7 +573,7 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
                   value={customUrl}
                   onChange={(e) => setCustomUrl(e.target.value)}
                   placeholder="http://IP_OU_DOMAINE:8000"
-                  className="w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-[#282828] focus:outline-none focus:border-[#00478a] focus:bg-white"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-mono text-faco-text focus:outline-none focus:border-faco-blue focus:bg-white"
                 />
                 <button
                   type="button"
@@ -605,7 +605,7 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
           {config.scenario === 'calculate-heavy' && (
             <div className="md:col-span-2">
               <label htmlFor="sl-pieces" className="text-[11px] font-semibold text-slate-700 block mb-1">
-                Pièces par commande lourde : <span className="font-mono text-[#00478a] font-bold">{config.heavyPieces}</span>
+                Pièces par commande lourde : <span className="font-mono text-faco-blue font-bold">{config.heavyPieces}</span>
               </label>
               <input
                 id="sl-pieces"
@@ -614,7 +614,7 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
                 max={150}
                 value={config.heavyPieces}
                 onChange={(e) => update('heavyPieces', Number(e.target.value))}
-                className="w-full accent-[#00478a]"
+                className="w-full accent-faco-blue"
               />
             </div>
           )}
@@ -637,7 +637,7 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
               type="button"
               onClick={handleStart}
               disabled={targetMode === 'custom' && !customUrl.trim()}
-              className="px-5 py-2.5 bg-[#00478a] hover:bg-[#003870] disabled:opacity-40 text-white font-bold rounded-lg text-sm flex items-center gap-2 cursor-pointer shadow-xs transition-colors"
+              className="px-5 py-2.5 bg-faco-blue hover:bg-faco-blue-dark disabled:opacity-40 text-white font-bold rounded-lg text-sm flex items-center gap-2 cursor-pointer shadow-xs transition-colors"
             >
               <Play className="w-4 h-4" /> Lancer le test
             </button>
@@ -651,11 +651,11 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
             </button>
           )}
           <div className="flex-1 min-w-[200px]">
-            <progress value={progress} max={100} aria-label="Progression du test" className="w-full h-2 rounded overflow-hidden [&::-webkit-progress-bar]:bg-slate-200 [&::-webkit-progress-bar]:rounded [&::-webkit-progress-value]:bg-[#00478a] [&::-webkit-progress-value]:rounded [&::-moz-progress-bar]:bg-[#00478a]" />
+            <progress value={progress} max={100} aria-label="Progression du test" className="w-full h-2 rounded overflow-hidden [&::-webkit-progress-bar]:bg-slate-200 [&::-webkit-progress-bar]:rounded [&::-webkit-progress-value]:bg-faco-blue [&::-webkit-progress-value]:rounded [&::-moz-progress-bar]:bg-faco-blue" />
             <div className="flex justify-between text-[10px] font-mono text-slate-500 mt-1">
               <span>{progress.toFixed(0)} %</span>
               <span>
-                En vol : <strong className="text-[#00478a] font-bold">{live.inFlight}</strong> · Workers actifs : {live.activeWorkers} · Émises : {live.issued}
+                En vol : <strong className="text-faco-blue font-bold">{live.inFlight}</strong> · Workers actifs : {live.activeWorkers} · Émises : {live.issued}
               </span>
             </div>
           </div>
@@ -689,7 +689,7 @@ export const StressLab: React.FC<StressLabProps> = ({ adminToken, expiresInSec, 
               </h3>
               <TimelineChart stats={stats} />
               <details className="mt-2 text-[11px] text-slate-500">
-                <summary className="cursor-pointer hover:text-[#00478a]">Voir les données seconde par seconde</summary>
+                <summary className="cursor-pointer hover:text-faco-blue">Voir les données seconde par seconde</summary>
                 <div className="max-h-48 overflow-auto mt-2">
                   <table className="w-full font-mono text-slate-700">
                     <caption className="sr-only">Débit et latence par seconde</caption>
@@ -863,7 +863,7 @@ const NumberField: React.FC<{ id: string; label: string; value: number; min: num
         const v = Number(e.target.value);
         if (!Number.isNaN(v)) onChange(Math.max(min, Math.min(max, Math.round(v))));
       }}
-      className="w-full bg-[#f8fafc] border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono text-[#282828] focus:outline-none focus:border-[#00478a] focus:bg-white transition-colors"
+      className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono text-faco-text focus:outline-none focus:border-faco-blue focus:bg-white transition-colors"
     />
   </div>
 );
@@ -882,7 +882,7 @@ const Kpi: React.FC<{ label: string; value: string; unit?: string; icon?: React.
     </span>
     <span
       className={`block text-lg font-bold font-mono mt-0.5 tabular-nums ${
-        tone === 'good' ? 'text-emerald-700' : tone === 'warn' ? 'text-amber-700' : tone === 'bad' ? 'text-rose-700' : 'text-[#282828]'
+        tone === 'good' ? 'text-emerald-700' : tone === 'warn' ? 'text-amber-700' : tone === 'bad' ? 'text-rose-700' : 'text-faco-text'
       }`}
     >
       {value}

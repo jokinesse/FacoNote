@@ -808,7 +808,7 @@ Sois direct, pro et concis en français.`;
     <div className="space-y-5">
       {/* Message court (transfert depuis le Calculateur, import) */}
       {actionNotice && (
-        <div className="bg-[#f0f7fc] border border-[#b9dcf2] text-[#00478a] px-4 py-2 rounded-lg flex items-center justify-between text-xs">
+        <div className="bg-faco-blue-50 border border-faco-blue-200 text-faco-blue px-4 py-2 rounded-lg flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <Info className="w-4 h-4 shrink-0" />
             <span className="font-medium">{actionNotice}</span>
@@ -835,7 +835,7 @@ Sois direct, pro et concis en français.`;
         <div className="flex items-center gap-2">
           {isCalculating && (
             <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
-              <RefreshCw className="w-3 h-3 animate-spin text-[#00478a]" />
+              <RefreshCw className="w-3 h-3 animate-spin text-faco-blue" />
               Calcul…
             </span>
           )}
@@ -859,7 +859,7 @@ Sois direct, pro et concis en français.`;
                       aria-pressed={isActive}
                       className={`px-2 py-1 rounded text-[11px] font-mono font-semibold transition-colors cursor-pointer border ${
                         isActive
-                          ? 'bg-[#00478a] text-white border-[#00478a]'
+                          ? 'bg-faco-blue text-white border-faco-blue'
                           : 'bg-white text-slate-400 border-slate-200 line-through hover:text-slate-700'
                       }`}
                       title={`${material} : ${isActive ? 'ne plus utiliser' : 'utiliser'} la bobine de ${w} mm`}
@@ -882,7 +882,7 @@ Sois direct, pro et concis en français.`;
               type="checkbox"
               checked={useGeneratedScraps}
               onChange={() => setUseGeneratedScraps(!useGeneratedScraps)}
-              className="rounded border-slate-300 text-[#00478a] focus:ring-0 cursor-pointer"
+              className="rounded border-slate-300 text-faco-blue focus:ring-0 cursor-pointer"
             />
             <span>Réutiliser les chutes</span>
           </label>
@@ -982,7 +982,7 @@ Sois direct, pro et concis en français.`;
                   onClick={() => onScrap && handleMovePieceUnits(p.id, 'BOBINE', p.quantity)}
                   aria-pressed={!onScrap}
                   className={`px-2 py-0.5 cursor-pointer ${
-                    !onScrap ? 'bg-[#00478a] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
+                    !onScrap ? 'bg-faco-blue text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
                   }`}
                   title="Débiter sur une bobine neuve"
                 >
@@ -1004,7 +1004,7 @@ Sois direct, pro et concis en français.`;
                 <button
                   type="button"
                   onClick={() => handleMovePieceUnits(p.id, onScrap ? 'BOBINE' : 'RACK_SCRAP', 1)}
-                  className="px-1.5 py-0.5 rounded text-[10px] text-slate-500 hover:text-[#00478a] hover:bg-slate-100 cursor-pointer"
+                  className="px-1.5 py-0.5 rounded text-[10px] text-slate-500 hover:text-faco-blue hover:bg-slate-100 cursor-pointer"
                   title={onScrap ? 'Remettre 1 pièce sur bobine (C)' : 'Passer 1 seule pièce en chute (C)'}
                 >
                   {onScrap ? '1 sur bobine' : '1 en chute'}
@@ -1029,7 +1029,7 @@ Sois direct, pro et concis en français.`;
                 required
                 aria-label="Développé (mm)"
                 placeholder="Dév"
-                className="w-24 bg-white border border-slate-300 rounded-md px-2 py-1 font-mono text-xs focus:outline-none focus:border-[#00478a]"
+                className="w-24 bg-white border border-slate-300 rounded-md px-2 py-1 font-mono text-xs focus:outline-none focus:border-faco-blue"
               />
             </label>
             <label className="flex flex-col gap-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
@@ -1047,8 +1047,8 @@ Sois direct, pro et concis en français.`;
                 title="0 = métrage auto : la longueur devient le métrage total"
                 className={`w-16 border rounded-md px-2 py-1 font-mono text-xs text-right focus:outline-none ${
                   isAutoMeterMode
-                    ? 'border-[#00478a] text-[#00478a] font-bold bg-[#f0f7fc]'
-                    : 'bg-white border-slate-300 focus:border-[#00478a]'
+                    ? 'border-faco-blue text-faco-blue font-bold bg-faco-blue-50'
+                    : 'bg-white border-slate-300 focus:border-faco-blue'
                 }`}
               />
             </label>
@@ -1065,8 +1065,8 @@ Sois direct, pro et concis en français.`;
                 placeholder={isAutoMeterMode ? 'Total m' : 'Long.'}
                 className={`w-24 border rounded-md px-2 py-1 font-mono text-xs text-right focus:outline-none ${
                   isAutoMeterMode
-                    ? 'border-[#00478a] text-[#00478a] font-bold bg-[#f0f7fc]'
-                    : 'bg-white border-slate-300 focus:border-[#00478a]'
+                    ? 'border-faco-blue text-faco-blue font-bold bg-faco-blue-50'
+                    : 'bg-white border-slate-300 focus:border-faco-blue'
                 }`}
               />
             </label>
@@ -1079,7 +1079,7 @@ Sois direct, pro et concis en français.`;
                   setSelectedMaterial(e.target.value);
                 }}
                 aria-label="Matière"
-                className="bg-white border border-slate-300 rounded-md px-1.5 py-1 text-xs focus:outline-none focus:border-[#00478a] cursor-pointer"
+                className="bg-white border border-slate-300 rounded-md px-1.5 py-1 text-xs focus:outline-none focus:border-faco-blue cursor-pointer"
               >
                 {MATERIAL_GROUPS.map((grp) => (
                   <optgroup key={grp.group} label={grp.group}>
@@ -1094,7 +1094,7 @@ Sois direct, pro et concis en français.`;
             </label>
             <button
               type="submit"
-              className="px-3 py-1.5 bg-[#e7511f] hover:bg-[#cf4315] text-white font-semibold rounded-md text-xs flex items-center gap-1 transition-colors cursor-pointer"
+              className="px-3 py-1.5 bg-faco-orange hover:bg-faco-orange-hover text-white font-semibold rounded-md text-xs flex items-center gap-1 transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>{isAutoMeterMode ? 'Ajouter (auto)' : 'Ajouter'}</span>
@@ -1102,11 +1102,11 @@ Sois direct, pro et concis en français.`;
           </div>
           {/* Métrage auto (Qté = 0) : découpage proposé par le backend */}
           {isAutoMeterMode && autoBreakdown && (
-            <div className="mx-4 my-3 bg-[#f0f7fc] border border-[#b9dcf2] rounded-lg p-3 space-y-2">
+            <div className="mx-4 my-3 bg-faco-blue-50 border border-faco-blue-200 rounded-lg p-3 space-y-2">
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <Zap className="w-3.5 h-3.5 text-[#00478a] shrink-0" />
+                <Zap className="w-3.5 h-3.5 text-faco-blue shrink-0" />
                 <span className="font-semibold text-slate-700">Métrage auto ({autoBreakdown.requestedMeters} m) :</span>
-                <span className="font-mono text-[#00478a] font-bold bg-white px-2 py-0.5 rounded border border-[#b9dcf2]">
+                <span className="font-mono text-faco-blue font-bold bg-white px-2 py-0.5 rounded border border-faco-blue-200">
                   {autoBreakdown.quantity} × {autoBreakdown.length} m = {autoBreakdown.totalProduced} m
                 </span>
                 <span className="text-[11px] text-slate-500">{autoBreakdown.reason}</span>
@@ -1122,7 +1122,7 @@ Sois direct, pro et concis en français.`;
                         onClick={() => setSelectedForcedLength(alt.length)}
                         className={`px-2.5 py-1 rounded-md font-mono text-xs font-semibold cursor-pointer border ${
                           isSelected
-                            ? 'bg-[#00478a] text-white border-[#00478a]'
+                            ? 'bg-faco-blue text-white border-faco-blue'
                             : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200'
                         }`}
                         title={alt.label}
@@ -1187,7 +1187,7 @@ Sois direct, pro et concis en français.`;
                     className="px-2 py-1 rounded-md bg-white border border-amber-200 text-slate-700 flex items-center gap-1.5"
                     title={s.pieceLabel}
                   >
-                    <span className="font-bold text-[#00478a]">{s.pieceDev} mm</span>
+                    <span className="font-bold text-faco-blue">{s.pieceDev} mm</span>
                     <span className="text-slate-500">× {s.pieceLength} m</span>
                     <span className="text-amber-800">→ chute {s.scrapDev} mm</span>
                     {s.pieceId && (
@@ -1209,8 +1209,8 @@ Sois direct, pro et concis en français.`;
           {/* RÉCAPITULATIF DES FEUILLES SORTIES & LEUR MATIÈRE */}
           {sheetsRecapByMaterial.length > 0 && (
             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3.5">
-              <h4 className="text-sm font-bold text-[#282828] flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#00478a]" />
+              <h4 className="text-sm font-bold text-faco-text flex items-center gap-2">
+                <FileText className="w-4 h-4 text-faco-blue" />
                 <span>Feuilles à sortir du stock</span>
               </h4>
 
@@ -1230,7 +1230,7 @@ Sois direct, pro et concis en français.`;
                         <div className="flex items-center gap-2">
                           <span
                             className={`w-2.5 h-2.5 rounded-full ${
-                              isGroupAlu ? 'bg-[#3ca7da]' : 'bg-[#00478a]'
+                              isGroupAlu ? 'bg-faco-sky' : 'bg-faco-blue'
                             }`}
                           />
                           <span className="font-bold text-xs text-slate-900">
@@ -1243,7 +1243,7 @@ Sois direct, pro et concis en français.`;
 
                         <div className="flex items-center gap-2.5 text-xs font-mono text-slate-600 flex-wrap">
                           <span>
-                            <strong className="text-[#00478a]">{matGroup.totalSheets}</strong>{' '}
+                            <strong className="text-faco-blue">{matGroup.totalSheets}</strong>{' '}
                             {matGroup.totalSheets > 1 ? 'feuilles' : 'feuille'}
                           </span>
                           <span>·</span>
@@ -1255,7 +1255,7 @@ Sois direct, pro et concis en français.`;
                             <strong className="text-slate-800">{matGroup.totalSurfaceM2.toFixed(2)} m²</strong>
                           </span>
                           <span>·</span>
-                          <span className="text-[#00478a] font-bold">
+                          <span className="text-faco-blue font-bold">
                             {matGroup.totalWeightKg.toFixed(1)} kg
                           </span>
                         </div>
@@ -1281,12 +1281,12 @@ Sois direct, pro et concis en français.`;
                             {matGroup.formatList.map((f, fIdx) => (
                               <tr key={fIdx} className="hover:bg-slate-50/80 transition-colors">
                                 <td className="py-2 px-3 whitespace-nowrap">
-                                  <span className="font-bold text-[#00478a]">{f.motherWidth}</span>
+                                  <span className="font-bold text-faco-blue">{f.motherWidth}</span>
                                   <span className="text-slate-400"> × </span>
                                   <span className="font-bold text-slate-800">{f.motherLength.toFixed(2)} m</span>
                                 </td>
                                 <td className="py-2 px-3 text-right whitespace-nowrap">
-                                  <span className="inline-block min-w-[2rem] px-2 py-0.5 rounded bg-[#f0f7fc] text-[#00478a] border border-[#b9dcf2] font-bold text-center">
+                                  <span className="inline-block min-w-[2rem] px-2 py-0.5 rounded bg-faco-blue-50 text-faco-blue border border-faco-blue-200 font-bold text-center">
                                     {f.count}
                                   </span>
                                 </td>
@@ -1335,12 +1335,12 @@ Sois direct, pro et concis en français.`;
                       <span className="inline-flex items-center gap-1.5 font-bold text-xs text-slate-900">
                         <span
                           className={`w-2 h-2 rounded-full shrink-0 ${
-                            /alu/i.test(c.material) ? 'bg-[#3ca7da]' : 'bg-[#00478a]'
+                            /alu/i.test(c.material) ? 'bg-faco-sky' : 'bg-faco-blue'
                           }`}
                         />
                         {c.material}
                       </span>
-                      <span className="font-mono text-xs font-bold text-[#00478a] whitespace-nowrap">
+                      <span className="font-mono text-xs font-bold text-faco-blue whitespace-nowrap">
                         {c.total_length_m.toFixed(2)} m
                       </span>
                     </div>
@@ -1356,7 +1356,7 @@ Sois direct, pro et concis en français.`;
                       <tbody className="divide-y divide-slate-100 font-mono text-[11px] whitespace-nowrap">
                         {c.widths.map((w) => (
                           <tr key={w.mother_width} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-1.5 px-3 font-bold text-[#00478a]">{w.mother_width} mm</td>
+                            <td className="py-1.5 px-3 font-bold text-faco-blue">{w.mother_width} mm</td>
                             <td className="py-1.5 px-3 text-right font-bold text-slate-800">
                               {w.total_length_m.toFixed(2)} m
                             </td>
@@ -1422,7 +1422,7 @@ Sois direct, pro et concis en français.`;
             <button
               type="button"
               onClick={() => onStep('calculator')}
-              className="text-sm text-slate-600 hover:text-[#00478a] cursor-pointer"
+              className="text-sm text-slate-600 hover:text-faco-blue cursor-pointer"
             >
               ← Revenir à la saisie
             </button>

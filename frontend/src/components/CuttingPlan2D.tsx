@@ -65,6 +65,21 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
     }
   });
 
+  // Chute reprise : largeurs des tôles d'où elle vient, de la feuille d'origine à elle-même
+  // (ex. 1000 → 690 → 345). Lecture des liens du plan rendu par le backend, aucun calcul.
+  const widthChain = (opIdx: number): number[] => {
+    const chain: number[] = [];
+    const seen = new Set<number>();
+    let i: number | undefined = opIdx;
+    while (i !== undefined && i >= 0 && i < motherItems.length && !seen.has(i)) {
+      seen.add(i);
+      chain.unshift(motherItems[i].motherWidth);
+      const s: (typeof motherItems)[number]['slits'][number] | undefined = motherItems[i].slits[0];
+      i = s?.sourceType === 'REUSED_OFFCUT' && s.sourceOpIndex ? s.sourceOpIndex - 1 : undefined;
+    }
+    return chain;
+  };
+
   return (
     <div className="faco-card bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-4">
       {/* Header épuré */}
@@ -179,7 +194,7 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
 
                   <strong className="text-xs font-mono text-faco-text bg-white px-2 py-0.5 rounded border border-slate-200">
                     {isReusedOffcut
-                      ? `Chute ${motherWidth} mm × ${slit.originalOffcutLength || motherLength} m`
+                      ? `Chute ${widthChain(opIdx).join(' → ')} mm × ${slit.originalOffcutLength || motherLength} m`
                       : `${motherWidth} mm × ${motherLength} m`}
                   </strong>
 

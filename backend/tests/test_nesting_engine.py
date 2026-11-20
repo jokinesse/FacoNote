@@ -496,3 +496,46 @@ def test_mother_widths_by_material_fallback_when_nothing_compatible() -> None:
     )
     resp = run_nesting_optimization(req)
     assert [s.mother_width for s in resp.slits] == [1000]
+
+
+def test_chute_de_chute_chained_reuse() -> None:
+    """
+    Cas d'atelier (capture du 2026-11-20) : Alu RAL 9005 0.7 sur laize 650,
+    trois pièces de 100 mm en 3 m, 2,5 m et 2 m.
+    OP #1 : feuille 650 → chute 550. OP #2 reprend la chute de l'OP #1 (550 → reste 450).
+    OP #3 reprend le reste de l'OP #2 (chute de chute : 450, pas 550) → reste 350.
+    """
+    pieces = [
+        ShapedPieceModel(id=f"p-{i}", label=f"Dév 100 ({length} m)", dev=100, length=length, quantity=1,
+                         material="Alu RAL 9005 0.7")
+        for i, length in enumerate([3.0, 2.5, 2.0])
+    ]
+    resp = run_nesting_optimization(
+        OptimizationRequest(
+            material="Alu RAL 9005 0.7",
+            pieces=pieces,
+            available_mother_widths=[650],
+            use_generated_scraps=True,
+        )
+    )
+    assert len(resp.slits) == 3
+    op1, op2, op3 = resp.slits
+
+    assert op1.source_type == "MOTHER_COIL"
+    assert (op1.mother_width, op1.scrap_width) == (650, 550)
+
+    assert op2.source_type == "REUSED_OFFCUT"
+    assert op2.source_op_index == 1
+    assert (op2.mother_width, op2.scrap_width) == (550, 450)
+
+    assert op3.source_type == "REUSED_OFFCUT"
+    assert op3.source_op_index == 2  # vient du reste de l'OP #2, pas de la feuille #1
+    assert (op3.mother_width, op3.scrap_width) == (450, 350)
+
+    # Les restes repris sont marqués « Réemployée », seul le dernier reste est une perte
+    assert "Réemployée" in (op1.suggested_scrap_ref or "")
+    assert "Réemployée" in (op2.suggested_scrap_ref or "")
+    assert "Réemployée" not in (op3.suggested_scrap_ref or "")
+
+    # Une seule feuille sortie du stock : surface brute = 650 × 3 m
+    assert resp.total_gross_surface_m2 == pytest.approx(1.95)

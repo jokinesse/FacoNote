@@ -135,8 +135,9 @@ class AvailableGeneratedOffcut:
     width: int
     length: float
     scrap_ref: Optional[str]
-    parent_slit: SlitNestResultModel
+    parent_slit: SlitNestResultModel  # dernière tôle qui a laissé cette chute (la feuille, puis chaque reprise)
     remaining_width: int
+    last_op_index: int = 0  # 1-based : tôle d'où vient le reste actuel (chute de chute)
 
 
 def _pack_cuts_into_mother_coils(
@@ -214,7 +215,9 @@ def _pack_cuts_into_mother_coils(
 
                         offcut_cut_len = round_meters(offcut.length - length_m)
                         reused_op_num = len(slits_result) + 1
-                        parent_op_idx = offcut.op_index
+                        # Chute de chute : on repart du reste laissé par la tôle précédente
+                        parent_op_idx = offcut.last_op_index or offcut.op_index
+                        available_width = offcut.remaining_width
 
                         # Regroupement des bandes identiques
                         offcut_strips_by_piece: dict[str, SlitStripModel] = {}
@@ -239,7 +242,7 @@ def _pack_cuts_into_mother_coils(
                                     material=p.material,
                                 )
 
-                        residual_scrap = offcut.remaining_width - comb.used_width
+                        residual_scrap = available_width - comb.used_width
                         offcut.remaining_width = residual_scrap
 
                         # Mise à jour de la chute parente : elle est réemployée dans l'atelier
@@ -251,9 +254,8 @@ def _pack_cuts_into_mother_coils(
                         # La chute de l'OP parente est désormais façonnée : elle ne compte plus comme chute libre
                         offcut.parent_slit.is_scrap_reusable = False
 
-                        slits_result.append(
-                            SlitNestResultModel(
-                                mother_width=offcut.width,
+                        reused_slit = SlitNestResultModel(
+                                mother_width=available_width,
                                 mother_length=length_m,
                                 material=spec.name,
                                 strips=list(offcut_strips_by_piece.values()),
@@ -262,13 +264,16 @@ def _pack_cuts_into_mother_coils(
                                 is_scrap_reusable=False,
                                 suggested_scrap_ref=None,
                                 source_type="REUSED_OFFCUT",
-                                source_label=f"Chute {offcut.width} mm × {offcut.length:.2f} m (Issue de OP #{parent_op_idx})",
+                                source_label=f"Chute {available_width} mm × {offcut.length:.2f} m (Issue de OP #{parent_op_idx})",
                                 source_op_index=parent_op_idx,
                                 original_offcut_length=offcut.length,
                                 offcut_cut_length=offcut_cut_len,
                                 parent_scrap_ref=offcut.scrap_ref,
                             )
-                        )
+                        slits_result.append(reused_slit)
+                        # La prochaine reprise de cette chute partira du reste de celle-ci
+                        offcut.parent_slit = reused_slit
+                        offcut.last_op_index = reused_op_num
 
             while remaining_cuts:
                 best_res: Optional[tuple[int, BestSlitCombination, float]] = None

@@ -351,12 +351,16 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
                           containerType: 'inline-size',
                         }}
                         className={`@container h-full min-w-0 flex flex-col items-center justify-center px-1 text-center relative overflow-hidden ${
-                          slit.isScrapReusable
+                          isParentReused
+                            ? 'bg-faco-sky/10 text-faco-blue border-l border-faco-sky/30'
+                            : slit.isScrapReusable
                             ? 'bg-emerald-50/80 text-emerald-800 border-l border-emerald-200'
                             : 'bg-slate-100 text-slate-500 border-l border-slate-200'
                         }`}
                         title={
-                          slit.isScrapReusable
+                          isParentReused
+                            ? `Réemployée dans une tôle suivante : ${scrapWidth} mm`
+                            : slit.isScrapReusable
                             ? `Chute réutilisable : ${scrapWidth} mm × ${motherLength} m`
                             : `Perte : ${scrapWidth} mm`
                         }
@@ -366,7 +370,7 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
                         </span>
 
                         <span className="hidden @[42px]:inline-block relative text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded mt-0.5 truncate max-w-full">
-                          {slit.isScrapReusable ? 'Chute' : 'Perte'}
+                          {isParentReused ? 'Réemployée' : slit.isScrapReusable ? 'Chute' : 'Perte'}
                         </span>
                       </div>
                     )}

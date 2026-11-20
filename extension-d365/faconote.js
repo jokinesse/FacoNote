@@ -178,8 +178,8 @@
       action: 'CLEARED',
       orderNumber: data.orderNumber,
       message: existed
-        ? `Commande ${data.orderNumber} retirée de l'extension.`
-        : `Commande ${data.orderNumber} absente de l'extension (rien à retirer).`,
+        ? `Commande ${data.orderNumber} vidée de l'extension.`
+        : `Commande ${data.orderNumber} absente de l'extension (rien à vider).`,
     };
   }
 

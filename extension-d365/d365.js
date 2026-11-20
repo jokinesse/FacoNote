@@ -601,7 +601,7 @@
     * { box-sizing: border-box; font-family: "Segoe UI", system-ui, sans-serif; font-size: 12px; line-height: 1.35; }
     .fab { border: 0; border-radius: 4px; padding: 6px 12px; font-weight: 600; color: #fff;
            background: #00478a; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
-    .fab.todo { background: #e8521c; }
+    .fab.todo { background: #d84a17; }
     .fab:focus-visible, button.b:focus-visible, select:focus-visible, summary:focus-visible, li:focus-visible {
       outline: 2px solid #3ca7da; outline-offset: 1px; }
     .panel { position: absolute; left: 0; bottom: 36px; width: 340px; max-height: 60vh; overflow: auto;
@@ -624,7 +624,7 @@
     li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 6px;
          border-left: 3px solid transparent; cursor: pointer; }
     li.sel { background: #eef6fb; border-left-color: #3ca7da; }
-    .tag { font-weight: 600; } .tag.done { color: #1b5e20; } .tag.todo { color: #e8521c; }
+    .tag { font-weight: 600; } .tag.done { color: #1b5e20; } .tag.todo { color: #d84a17; }
     .plan { margin-top: 6px; }
     table { border-collapse: collapse; width: 100%; margin-top: 2px; }
     td, th { border-bottom: 1px solid #eee; padding: 1px 4px; text-align: left; font-weight: normal; }
@@ -634,7 +634,7 @@
     .msg { margin-top: 6px; padding: 4px 6px; border-left: 3px solid; }
     .msg.ok { background: #eef7ef; border-color: #1b5e20; }
     .msg.ko { background: #fdeeee; border-color: #b71c1c; }
-    .msg.warn { background: #fff8e8; border-color: #e8521c; }
+    .msg.warn { background: #fff8e8; border-color: #d84a17; }
     .head { font-weight: 700; } .line { margin-top: 2px; }
     details { margin-top: 2px; } summary { cursor: pointer; color: #555; font-size: 11px; }
     details div { font-size: 11px; color: #555; }
@@ -861,7 +861,7 @@
         : btn('Pré-remplir', onFill, { kind: 'primary', off: busy || noPieces, title: noPiecesTitle || 'Pré-remplir Matières, Epaisseur et les DEV' }),
       btn(toggleText, onToggleDone, { off: busy || (!coilTarget && noPieces), title: coilTarget ? '' : noPiecesTitle }),
       btn('Lire l’écran', onReadScreen, { off: busy }),
-      btn('Supprimer', onDelete, { kind: 'danger', off: busy || !currentOrder(), title: 'Retirer cette commande de l’extension' }),
+      btn('Vider', onDelete, { kind: 'danger', off: busy || !currentOrder(), title: 'Vider cette commande de l’extension' }),
     ]);
   }
 
@@ -948,7 +948,7 @@
   async function onDelete() {
     const o = currentOrder();
     if (!o) return;
-    if (!window.confirm(`Retirer la commande ${o.orderNumber} de l’extension ?\n(Rien n’est modifié dans D365 ni dans Façonote.)`)) return;
+    if (!window.confirm(`Vider la commande ${o.orderNumber} de l’extension ?\n(Rien n’est modifié dans D365 ni dans Façonote.)`)) return;
     try {
       const orders = await FD.loadOrders();
       delete orders[o.orderNumber];
@@ -957,7 +957,7 @@
       state.selectedOrder = null;
       state.selectedMaterial = null;
       state.userPickedOrder = false;
-      setMessage('ok', `Commande ${o.orderNumber} retirée de l’extension.`);
+      setMessage('ok', `Commande ${o.orderNumber} vidée de l’extension.`);
     } catch (err) {
       setMessage('ko', errorText(err));
     }

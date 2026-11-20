@@ -230,7 +230,7 @@ export const OrderBar: React.FC<OrderBarProps> = ({
                   className="w-full text-left px-3 py-2 text-xs hover:bg-rose-50 cursor-pointer"
                 >
                   <div className="font-semibold text-rose-700">Vider toute la commande</div>
-                  <div className="text-[11px] text-slate-500">Pièces, bobines, n°, et retrait de l'extension</div>
+                  <div className="text-[11px] text-slate-500">Pièces, bobines, n°, et la commande dans l'extension</div>
                 </button>
               </div>
             )}

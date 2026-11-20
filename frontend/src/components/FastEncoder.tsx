@@ -514,7 +514,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
     deleteAction('toutes les saisies Bobine', () => setCoilEntries([]));
   };
 
-  // Vider la commande : pièces, bobines, n°, sauvegarde. Avec un n° valide, la commande est aussi retirée de l'extension.
+  // Vider la commande : pièces, bobines, n°, sauvegarde. Avec un n° valide, la commande est aussi vidée dans l'extension.
   const handleClearOrder = () => {
     if (entriesHistory.length === 0 && coilEntries.length === 0 && !orderNumber) return;
     const order = D365_ORDER_RE.test(orderNumber) ? orderNumber : null;
@@ -534,7 +534,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
           .then((reply) =>
             setExtStatus(
               reply.type === 'ACK'
-                ? { kind: 'success', message: reply.message || `Commande ${order} retirée de l'extension.` }
+                ? { kind: 'success', message: reply.message || `Commande ${order} vidée de l'extension.` }
                 : { kind: 'error', message: `Extension : ${reply.error || 'erreur inconnue'}` }
             )
           )

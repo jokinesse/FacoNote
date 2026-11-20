@@ -36,6 +36,9 @@
   outline: 2px solid var(--color-faco-blue);
   outline-offset: 2px;
 }
+header :focus-visible {
+  outline-color: white; /* bandeau bleu */
+}
 
 /* Chiffres alignés dans les tableaux */
 table {

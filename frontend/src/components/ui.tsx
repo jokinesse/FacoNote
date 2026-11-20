@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Camera, CheckCircle2, Layers, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Camera, CheckCircle2, Layers, Trash2, X, type LucideIcon } from 'lucide-react';
 
 // Éléments communs à tout le site, pour que les actions se comportent partout pareil :
 // - confirmation de suppression (fenêtre Oui / Non) et message après suppression,
@@ -308,4 +308,18 @@ export const KpiStrip: React.FC<{ items: KpiItem[] }> = ({ items }) => (
       </div>
     ))}
   </div>
+);
+
+// Titre de carte : même rendu partout (icône dans un carré bleu clair, texte un peu plus marqué).
+export const CardTitle: React.FC<{ icon: LucideIcon; children: React.ReactNode; as?: 'h2' | 'h3' | 'span' }> = ({
+  icon: Icon,
+  children,
+  as: Tag = 'h2',
+}) => (
+  <span className="flex items-center gap-2.5 min-w-0">
+    <span className="w-7 h-7 rounded-lg bg-faco-blue-50 text-faco-blue flex items-center justify-center shrink-0">
+      <Icon className="w-4 h-4" aria-hidden="true" />
+    </span>
+    <Tag className="text-[15px] font-bold text-faco-text leading-tight">{children}</Tag>
+  </span>
 );

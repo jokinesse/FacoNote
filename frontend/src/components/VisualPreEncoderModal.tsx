@@ -8,16 +8,16 @@ import {
   RotateCw,
   ZoomIn,
   ZoomOut,
-  Maximize2,
+  
   CheckCircle2,
   AlertCircle,
   Plus,
-  Layers,
-  ArrowRight,
-  Eye,
+  
+  
+  
   Sparkles,
-  Clipboard,
-  HelpCircle,
+  
+  
   Check,
   QrCode,
   Smartphone,
@@ -25,8 +25,8 @@ import {
   ExternalLink,
   RefreshCw,
 } from 'lucide-react';
-import { ShapedPiece, STANDARD_MATERIALS, MATERIAL_GROUPS } from '../types';
-import { mobileApi, aiApi, ApiError } from '../api';
+import { ShapedPiece, MATERIAL_GROUPS } from '../types';
+import { mobileApi, aiApi } from '../api';
 import { optimizeImageForOcr } from '../utils/imageOptimizer';
 import { DeleteButton, useDeleteAction } from './ui';
 

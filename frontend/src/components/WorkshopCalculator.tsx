@@ -10,6 +10,7 @@ import {
   PlusCircle,
 } from 'lucide-react';
 import { evaluateExpression } from '../utils/mathEvaluator';
+import { CardTitle } from './ui';
 
 interface WorkshopCalculatorProps {
   onInsertDev?: (devValue: number) => void;
@@ -180,6 +181,14 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
     if (val !== null && onDirectAddEntry) onDirectAddEntry(Math.round(val));
   };
 
+  // Touches : légères (sans bordure), seules « = » et les opérations ressortent
+  const KEY = 'h-9 rounded-md';
+  const KEY_DIGIT = `${KEY} bg-slate-100 hover:bg-slate-200 text-faco-text font-semibold`;
+  const KEY_FN = `${KEY} bg-transparent hover:bg-slate-100 text-slate-500 font-semibold`;
+  const KEY_OP = `${KEY} bg-faco-blue-50 hover:bg-faco-blue-100 text-faco-blue font-bold`;
+  const KEY_CLEAR = `${KEY} bg-transparent hover:bg-rose-50 text-rose-600 font-bold`;
+  const KEY_EQUAL = `${KEY} bg-faco-blue hover:bg-faco-blue-dark text-white font-bold`;
+
   const getKeyStyle = (keyToken: string, baseColor: string) => {
     const isFlashed = activeFlashedKey === keyToken;
     return `${baseColor} ${
@@ -205,9 +214,8 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
         aria-expanded={isOpen}
         className={`w-full flex items-center justify-between gap-3 cursor-pointer ${isOpen ? 'pb-3 border-b border-slate-100' : ''}`}
       >
-        <span className="flex items-center gap-2">
-          <CalcIcon className="w-4 h-4 text-faco-blue" />
-          <span className="text-sm font-bold text-faco-text">Calculatrice de cotes</span>
+        <span className="flex items-center gap-2.5">
+          <CardTitle icon={CalcIcon} as="span">Calculatrice de cotes</CardTitle>
           <span className="text-xs text-slate-400 font-normal hidden sm:inline">pour additionner des cotes (ex. 15+120+35)</span>
         </span>
         <span className="text-xs text-faco-blue font-semibold">{isOpen ? 'Replier' : 'Ouvrir'}</span>
@@ -284,7 +292,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 'C',
-                'py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-lg border border-rose-200'
+                KEY_CLEAR
               )}
             >
               C
@@ -298,7 +306,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '(',
-                'py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg border border-slate-200'
+                KEY_FN
               )}
             >
               (
@@ -312,7 +320,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 ')',
-                'py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg border border-slate-200'
+                KEY_FN
               )}
             >
               )
@@ -326,7 +334,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '⌫',
-                'py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-200 flex items-center justify-center'
+                `${KEY_FN} flex items-center justify-center`
               )}
             >
               ⌫
@@ -340,7 +348,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '/',
-                'py-2 bg-faco-blue/10 hover:bg-faco-blue/15 text-faco-blue font-bold rounded-lg border border-faco-blue/20'
+                KEY_OP
               )}
             >
               ÷
@@ -357,7 +365,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
                 }}
                 className={getKeyStyle(
                   n,
-                  'py-2 bg-slate-50 hover:bg-slate-100 text-faco-text font-semibold rounded-lg border border-slate-200'
+                  KEY_DIGIT
                 )}
               >
                 {n}
@@ -372,7 +380,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '*',
-                'py-2 bg-faco-blue/10 hover:bg-faco-blue/15 text-faco-blue font-bold rounded-lg border border-faco-blue/20'
+                KEY_OP
               )}
             >
               ×
@@ -386,7 +394,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '-',
-                'py-2 bg-faco-blue/10 hover:bg-faco-blue/15 text-faco-blue font-bold rounded-lg border border-faco-blue/20'
+                KEY_OP
               )}
             >
               -
@@ -403,7 +411,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
                 }}
                 className={getKeyStyle(
                   n,
-                  'py-2 bg-slate-50 hover:bg-slate-100 text-faco-text font-semibold rounded-lg border border-slate-200'
+                  KEY_DIGIT
                 )}
               >
                 {n}
@@ -418,7 +426,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '+',
-                'py-2 bg-faco-blue/10 hover:bg-faco-blue/15 text-faco-blue font-bold rounded-lg border border-faco-blue/20'
+                KEY_OP
               )}
             >
               +
@@ -432,7 +440,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '.',
-                'py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg border border-slate-200'
+                KEY_FN
               )}
             >
               .
@@ -449,7 +457,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
                 }}
                 className={getKeyStyle(
                   n,
-                  'py-2 bg-slate-50 hover:bg-slate-100 text-faco-text font-semibold rounded-lg border border-slate-200'
+                  KEY_DIGIT
                 )}
               >
                 {n}
@@ -464,7 +472,7 @@ export const WorkshopCalculator: React.FC<WorkshopCalculatorProps> = ({
               }}
               className={getKeyStyle(
                 '=',
-                'py-2 bg-faco-blue hover:bg-faco-blue-dark text-white font-bold rounded-lg shadow-2xs'
+                KEY_EQUAL
               )}
             >
               =

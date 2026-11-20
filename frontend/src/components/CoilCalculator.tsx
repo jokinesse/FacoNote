@@ -4,15 +4,15 @@ import {
   Calculator,
   Download,
   Filter,
-  Layers,
+  
   Plus,
-  RotateCcw,
-  Trash2,
+  
+  
 } from 'lucide-react';
-import { CoilEntry, MATERIAL_GROUPS, STANDARD_MATERIALS } from '../types';
+import { CoilEntry } from '../types';
 import { ApiError, CoilSummaryResponse, MetalFamily, optimizerApi, useReference } from '../api';
 import {
-  BTN_DANGER,
+  
   BTN_SECONDARY,
   CELL_SHARED_EDGE,
   DeleteButton,
@@ -22,6 +22,7 @@ import {
   SharedBadge,
   KpiStrip,
   useDeleteAction,
+  CardTitle,
 } from './ui';
 
 // Calculateur Bobine : saisies propres à l'onglet Bobine, séparées du tableau des pièces.
@@ -607,10 +608,7 @@ export const CoilCalculator: React.FC<CoilCalculatorProps> = ({
       {/* Tableau des bobines */}
       <div className="faco-card bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
         <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
-          <div className="flex items-center gap-2">
-            <Calculator className="w-4 h-4 text-faco-blue" />
-            <h2 className="text-sm font-bold text-faco-text">Récapitulatif des bobines</h2>
-          </div>
+          <CardTitle icon={Calculator}>Récapitulatif des bobines</CardTitle>
           <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"

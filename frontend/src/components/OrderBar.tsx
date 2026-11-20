@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowRight, ChevronDown, ClipboardList, Printer, Redo2, Send, Trash2, Undo2 } from 'lucide-react';
+import { ChevronDown, ClipboardList, Printer, Redo2, Send, Trash2, Undo2 } from 'lucide-react';
 import { D365_ORDER_RE } from '../utils/d365Bridge';
 import { BTN_SECONDARY } from './ui';
 
@@ -85,7 +85,7 @@ export const OrderBar: React.FC<OrderBarProps> = ({
   ].filter(Boolean);
 
   return (
-    <div className="no-print sticky top-[var(--faco-header-h,57px)] z-20 faco-card bg-white border border-slate-200 rounded-xl shadow-xs">
+    <div className="no-print sticky top-[var(--faco-header-h,58px)] z-20 faco-card bg-white border border-slate-200 rounded-xl shadow-xs">
       <div className="px-4 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* Commande : n° et contenu */}
         <div className="flex items-center gap-2.5 min-w-0">

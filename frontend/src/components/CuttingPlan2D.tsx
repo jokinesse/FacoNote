@@ -9,6 +9,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { SlitNestResult } from '../types';
+import { CardTitle } from './ui';
 
 interface CuttingPlan2DProps {
   motherItems: {
@@ -68,12 +69,9 @@ export const CuttingPlan2D: React.FC<CuttingPlan2DProps> = ({
     <div className="faco-card bg-white border border-slate-200 rounded-xl p-4 shadow-2xs space-y-4">
       {/* Header épuré */}
       <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
-        <div className="flex items-center gap-2">
-          <Scissors className="w-4 h-4 text-faco-blue" />
-          <h3 className="text-sm font-bold text-faco-text">
-            Plan de coupe 2D ({motherItems.length} tôle{motherItems.length > 1 ? 's' : ''})
-          </h3>
-        </div>
+        <CardTitle icon={Scissors} as="h3">
+          Plan de coupe 2D ({motherItems.length} tôle{motherItems.length > 1 ? 's' : ''})
+        </CardTitle>
 
         <div className="bg-slate-100 p-0.5 rounded-lg border border-slate-200 flex text-xs">
           <button

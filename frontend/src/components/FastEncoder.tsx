@@ -48,6 +48,7 @@ import {
   KpiStrip,
   useDeleteAction,
   useNotify,
+  CardTitle,
 } from './ui';
 
 interface FastEncoderProps {
@@ -1350,12 +1351,7 @@ export const FastEncoder: React.FC<FastEncoderProps> = ({ view, cutResult, onTra
         {/* Table Top Controls Bar */}
         <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Calculator className="w-4 h-4 text-faco-blue" />
-              <h2 className="text-sm font-bold text-faco-text">
-                Récapitulatif par borne
-              </h2>
-            </div>
+            <CardTitle icon={Calculator}>Récapitulatif par borne</CardTitle>
 
           </div>
 

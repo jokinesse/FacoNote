@@ -1,16 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   FileText,
-  Upload,
   Plus,
   Trash2,
   RefreshCw,
-  Sparkles,
   CheckCircle2,
   AlertTriangle,
-  Sliders,
-  Scissors,
-  ArrowRight,
   Info,
   RotateCcw,
   Zap,
@@ -18,10 +13,8 @@ import {
 import {
   ShapedPiece,
   OptimizationResult,
-  MaterialType,
   STANDARD_MATERIALS,
   MATERIAL_GROUPS,
-  WorkshopScrapProposal,
 } from '../types';
 import type { AutoPieceBreakdown } from '../types';
 import { WorkshopPrintModal, WorkshopJobData } from './WorkshopPrintModal';
@@ -29,7 +22,6 @@ import { cleanWorkshopText } from '../utils/textCleaner';
 import { VisualPreEncoderModal } from './VisualPreEncoderModal';
 import {
   optimizerApi,
-  aiApi,
   ApiError,
   mapBackendOptimizationToResult,
   mapShapedPieceToModel,
@@ -42,7 +34,7 @@ import {
 } from '../api';
 import { CuttingPlan2D } from './CuttingPlan2D';
 import { AppTab, NextStep, StepIntro } from './Header';
-import { BTN_DANGER, KpiStrip, useDeleteAction } from './ui';
+import { BTN_DANGER, CardTitle, KpiStrip, useDeleteAction } from './ui';
 import { OrderLineDraft, OrderLines } from './OrderLines';
 
 interface OptimizerTabProps {
@@ -226,7 +218,6 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], 
   // Optimization Result
   const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
   const [isCalculating, setIsCalculating] = useState<boolean>(false);
-  const [calculationTimeMs, setCalculationTimeMs] = useState<number | null>(null);
   const [calculationError, setCalculationError] = useState<string | null>(null);
 
   // Manual piece entry form
@@ -234,24 +225,11 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], 
   const [newDev, setNewDev] = useState<string>('150');
   const [newLength, setNewLength] = useState<string>('2.0');
   const [newQty, setNewQty] = useState<string>('1');
-  const [newBends, setNewBends] = useState<string>('2');
   const [newMat, setNewMat] = useState<string>('Zinc Naturel 0.7');
   const [selectedForcedLength, setSelectedForcedLength] = useState<number | undefined>(undefined);
 
   // Notice and feedback message (replaces alert)
   const [actionNotice, setActionNotice] = useState<string | null>(null);
-
-  // PDF / Document Analysis State
-  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
-  const [uploadedFilePreview, setUploadedFilePreview] = useState<string | null>(null);
-  const [analyzingStep, setAnalyzingStep] = useState<string>('');
-  const [aiObservations, setAiObservations] = useState<string | null>(null);
-
-  // Gemini AI Advisory State
-  const [isAiAdvisoryLoading, setIsAiAdvisoryLoading] = useState<boolean>(false);
-  const [aiAdvisory, setAiAdvisory] = useState<string | null>(null);
 
   // Workshop Print Modal
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
@@ -371,7 +349,6 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], 
         accepted_proposal_ids: propIds,
       });
 
-      setCalculationTimeMs(response.executionTimeMs);
       const res = mapBackendOptimizationToResult(response.data, currentPieces);
       setOptimizationResult(res);
       setSheetsRecap({
@@ -455,7 +432,6 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], 
   const recapTotals = optimizationResult ? sheetsRecap?.totals : undefined;
   const grandTotalSheets = recapTotals?.total_sheets ?? 0;
   const grandTotalMeters = recapTotals?.total_length_m ?? 0;
-  const grandTotalSurface = recapTotals?.total_surface_m2 ?? 0;
   const grandTotalWeight = recapTotals?.total_weight_kg ?? 0;
 
   // Add piece manually (supports Quantité = 0 for auto meterage sizing)
@@ -464,7 +440,6 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], 
     const devNum = parseFloat(newDev);
     const lenNum = parseFloat(newLength);
     const qtyNum = parseInt(newQty, 10);
-    const bendsNum = parseInt(newBends, 10) || 2;
 
     if (isNaN(devNum) || devNum <= 0 || isNaN(lenNum) || lenNum <= 0 || isNaN(qtyNum) || qtyNum < 0) {
       setActionNotice('Veuillez saisir un développement et une longueur/métrage valides.');
@@ -501,7 +476,7 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], 
       dev: devNum,
       length: finalLength,
       quantity: finalQty,
-      bends: bendsNum,
+      bends: 2,
       material: newMat || selectedMaterial,
       originalTotalLengthRequested: originalRequested,
       workshopSplitReason: splitReason,
@@ -593,200 +568,6 @@ export const OptimizerTab: React.FC<OptimizerTabProps> = ({ initialPieces = [], 
       setAcceptedProposalIds([]);
       setUseWorkshopScraps(false);
     });
-  };
-
-  // Toggle Scrap Proposal
-  const handleToggleProposal = (propId: string) => {
-    if (acceptedProposalIds.includes(propId)) {
-      setAcceptedProposalIds((prev) => prev.filter((id) => id !== propId));
-    } else {
-      setAcceptedProposalIds((prev) => [...prev, propId]);
-      setUseWorkshopScraps(true);
-    }
-  };
-
-  // Accept all scrap proposals
-  const handleAcceptAllProposals = () => {
-    if (!optimizationResult?.workshopScrapProposals) return;
-    const allIds = optimizationResult.workshopScrapProposals.map((p) => p.id);
-    setAcceptedProposalIds(allIds);
-    setUseWorkshopScraps(true);
-    setActionNotice('Toutes les suggestions de chutes d\'atelier ont été appliquées.');
-  };
-
-  // Reset to 100% calculation without scraps
-  const handleResetToWithoutScraps = () => {
-    setUseWorkshopScraps(false);
-    setAcceptedProposalIds([]);
-    setActionNotice('Calcul réinitialisé 100% sur feuilles et bobines neuves (Sans chute).');
-  };
-
-// Helper: optimize and scale down enormous camera photos in browser for rapid, crystal-clear Gemini OCR
-async function optimizeImageForOcr(file: File): Promise<{ base64: string; mimeType: string; previewUrl: string }> {
-  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
-  if (isPdf) {
-    const base64 = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-    return { base64, mimeType: 'application/pdf', previewUrl: '' };
-  }
-
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const rawUrl = e.target?.result as string;
-      const img = new Image();
-      img.onload = () => {
-        const MAX_DIM = 2048;
-        let { width, height } = img;
-        if (width > MAX_DIM || height > MAX_DIM) {
-          if (width > height) {
-            height = Math.round((height * MAX_DIM) / width);
-            width = MAX_DIM;
-          } else {
-            width = Math.round((width * MAX_DIM) / height);
-            height = MAX_DIM;
-          }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve({ base64: rawUrl, mimeType: file.type || 'image/jpeg', previewUrl: rawUrl });
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        const optimized = canvas.toDataURL('image/jpeg', 0.92);
-        resolve({ base64: optimized, mimeType: 'image/jpeg', previewUrl: optimized });
-      };
-      img.onerror = () => {
-        resolve({ base64: rawUrl, mimeType: file.type || 'image/jpeg', previewUrl: rawUrl });
-      };
-      img.src = rawUrl;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-  // PDF Plan & Photo upload & AI extraction (supports camera, photos, PDFs)
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsAnalyzing(true);
-    setAnalysisError(null);
-    setAiObservations(null);
-    setUploadedFileName(file.name);
-    setAnalyzingStep("Optimisation de l'image / lecture du document...");
-
-    try {
-      const { base64, mimeType, previewUrl } = await optimizeImageForOcr(file);
-      setUploadedFilePreview(previewUrl || null);
-
-      setAnalyzingStep("Analyse multimodale IA par Gemini (détection des profils, cotes et plis)...");
-
-      const response = await aiApi.parseDocument({
-        file_base64: base64,
-        mime_type: mimeType,
-        standard_length: 2.0,
-      });
-
-      const data = response.data;
-
-      if (data.raw_observations) {
-        setAiObservations(data.raw_observations);
-      } else if (data.notes) {
-        setAiObservations(data.notes);
-      }
-
-      if (data.pieces && data.pieces.length > 0) {
-        const cleaned: ShapedPiece[] = data.pieces.map((p: any, idx: number) => ({
-          id: p.id || `p-${Date.now()}-${idx}`,
-          label: cleanWorkshopText(p.label || 'Pièce façonnée'),
-          dev: Number(p.dev) || 150,
-          length: Number(p.length) || 2.0,
-          quantity: Number(p.quantity) || 1,
-          bends: Number(p.bends) || 2,
-          material: p.material || selectedMaterial,
-          workshopSplitReason: cleanWorkshopText(p.workshopSplitReason || `Importé depuis ${file.name}`),
-        }));
-        setPieces((prev) => [...prev, ...cleaned]);
-        if (data.client) setClientName(cleanWorkshopText(data.client));
-        if (data.chantier) setChantierRef(cleanWorkshopText(data.chantier));
-        if (data.detected_finish && STANDARD_MATERIALS.includes(data.detected_finish)) {
-          setSelectedMaterial(data.detected_finish);
-          setNewMat(data.detected_finish);
-        }
-        setActionNotice(`${cleaned.length} pièce(s) détectée(s) et importée(s) avec succès depuis ${file.name}.`);
-      } else {
-        setAnalysisError(
-          data.notes ||
-            'Aucune pièce exploitable n\'a été détectée. Veuillez fournir une photo bien nette, éclairée et contrastée de vos profils ou croquis.'
-        );
-      }
-    } catch (err: any) {
-      console.error(err);
-      setAnalysisError(err?.message || 'Échec de l\'analyse du document ou de la photo. Vérifiez le format.');
-    } finally {
-      setIsAnalyzing(false);
-      setAnalyzingStep('');
-      e.target.value = '';
-    }
-  };
-
-  // Ask Gemini Workshop Advisor
-  const handleRequestAiAdvisory = async () => {
-    if (!optimizationResult) return;
-    setIsAiAdvisoryLoading(true);
-
-    try {
-      const prompt = `Tu es le chef d'atelier de pliage et façonnage zinc et alu chez Facozinc.
-Voici les détails du plan de débit optimisé :
-Matière : ${selectedMaterial}
-Nombre de pièces : ${pieces.length}
-Surfaces : Nette ${optimizationResult.totalNetSurfaceM2} m² / Brute ${optimizationResult.totalGrossSurfaceM2} m²
-Rendement : ${optimizationResult.materialEfficiencyRate}%
-Bobines débitées : ${optimizationResult.motherItemsNeeded.length} opérations.
-Suggestions de chutes rack atelier (100, 120, 150, 200, 250 mm) : ${optimizationResult.workshopScrapProposals?.length || 0} proposition(s).
-
-Donne 3 à 4 consignes concrètes et précises pour l'opérateur de la refendeuse et de la plieuse :
-1. Ordre de refente conseillé
-2. Précautions machine (sens de laminage, pression des molettes, bavures)
-3. Gestion des chutes de rives
-Sois direct, pro et concis en français.`;
-
-      const response = await fetch('/api/gemini-advisor', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setAiAdvisory(result.text || 'Conseil atelier généré.');
-      } else {
-        setAiAdvisory(
-          `Conseils Atelier :
-• Refendre en premier les largeurs les plus importantes pour stabiliser la bande dans la cisaille.
-• Température atelier minimum 10°C pour éviter les micro-fissures sur le zinc.
-• Vérifier le jeu de refente : molettes affûtées pour éviter toute amorce de déchirure sur les plis serrés.`
-        );
-      }
-    } catch (err) {
-      setAiAdvisory(
-        `Conseils Atelier :
-• Refendre en premier les largeurs les plus importantes pour stabiliser la bande dans la cisaille.
-• Température atelier minimum 10°C pour éviter les micro-fissures sur le zinc.
-• Vérifier le jeu de refente : molettes affûtées pour éviter toute amorce de déchirure sur les plis serrés.`
-      );
-    } finally {
-      setIsAiAdvisoryLoading(false);
-    }
   };
 
   // Totaux de la liste : calculés par le moteur avec l'optimisation
@@ -925,13 +706,6 @@ Sois direct, pro et concis en français.`;
       )}
 
       {/* 2. Pièces à débiter : même tableau que « Lignes de la commande » de l'étape Saisir */}
-      {analysisError && (
-        <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-          <span>{analysisError}</span>
-        </div>
-      )}
-
       <OrderLines
         title="Pièces à débiter"
         mainHeader="Dév (mm)"
@@ -1209,10 +983,7 @@ Sois direct, pro et concis en français.`;
           {/* RÉCAPITULATIF DES FEUILLES SORTIES & LEUR MATIÈRE */}
           {sheetsRecapByMaterial.length > 0 && (
             <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3.5">
-              <h4 className="text-sm font-bold text-faco-text flex items-center gap-2">
-                <FileText className="w-4 h-4 text-faco-blue" />
-                <span>Feuilles à sortir du stock</span>
-              </h4>
+              <CardTitle icon={FileText} as="h3">Feuilles à sortir du stock</CardTitle>
 
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3 items-start">
               <div className="space-y-3 min-w-0">

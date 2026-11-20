@@ -1,5 +1,5 @@
-import { mobileApi, ApiError } from '../api';
-import React, { useState, useEffect, useRef } from 'react';
+import { mobileApi } from '../api';
+import { useState, useEffect, useRef } from 'react';
 import {
   Camera,
   Upload,
@@ -9,11 +9,11 @@ import {
   Send,
   Smartphone,
   Laptop,
-  ArrowLeft,
+  
   Sparkles,
   AlertCircle,
   HelpCircle,
-  ExternalLink,
+  
 } from 'lucide-react';
 
 interface MobileScannerAppProps {

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, Copy, ListOrdered, Pencil, Trash2, X } from 'lucide-react';
 import { MATERIAL_GROUPS, STANDARD_MATERIALS } from '../types';
-import { DeleteButton } from './ui';
+import { CardTitle, DeleteButton } from './ui';
 
 // Une ligne saisie, telle que le backend l'a validée (aucun calcul ici : affichage seulement).
 export interface OrderLine {
@@ -187,12 +187,11 @@ export const OrderLines: React.FC<OrderLinesProps> = ({
           type="button"
           onClick={() => setIsOpen((o) => !o)}
           aria-expanded={isOpen}
-          className="text-sm font-bold text-faco-text flex items-center gap-2 cursor-pointer"
+          className="flex items-center gap-2 cursor-pointer"
         >
-          <ListOrdered className="w-4 h-4 text-faco-blue" />
-          <span>
+          <CardTitle icon={ListOrdered} as="span">
             {title} ({lines.length})
-          </span>
+          </CardTitle>
           <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           <span className="text-xs font-semibold text-faco-blue">{isOpen ? 'Fermer' : 'Ouvrir'}</span>
         </button>

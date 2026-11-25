@@ -92,6 +92,10 @@ D365_COIL_ARTICLES: Final[dict[str, dict[int, str]]] = {
     "Alu RAL 9010 0.7": {1000: "AR00112108"},
 }
 
+# Bobines saisies en kilos (et non en mètres) dans la grille Nomenclature de D365,
+# demande de l'atelier du 25/11/2026 : Alu RAL 7039 0.7 en 650.
+D365_COIL_ARTICLES_KG: Final[frozenset[str]] = frozenset({"AR00131334"})
+
 # Quantité maximale d'une ligne de la grille Nomenclature (bobine ou chute), en mètres.
 # Même plafond que l'extension : au-delà, l'envoi est refusé.
 D365_MAX_QUANTITY_M: Final[float] = 100000.0

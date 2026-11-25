@@ -271,8 +271,8 @@ def test_pieces_and_coils_same_material() -> None:
     assert group["has_pieces"] is True
     assert group["lengths"]["333"] == 10.0
     assert group["coils"] == [
-        {"width_mm": 600, "article": "AR00002960", "quantity_m": 2.01},
-        {"width_mm": 1000, "article": "AR00002953", "quantity_m": 7.5},
+        {"width_mm": 600, "article": "AR00002960", "quantity_m": 2.01, "quantity_kg": None},
+        {"width_mm": 1000, "article": "AR00002953", "quantity_m": 7.5, "quantity_kg": None},
     ]
     assert group["all_articles"] == ["AR00002953", "AR00002956", "AR00002958", "AR00002960"]
     assert group["chute_m"] == 3.2
@@ -288,7 +288,7 @@ def test_pieces_only_material_in_v2_order() -> None:
     naturel = groups["Zinc Naturel 0.7"]
     assert naturel["coils"] == [] and naturel["chute_m"] == 0.0 and naturel["has_pieces"] is True
     assert naturel["all_articles"] == ["AR00002875", "AR00002891", "AR00002896", "AR00002904"]
-    assert groups["Zinc ATZ 0.7"]["coils"] == [{"width_mm": 750, "article": "AR00002957", "quantity_m": 3.0}]
+    assert groups["Zinc ATZ 0.7"]["coils"] == [{"width_mm": 750, "article": "AR00002957", "quantity_m": 3.0, "quantity_kg": None}]
 
 
 def test_coils_only() -> None:
@@ -299,9 +299,9 @@ def test_coils_only() -> None:
     for g in data["groups"]:
         assert g["has_pieces"] is False
         assert all(v == 0 for v in g["lengths"].values()) and len(g["lengths"]) == 19
-    assert groups["Zinc Naturel 0.8"]["coils"] == [{"width_mm": 1100, "article": "AR00002869", "quantity_m": 8.0}]
+    assert groups["Zinc Naturel 0.8"]["coils"] == [{"width_mm": 1100, "article": "AR00002869", "quantity_m": 8.0, "quantity_kg": None}]
     assert groups["Zinc Naturel 0.8"]["matiere"] == "ZN"
-    assert groups["Alu RAL 9005 0.7"]["coils"] == [{"width_mm": 650, "article": "AR00106474", "quantity_m": 2.5}]
+    assert groups["Alu RAL 9005 0.7"]["coils"] == [{"width_mm": 650, "article": "AR00106474", "quantity_m": 2.5, "quantity_kg": None}]
 
 
 def test_alias_merges_pieces_and_coils() -> None:
@@ -313,7 +313,7 @@ def test_alias_merges_pieces_and_coils() -> None:
     assert group["material"] == "Alu RAL 7039 0.7"
     assert group["matiere"] == "ALU PREFA 47 PATINA GRAU"
     assert group["lengths"]["400"] == 3.0
-    assert group["coils"] == [{"width_mm": 1000, "article": "AR00120013", "quantity_m": 3.0}]
+    assert group["coils"] == [{"width_mm": 1000, "article": "AR00120013", "quantity_m": 3.0, "quantity_kg": None}]
 
 
 def test_chute_without_coil_is_sent() -> None:
@@ -336,7 +336,7 @@ def test_1100_atz_warning_rest_sent() -> None:
         "material": "Zinc ATZ 0.7", "code": "NO_COIL_ARTICLE",
         "message": "Zinc ATZ 0.7 : pas de bobine 1100 dans D365. Non envoyée.",
     }]
-    assert data["groups"][0]["coils"] == [{"width_mm": 1000, "article": "AR00002954", "quantity_m": 2.0}]
+    assert data["groups"][0]["coils"] == [{"width_mm": 1000, "article": "AR00002954", "quantity_m": 2.0, "quantity_kg": None}]
 
 
 @pytest.mark.parametrize(("material", "width"), [("Alu RAL 7016 0.7", 650), ("Alu RAL 9010 0.7", 650)])
@@ -468,7 +468,7 @@ def test_coil_rounds_to_zero_not_sent() -> None:
         "material": "Zinc ATZ 0.8", "code": "ROUNDS_TO_ZERO",
         "message": "Zinc ATZ 0.8 : bobine 1000 de 0,004 m, trop courte, non envoyée.",
     }]
-    assert data["groups"][0]["coils"] == [{"width_mm": 600, "article": "AR00002960", "quantity_m": 2.0}]
+    assert data["groups"][0]["coils"] == [{"width_mm": 600, "article": "AR00002960", "quantity_m": 2.0, "quantity_kg": None}]
 
 
 def test_chute_rounds_to_zero_not_sent() -> None:
@@ -570,3 +570,13 @@ def test_reference_coil_widths_per_material() -> None:
     ref = {m.name: m for m in build_reference().materials}
     assert ref["Zinc ATZ 0.8"].coil_widths_mm == [600, 670, 750, 1000]
     assert ref["Zinc Naturel 0.8"].coil_widths_mm == [600, 670, 750, 1000, 1100]
+
+
+def test_patina_grau_650_sent_in_kilos() -> None:
+    # AR00131334 (Alu RAL 7039 0.7, 650) : saisi en kilos dans D365 ; poids = 0,65 m × 10 m × 1,89 kg/m²
+    data = dump([], [coil("1", 650, 2, 5.0, "Alu RAL 7039 0.7"), coil("2", 1000, 1, 4.0, "Alu RAL 7039 0.7")])
+    [group] = data["groups"]
+    assert group["coils"] == [
+        {"width_mm": 650, "article": "AR00131334", "quantity_m": 10.0, "quantity_kg": 12.29},
+        {"width_mm": 1000, "article": "AR00120013", "quantity_m": 4.0, "quantity_kg": None},
+    ]

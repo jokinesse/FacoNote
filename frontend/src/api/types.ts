@@ -500,6 +500,8 @@ export interface D365OrderCoil {
   width_mm: number;
   article: string;
   quantity_m: number;
+  // Poids à saisir à la place des mètres (codes saisis en kilos dans D365) ; null = mètres
+  quantity_kg: number | null;
 }
 
 // Version 1 : seulement material, matiere, epaisseur, lengths. Version 2 : les autres champs aussi.

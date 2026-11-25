@@ -11,11 +11,14 @@ Règles :
 - bobines ou chutes envoyées : version 2 (has_pieces, coils, all_articles, chute_m en plus) ;
 - bobine sans code AR : pas envoyée, avertissement, le reste part ;
 - chute sans bobine : envoyée (la matière a au moins un code AR pour reconnaître la grille) ;
-- bobine ou chute qui vaut 0,00 m une fois arrondie : pas envoyée, avertissement.
+- bobine ou chute qui vaut 0,00 m une fois arrondie : pas envoyée, avertissement ;
+- bobine saisie en kilos dans D365 (D365_COIL_ARTICLES_KG) : quantity_kg = poids du
+  tableau des bobines (summarize_coils), les mètres restent dans quantity_m.
 """
 
 from app.core.constants import (
     D365_COIL_ARTICLES,
+    D365_COIL_ARTICLES_KG,
     D365_MATIERE_LABELS,
     D365_MAX_QUANTITY_M,
     D365_SHEET_ARTICLES,
@@ -138,8 +141,9 @@ def build_d365_order(
                         ),
                     )
                 )
+            quantity_kg = row.weight_kg if article in D365_COIL_ARTICLES_KG else None
             coils_by_material.setdefault(row.material, []).append(
-                D365OrderCoil(width_mm=row.width, article=article, quantity_m=quantity_m)
+                D365OrderCoil(width_mm=row.width, article=article, quantity_m=quantity_m, quantity_kg=quantity_kg)
             )
         skipped_chutes: list[str] = []
         for chute in coil_summary.chutes:

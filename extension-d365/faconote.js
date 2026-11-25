@@ -77,6 +77,8 @@
       if (typeof c.article !== 'string' || !FD.AR_RE.test(c.article)) return `${wc} : code article invalide (attendu AR + 8 chiffres).`;
       if (!Number.isInteger(c.width_mm) || c.width_mm < 1 || c.width_mm > MAX_WIDTH_MM) return `${wc} : largeur invalide.`;
       if (!isQuantity(c.quantity_m, false)) return `${wc} : quantité invalide (plus de 0, au plus ${MAX_LENGTH_M} m, 2 décimales).`;
+      // 0.4.6 : poids calculé par le backend pour les codes saisis en kilos dans D365 (null = saisie en mètres)
+      if (c.quantity_kg != null && !isQuantity(c.quantity_kg, false)) return `${wc} : poids invalide (plus de 0, 2 décimales).`;
       if (coilArticles.has(c.article)) return `${w} : code ${c.article} en double.`;
       coilArticles.add(c.article);
     }
@@ -133,7 +135,7 @@
       receivedAt: new Date().toISOString(),
       groups: groups.map((g) => {
         const hasPieces = v2 ? g.has_pieces : true;
-        const coils = v2 ? g.coils.map((c) => ({ width_mm: c.width_mm, article: c.article, quantity_m: c.quantity_m })) : [];
+        const coils = v2 ? g.coils.map((c) => ({ width_mm: c.width_mm, article: c.article, quantity_m: c.quantity_m, quantity_kg: c.quantity_kg != null ? c.quantity_kg : null })) : [];
         const chute = v2 ? g.chute_m : 0;
         return {
           material: g.material.trim(),

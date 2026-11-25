@@ -21,12 +21,18 @@ class D365OrderRequest(BaseModel):
 
 
 class D365OrderCoil(BaseModel):
-    """Une bobine à saisir dans la grille Nomenclature : quantité = longueur totale en mètres."""
+    """
+    Une bobine à saisir dans la grille Nomenclature : quantité = longueur totale en mètres,
+    sauf les codes de D365_COIL_ARTICLES_KG, saisis en kilos (quantity_kg renseigné).
+    """
     model_config = ConfigDict(extra="forbid")
 
     width_mm: int
     article: str = Field(..., description="Code article D365 (« AR » + 8 chiffres)")
     quantity_m: float = Field(..., description="Longueur totale en mètres, 2 décimales")
+    quantity_kg: float | None = Field(
+        None, description="Poids en kilos, 2 décimales, à saisir à la place des mètres ; null = saisie en mètres"
+    )
 
 
 class D365OrderGroup(BaseModel):

@@ -473,7 +473,13 @@
     const gridArs = [...codes].filter((c) => FD.AR_RE.test(c));
     const candidates = order.groups.filter((g) => g.all_articles.some((a) => codes.has(a)));
     if (!candidates.length) {
-      return { error: `Matière inconnue pour ${order.orderNumber}.`, errorDetail: { summary: 'AR de la grille', lines: gridArs.length ? gridArs : ['aucun'] } };
+      // Aucune bobine de la commande dans la grille : codes de toutes les bobines commandées, à ajouter à la main
+      const copies = order.groups.flatMap((g) => g.coils.map((c) => ({ text: `${g.material} · ${c.width_mm} mm`, title: c.article, copy: c.article })));
+      return {
+        error: `Matière inconnue pour ${order.orderNumber}.`,
+        errorDetail: { summary: 'AR de la grille', lines: gridArs.length ? gridArs : ['aucun'] },
+        copies,
+      };
     }
     if (candidates.length > 1) {
       return { error: `Plusieurs matières possibles : ${candidates.map((g) => g.material).join(', ')}.` };
@@ -488,15 +494,18 @@
       ? 'non trouvé : faites défiler la grille, puis relancez'
       : 'hors écran, lu au pré-remplissage';
     // label : largeur (ou « Chute ») ; le code article reste au survol (title) ou en petit
-    const want = (code, label, value, absentText) => {
+    // copy : code à ajouter à la main dans D365 (+ Nouveau), affiché pour un copier-coller
+    const want = (code, label, value, absentText, unit = 'm') => {
       const found = rows.filter((r) => r.code === code);
-      if (!found.length) problems.push({ text: notSeen ? `${label} ${notSeen}` : absentText, title: code });
+      if (!found.length) problems.push({ text: notSeen ? `${label} ${notSeen}` : absentText, title: code, copy: code });
       else if (found.length > 1) problems.push({ text: `${label} : ${found.length} lignes, impossible de choisir`, title: code });
-      else tasks.push({ code, label, value });
+      else tasks.push({ code, label, value, unit });
     };
     for (const c of group.coils) {
       const label = `${c.width_mm} mm`;
-      want(c.article, label, c.quantity_m, `${label} absent : ajoutez-le (+ Nouveau)`);
+      // Codes saisis en kilos dans D365 : poids calculé par le backend (quantity_kg)
+      const kg = c.quantity_kg != null;
+      want(c.article, label, kg ? c.quantity_kg : c.quantity_m, `${label} absent : ajoutez-le (+ Nouveau)`, kg ? 'kg' : 'm');
     }
     if (group.chute_m > 0) {
       want('CHUTE', 'Chute', group.chute_m, 'Chute absente : ajoutez-la (+ Nouveau)');
@@ -636,6 +645,9 @@
     .msg.ko { background: #fdeeee; border-color: #b71c1c; }
     .msg.warn { background: #fff8e8; border-color: #d84a17; }
     .head { font-weight: 700; } .line { margin-top: 2px; }
+    .copyline { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+    input.copy { font: 11px Consolas, monospace; padding: 1px 3px; border: 1px solid #b0b0b0; border-radius: 3px; background: #fff; color: #222; user-select: all; }
+    button.cp { font-size: 11px; padding: 1px 6px; border: 1px solid #b0b0b0; border-radius: 3px; background: #fff; color: #222; cursor: pointer; }
     details { margin-top: 2px; } summary { cursor: pointer; color: #555; font-size: 11px; }
     details div { font-size: 11px; color: #555; }
     pre { margin: 4px 0 0; padding: 4px; background: #f5f5f5; white-space: pre-wrap;
@@ -722,6 +734,30 @@
 
   const btn = (text, onclick, { kind = '', off = false, title = '' } = {}) =>
     el('button', { class: kind ? `b ${kind}` : 'b', text, onclick, 'data-focus': `bouton:${text}`, ...(title ? { title } : {}), ...(off ? { disabled: '' } : {}) });
+
+  // Ligne avec un code à copier : texte, champ en lecture seule (tout sélectionné au clic) et bouton Copier
+  function copyLine(l, cls) {
+    const field = el('input', {
+      class: 'copy', value: l.copy, readonly: '', size: String(l.copy.length), 'aria-label': `Code ${l.copy}`,
+      'data-focus': `copie:${l.copy}`, onfocus: (e) => e.target.select(), onclick: (e) => e.target.select(),
+    });
+    const onCopy = async (e) => {
+      const b = e.currentTarget;
+      try {
+        await navigator.clipboard.writeText(l.copy);
+        b.textContent = 'Copié ✓';
+      } catch (_) {
+        field.focus();
+        field.select();
+        b.textContent = 'Ctrl+C';
+      }
+    };
+    return el('div', { class: `${cls} copyline`, title: l.title || l.copy }, [
+      el('span', { text: l.text }),
+      field,
+      el('button', { class: 'cp', text: 'Copier', title: `Copier ${l.copy}`, 'data-focus': `copier:${l.copy}`, onclick: onCopy }),
+    ]);
+  }
 
   const table = (head, rows) => el('table', {}, [el('tr', {}, head.map((t) => el('th', { text: t, scope: 'col' }))), ...rows]);
 
@@ -820,6 +856,10 @@
     const box = el('div', { class: 'msg warn' });
     if (p.error) {
       box.append(el('div', { class: 'head ko', text: p.error }));
+      if (p.copies && p.copies.length) {
+        box.append(el('div', { class: 'line', text: 'Bobines de la commande à ajouter (+ Nouveau) :' }));
+        for (const c of p.copies) box.append(copyLine(c, 'line'));
+      }
       if (p.errorDetail) box.append(listFold(p.errorDetail));
       return box;
     }
@@ -831,7 +871,7 @@
       const rows = [
         ...fills.map((t) => el('tr', {}, [
           el('td', { title: t.code }, [el('span', { text: t.label }), t.code !== 'CHUTE' ? el('span', { class: 'code', text: t.code }) : null]),
-          el('td', { class: 'num', text: FD.formatD365(t.value) }),
+          el('td', { class: 'num', text: t.unit === 'kg' ? `${FD.formatD365(t.value)} kg` : FD.formatD365(t.value) }),
         ])),
         ...clears.map((t) => el('tr', {}, [el('td', { text: t.code }), el('td', { class: 'num', text: '(vidé)' })])),
       ];
@@ -839,7 +879,7 @@
     } else if (!p.problems.length) {
       box.append(el('div', { text: 'Rien à saisir.' }));
     }
-    for (const pr of p.problems) box.append(el('div', { class: 'line ko', text: pr.text, title: pr.title }));
+    for (const pr of p.problems) box.append(pr.copy ? copyLine(pr, 'line ko') : el('div', { class: 'line ko', text: pr.text, title: pr.title }));
     const ig = ignoredDetails(p.ignored);
     if (ig) box.append(listFold(ig));
     return box;
@@ -869,7 +909,7 @@
     const lines = (m.lines || []).map((l) => (typeof l === 'string' ? { text: l } : l));
     return el('div', { class: `msg ${m.kind}`, role: 'status' }, [
       el('div', { class: 'head', text: m.text }),
-      ...lines.map((l) => el('div', { class: 'line', text: l.text, ...(l.title ? { title: l.title } : {}) })),
+      ...lines.map((l) => (l.copy ? copyLine(l, 'line') : el('div', { class: 'line', text: l.text, ...(l.title ? { title: l.title } : {}) }))),
       ...(m.small ? String(m.small).split('\n').map((t) => el('div', { class: 'small', text: t })) : []),
       ...(m.details || []).filter(Boolean).map(listFold),
     ]);
@@ -1116,7 +1156,7 @@
     }
     state.busy = false;
     if (p.error) {
-      setMessage('ko', p.error, { details: [p.errorDetail] });
+      setMessage('ko', p.error, { lines: p.copies && p.copies.length ? [{ text: 'Bobines de la commande à ajouter (+ Nouveau) :' }, ...p.copies] : [], details: [p.errorDetail] });
       return;
     }
     const { order, group } = p;

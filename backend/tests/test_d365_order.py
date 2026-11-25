@@ -311,7 +311,7 @@ def test_alias_merges_pieces_and_coils() -> None:
     )
     [group] = data["groups"]
     assert group["material"] == "Alu RAL 7039 0.7"
-    assert group["matiere"] == "ALU PREFA 47 PATINA GRAU P10"
+    assert group["matiere"] == "ALU PREFA 47 PATINA GRAU"
     assert group["lengths"]["400"] == 3.0
     assert group["coils"] == [{"width_mm": 1000, "article": "AR00120013", "quantity_m": 3.0}]
 
